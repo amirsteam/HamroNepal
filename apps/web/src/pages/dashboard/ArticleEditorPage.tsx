@@ -27,6 +27,7 @@ interface ArticleFormData {
   featuredImage: string;
   tags: string;
   status: "draft" | "published";
+  isBreaking: boolean;
 }
 
 const initialFormData: ArticleFormData = {
@@ -38,6 +39,7 @@ const initialFormData: ArticleFormData = {
   featuredImage: "",
   tags: "",
   status: "draft",
+  isBreaking: false,
 };
 
 export function ArticleEditorPage() {
@@ -75,6 +77,7 @@ export function ArticleEditorPage() {
               featuredImage: article.featuredImage || "",
               tags: article.tagIds?.join(", ") || "",
               status: article.status === "published" ? "published" : "draft",
+              isBreaking: article.isBreaking || false,
             });
           }
         }
@@ -198,6 +201,7 @@ export function ArticleEditorPage() {
           | "pending"
           | "published"
           | "archived",
+        isBreaking: formData.isBreaking,
       };
 
       if (isEditing) {
@@ -537,6 +541,18 @@ export function ArticleEditorPage() {
                 className="w-4 h-4 text-primary focus:ring-primary"
               />
               <span className="text-sm text-gray-700">प्रकाशित गर्नुहोस्</span>
+            </label>
+            <span className="text-gray-300">|</span>
+            <label className="flex items-center space-x-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={formData.isBreaking}
+                onChange={(e) =>
+                  setFormData((prev) => ({ ...prev, isBreaking: e.target.checked }))
+                }
+                className="w-4 h-4 text-red-600 focus:ring-red-500 rounded"
+              />
+              <span className="text-sm text-red-600 font-medium">ब्रेकिङ न्युज</span>
             </label>
           </div>
 
