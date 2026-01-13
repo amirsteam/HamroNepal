@@ -509,27 +509,7 @@ export function ArticleEditorPage() {
               </label>
             )}
 
-            {/* Or URL input - only show when no image uploaded */}
-            {!formData.featuredImage && (
-              <div>
-                <p className="text-center text-gray-400 text-sm my-2">वा</p>
-                <label
-                  htmlFor="featuredImageUrl"
-                  className="block text-sm font-medium text-gray-700 mb-1"
-                >
-                  URL राख्नुहोस्
-                </label>
-                <input
-                  type="url"
-                  id="featuredImageUrl"
-                  name="featuredImage"
-                  value={formData.featuredImage}
-                  onChange={handleChange}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition text-sm"
-                  placeholder="https://example.com/image.jpg"
-                />
-              </div>
-            )}
+
           </div>
         </div>
 
