@@ -207,8 +207,8 @@ export function ArticleEditorPage() {
         const createdAtBS = formatBSDate(adToBS(new Date()));
         await createArticle({
           ...baseData,
-          authorId: author.$id,
-          authorName: author.displayName || "Unknown",
+          authorId: author.userId,
+          authorName: author.displayName || author.userId,
           createdAtBS,
         });
       }
