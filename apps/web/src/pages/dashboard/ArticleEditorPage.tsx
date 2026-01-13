@@ -419,9 +419,17 @@ export function ArticleEditorPage() {
             {formData.featuredImage ? (
               <div className="relative">
                 <img
-                  src={formData.featuredImage}
+                  src={
+                    formData.featuredImage.startsWith("http")
+                      ? formData.featuredImage
+                      : getImagePreviewUrl(formData.featuredImage, 600, 400)
+                  }
                   alt="Featured"
                   className="w-full h-40 object-cover rounded-lg"
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).src =
+                      "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='150'%3E%3Crect fill='%23f3f4f6' width='200' height='150'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' fill='%239ca3af'%3EImage Error%3C/text%3E%3C/svg%3E";
+                  }}
                 />
                 <button
                   type="button"
@@ -501,24 +509,27 @@ export function ArticleEditorPage() {
               </label>
             )}
 
-            {/* Or URL input */}
-            <div>
-              <label
-                htmlFor="featuredImageUrl"
-                className="block text-sm font-medium text-gray-700 mb-1"
-              >
-                वा URL राख्नुहोस्
-              </label>
-              <input
-                type="url"
-                id="featuredImageUrl"
-                name="featuredImage"
-                value={formData.featuredImage}
-                onChange={handleChange}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition text-sm"
-                placeholder="https://example.com/image.jpg"
-              />
-            </div>
+            {/* Or URL input - only show when no image uploaded */}
+            {!formData.featuredImage && (
+              <div>
+                <p className="text-center text-gray-400 text-sm my-2">वा</p>
+                <label
+                  htmlFor="featuredImageUrl"
+                  className="block text-sm font-medium text-gray-700 mb-1"
+                >
+                  URL राख्नुहोस्
+                </label>
+                <input
+                  type="url"
+                  id="featuredImageUrl"
+                  name="featuredImage"
+                  value={formData.featuredImage}
+                  onChange={handleChange}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition text-sm"
+                  placeholder="https://example.com/image.jpg"
+                />
+              </div>
+            )}
           </div>
         </div>
 

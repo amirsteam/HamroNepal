@@ -226,10 +226,14 @@ export async function toggleBreaking(id: string): Promise<Article> {
  * Upload an article image.
  */
 export async function uploadImage(file: File): Promise<string> {
+  // File permissions - readable by anyone, manageable by uploader
+  const permissions = [Permission.read(Role.any())];
+
   const result = await storage.createFile(
     config.buckets.articleImages,
     ID.unique(),
-    file
+    file,
+    permissions
   );
 
   return result.$id;
