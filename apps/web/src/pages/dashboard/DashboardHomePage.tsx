@@ -6,7 +6,7 @@
 
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { getDashboardStats, getMyArticles } from "@/services/admin.service";
+import { getDashboardStats, getMyArticles, getImagePreviewUrl } from "@/services/admin.service";
 import { useAuth } from "@/contexts/AuthContext";
 import type { Article } from "@/types";
 import { toNepaliDigits, formatBSDate, adToBS } from "@/lib/bs-date";
@@ -30,8 +30,8 @@ export function DashboardHomePage() {
 
       try {
         const [statsData, articlesData] = await Promise.all([
-          getDashboardStats(author.$id),
-          getMyArticles(author.$id, 5),
+          getDashboardStats(author.userId),
+          getMyArticles(author.userId, 5),
         ]);
 
         setStats(statsData);
@@ -261,7 +261,11 @@ export function DashboardHomePage() {
                 <div className="flex items-center space-x-4 min-w-0">
                   {article.featuredImage && (
                     <img
-                      src={article.featuredImage}
+                      src={
+                        article.featuredImage.startsWith("http")
+                          ? article.featuredImage
+                          : getImagePreviewUrl(article.featuredImage, 160, 120)
+                      }
                       alt={article.title}
                       className="w-16 h-12 object-cover rounded hidden sm:block"
                     />

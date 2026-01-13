@@ -10,6 +10,7 @@ import {
   getMyArticles,
   deleteArticle,
   updateArticleStatus,
+  getImagePreviewUrl,
 } from "@/services/admin.service";
 import { useAuth } from "@/contexts/AuthContext";
 import type { Article } from "@/types";
@@ -37,7 +38,7 @@ export function ArticlesListPage() {
     setLoading(true);
     try {
       const result = await getMyArticles(
-        author.$id,
+        author.userId,
         limit,
         (page - 1) * limit,
         statusFilter === "all" ? undefined : statusFilter
@@ -252,7 +253,11 @@ export function ArticlesListPage() {
                         <div className="flex items-center space-x-4">
                           {article.featuredImage ? (
                             <img
-                              src={article.featuredImage}
+                              src={
+                                article.featuredImage.startsWith("http")
+                                  ? article.featuredImage
+                                  : getImagePreviewUrl(article.featuredImage, 160, 120)
+                              }
                               alt={article.title}
                               className="w-16 h-12 object-cover rounded"
                             />
@@ -409,7 +414,11 @@ export function ArticlesListPage() {
                   <div className="flex items-start space-x-3">
                     {article.featuredImage ? (
                       <img
-                        src={article.featuredImage}
+                        src={
+                          article.featuredImage.startsWith("http")
+                            ? article.featuredImage
+                            : getImagePreviewUrl(article.featuredImage, 200, 140)
+                        }
                         alt={article.title}
                         className="w-20 h-14 object-cover rounded flex-shrink-0"
                       />
