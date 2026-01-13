@@ -202,6 +202,11 @@ export function ArticleEditorPage() {
           | "published"
           | "archived",
         isBreaking: formData.isBreaking,
+        // Set publishedAt when publishing
+        ...(formData.status === "published" && {
+          publishedAt: new Date().toISOString(),
+          publishedAtBS: formatBSDate(adToBS(new Date())),
+        }),
       };
 
       if (isEditing) {
