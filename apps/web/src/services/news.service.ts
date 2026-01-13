@@ -199,16 +199,22 @@ export async function incrementViewCount(articleId: string): Promise<void> {
  * Get article image URL.
  */
 export function getArticleImageUrl(
-  fileId: string,
+  imageRef: string,
   width?: number,
   height?: number
 ): string {
-  if (!fileId) return "/placeholder-news.jpg";
+  if (!imageRef) return "/placeholder-news.jpg";
 
+  // If it's already a full URL, return it directly
+  if (imageRef.startsWith("http://") || imageRef.startsWith("https://")) {
+    return imageRef;
+  }
+
+  // Otherwise treat it as a file ID
   return storage
     .getFilePreview(
       config.buckets.articleImages,
-      fileId,
+      imageRef,
       width,
       height,
       undefined,
@@ -216,3 +222,4 @@ export function getArticleImageUrl(
     )
     .toString();
 }
+

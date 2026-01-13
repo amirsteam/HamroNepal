@@ -1,0 +1,37 @@
+﻿{
+  "total": 2,
+  "documents": [
+    {
+      "name": "αñ░αñ« αñ¬αñ░αñ╕αñª αñ╢αñ░αñ«",
+      "email": "ram@hamronepal.com",
+      "bio": "αñ╡αñ░αñ╖αñá αñ¬αññαñ░αñòαñ░",
+      "avatar": null,
+      "role": "editor",
+      "userId": "system",
+      "isActive": true,
+      "$id": "author1",
+      "$sequence": 1,
+      "$createdAt": "2026-01-13T11:32:56.171+00:00",
+      "$updatedAt": "2026-01-13T11:32:56.171+00:00",
+      "$permissions": [],
+      "$databaseId": "hamronepal_db",
+      "$collectionId": "authors"
+    },
+    {
+      "name": "Amir",
+      "email": "amir_mpsteam2023@kusoed.edu.np",
+      "bio": null,
+      "avatar": null,
+      "role": "admin",
+      "userId": "bivan",
+      "isActive": true,
+      "$id": "696658e20031192dd408",
+      "$sequence": 2,
+      "$createdAt": "2026-01-13T14:38:26.002+00:00",
+      "$updatedAt": "2026-01-13T16:45:42.718+00:00",
+      "$permissions": [],
+      "$databaseId": "hamronepal_db",
+      "$collectionId": "authors"
+    }
+  ]
+}
