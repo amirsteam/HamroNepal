@@ -117,13 +117,13 @@ export async function createArticle(
     viewCount: 0,
   };
 
-  // Document-level permissions
+  // Document-level permissions - use valid roles only
   const permissions = [
     Permission.read(Role.any()),
     Permission.update(Role.user(data.authorId)),
-    Permission.update(Role.team("admin")),
-    Permission.update(Role.team("editor")),
-    Permission.delete(Role.team("admin")),
+    Permission.delete(Role.user(data.authorId)),
+    Permission.update(Role.users()),
+    Permission.delete(Role.users()),
   ];
 
   const doc = await databases.createDocument(
