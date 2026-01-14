@@ -83,28 +83,6 @@ export function NewsDetailPage() {
 
   return (
     <div className="container mx-auto px-4 py-6">
-      {/* Breadcrumb */}
-      <nav className="text-sm text-gray-500 mb-4">
-        <Link to="/" className="hover:text-primary">
-          गृहपृष्ठ
-        </Link>
-        {category && (
-          <>
-            <span className="mx-2">/</span>
-            <Link
-              to={`/category/${category.slug}`}
-              className="hover:text-primary"
-            >
-              {category.name}
-            </Link>
-          </>
-        )}
-        <span className="mx-2">/</span>
-        <span className="text-gray-900 line-clamp-1">
-          {article?.title || "..."}
-        </span>
-      </nav>
-
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Main Content */}
         <article className="lg:col-span-2">
