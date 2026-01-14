@@ -17,6 +17,8 @@ import { getCategories } from "@/services/categories.service";
 import { useAuth } from "@/contexts/AuthContext";
 import type { Category } from "@/types";
 import { adToBS, formatBSDate } from "@/lib/bs-date";
+import { AIAssistantModal } from "@/components/dashboard/AIAssistantModal";
+import type { GeneratedArticle } from "@/services/ai.service";
 
 interface ArticleFormData {
   title: string;
@@ -56,6 +58,7 @@ export function ArticleEditorPage() {
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const [showAIModal, setShowAIModal] = useState(false);
 
   const isEditing = !!id;
 
@@ -304,6 +307,16 @@ export function ArticleEditorPage() {
               placeholder="समाचारको शीर्षक लेख्नुहोस्..."
             />
           </div>
+
+          {/* AI Assistant Button */}
+          <button
+            type="button"
+            onClick={() => setShowAIModal(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-lg hover:opacity-90 transition text-sm font-medium"
+          >
+            <span>✨</span>
+            AI सहायता
+          </button>
 
           {/* Advanced Options Toggle */}
           <button
@@ -647,6 +660,39 @@ export function ArticleEditorPage() {
           </div>
         </div>
       </form>
+
+      {/* AI Assistant Modal */}
+      <AIAssistantModal
+        isOpen={showAIModal}
+        onClose={() => setShowAIModal(false)}
+        currentTitle={formData.title}
+        currentContent={formData.content}
+        categories={categories}
+        onApplyDraft={(draft: GeneratedArticle) => {
+          setFormData((prev) => ({
+            ...prev,
+            title: draft.title,
+            excerpt: draft.excerpt,
+            content: draft.content,
+          }));
+          setShowAIModal(false);
+        }}
+        onApplyExcerpt={(excerpt: string) => {
+          setFormData((prev) => ({
+            ...prev,
+            excerpt,
+          }));
+          setShowAIModal(false);
+        }}
+        onApplyTags={(categoryId: string, tags: string) => {
+          setFormData((prev) => ({
+            ...prev,
+            categoryId,
+            tags,
+          }));
+          setShowAIModal(false);
+        }}
+      />
     </div>
   );
 }
