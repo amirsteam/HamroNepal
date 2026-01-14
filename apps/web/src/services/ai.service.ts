@@ -78,7 +78,7 @@ async function callGroq(prompt: string): Promise<string> {
 }
 
 /**
- * Extract JSON from Gemini response (handles markdown code blocks)
+ * Extract JSON from AI response (handles markdown code blocks and control chars)
  */
 function extractJSON<T>(text: string): T {
   // Remove markdown code blocks if present
@@ -93,7 +93,23 @@ function extractJSON<T>(text: string): T {
     jsonStr = jsonMatch[0];
   }
 
-  return JSON.parse(jsonStr);
+  // Sanitize control characters inside JSON string values
+  // Replace actual newlines inside strings with escaped newlines
+  jsonStr = jsonStr.replace(/"([^"]*?)"/g, (_match, content) => {
+    const sanitized = content
+      .replace(/\n/g, "\\n")
+      .replace(/\r/g, "\\r")
+      .replace(/\t/g, "\\t")
+      .replace(/[\x00-\x1F]/g, ""); // Remove other control chars
+    return `"${sanitized}"`;
+  });
+
+  try {
+    return JSON.parse(jsonStr);
+  } catch (e) {
+    console.error("JSON parse error:", e, "\nRaw JSON:", jsonStr);
+    throw new Error("AI ले सही JSON उत्पन्न गर्न सकेन। कृपया पुन: प्रयास गर्नुहोस्।");
+  }
 }
 
 /**
