@@ -28,6 +28,7 @@ interface ArticleFormData {
   tags: string;
   status: "draft" | "published";
   isBreaking: boolean;
+  isFeatured: boolean;
 }
 
 const initialFormData: ArticleFormData = {
@@ -40,6 +41,7 @@ const initialFormData: ArticleFormData = {
   tags: "",
   status: "draft",
   isBreaking: false,
+  isFeatured: false,
 };
 
 export function ArticleEditorPage() {
@@ -78,6 +80,7 @@ export function ArticleEditorPage() {
               tags: article.tagIds?.join(", ") || "",
               status: article.status === "published" ? "published" : "draft",
               isBreaking: article.isBreaking || false,
+              isFeatured: article.isFeatured || false,
             });
           }
         }
@@ -202,6 +205,7 @@ export function ArticleEditorPage() {
           | "published"
           | "archived",
         isBreaking: formData.isBreaking,
+        isFeatured: formData.isFeatured,
         // Set publishedAt when publishing
         ...(formData.status === "published" && {
           publishedAt: new Date().toISOString(),
@@ -558,6 +562,17 @@ export function ArticleEditorPage() {
                 className="w-4 h-4 text-red-600 focus:ring-red-500 rounded"
               />
               <span className="text-sm text-red-600 font-medium">ब्रेकिङ न्युज</span>
+            </label>
+            <label className="flex items-center space-x-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={formData.isFeatured}
+                onChange={(e) =>
+                  setFormData((prev) => ({ ...prev, isFeatured: e.target.checked }))
+                }
+                className="w-4 h-4 text-yellow-600 focus:ring-yellow-500 rounded"
+              />
+              <span className="text-sm text-yellow-600 font-medium">मुख्य समाचार</span>
             </label>
           </div>
 
