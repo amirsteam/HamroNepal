@@ -10,6 +10,7 @@ import { Link, NavLink } from "react-router-dom";
 import type { Category, Article } from "@/types";
 import { getCategories } from "@/services/categories.service";
 import { getBreakingNews } from "@/services/news.service";
+import { getWeather, getFallbackWeather, type WeatherData } from "@/services/weather.service";
 import {
   getCurrentBSDate,
   formatBSDate,
@@ -17,27 +18,49 @@ import {
   toNepaliDigits,
 } from "@/lib/bs-date";
 
-// Weather icon component (sun/cloud SVG)
-function WeatherIcon({ condition }: { condition: "sunny" | "cloudy" | "rainy" }) {
-  if (condition === "sunny") {
-    return (
-      <svg className="w-8 h-8 text-yellow-500" fill="currentColor" viewBox="0 0 24 24">
-        <path d="M12 2.25a.75.75 0 01.75.75v2.25a.75.75 0 01-1.5 0V3a.75.75 0 01.75-.75zM7.5 12a4.5 4.5 0 119 0 4.5 4.5 0 01-9 0zM18.894 6.166a.75.75 0 00-1.06-1.06l-1.591 1.59a.75.75 0 101.06 1.061l1.591-1.59zM21.75 12a.75.75 0 01-.75.75h-2.25a.75.75 0 010-1.5H21a.75.75 0 01.75.75zM17.834 18.894a.75.75 0 001.06-1.06l-1.59-1.591a.75.75 0 10-1.061 1.06l1.59 1.591zM12 18a.75.75 0 01.75.75V21a.75.75 0 01-1.5 0v-2.25A.75.75 0 0112 18zM7.758 17.303a.75.75 0 00-1.061-1.06l-1.591 1.59a.75.75 0 001.06 1.061l1.591-1.59zM6 12a.75.75 0 01-.75.75H3a.75.75 0 010-1.5h2.25A.75.75 0 016 12zM6.697 7.757a.75.75 0 001.06-1.06l-1.59-1.591a.75.75 0 00-1.061 1.06l1.59 1.591z" />
-      </svg>
-    );
+// Weather icon component (supports all conditions)
+function WeatherIcon({ condition }: { condition: WeatherData["condition"] }) {
+  const iconClasses = "w-8 h-8";
+  
+  switch (condition) {
+    case "sunny":
+      return (
+        <svg className={`${iconClasses} text-yellow-500`} fill="currentColor" viewBox="0 0 24 24">
+          <path d="M12 2.25a.75.75 0 01.75.75v2.25a.75.75 0 01-1.5 0V3a.75.75 0 01.75-.75zM7.5 12a4.5 4.5 0 119 0 4.5 4.5 0 01-9 0zM18.894 6.166a.75.75 0 00-1.06-1.06l-1.591 1.59a.75.75 0 101.06 1.061l1.591-1.59zM21.75 12a.75.75 0 01-.75.75h-2.25a.75.75 0 010-1.5H21a.75.75 0 01.75.75zM17.834 18.894a.75.75 0 001.06-1.06l-1.59-1.591a.75.75 0 10-1.061 1.06l1.59 1.591zM12 18a.75.75 0 01.75.75V21a.75.75 0 01-1.5 0v-2.25A.75.75 0 0112 18zM7.758 17.303a.75.75 0 00-1.061-1.06l-1.591 1.59a.75.75 0 001.06 1.061l1.591-1.59zM6 12a.75.75 0 01-.75.75H3a.75.75 0 010-1.5h2.25A.75.75 0 016 12zM6.697 7.757a.75.75 0 001.06-1.06l-1.59-1.591a.75.75 0 00-1.061 1.06l1.59 1.591z" />
+        </svg>
+      );
+    case "cloudy":
+      return (
+        <svg className={`${iconClasses} text-gray-400`} fill="currentColor" viewBox="0 0 24 24">
+          <path fillRule="evenodd" d="M4.5 9.75a6 6 0 0111.573-2.226 3.75 3.75 0 014.133 4.303A4.5 4.5 0 0118 20.25H6.75a5.25 5.25 0 01-2.23-10.004 6.072 6.072 0 01-.02-.496z" clipRule="evenodd" />
+        </svg>
+      );
+    case "rainy":
+      return (
+        <svg className={`${iconClasses} text-blue-500`} fill="currentColor" viewBox="0 0 24 24">
+          <path fillRule="evenodd" d="M4.5 9.75a6 6 0 0111.573-2.226 3.75 3.75 0 014.133 4.303A4.5 4.5 0 0118 20.25H6.75a5.25 5.25 0 01-2.23-10.004 6.072 6.072 0 01-.02-.496zM9 13.5a.75.75 0 00-.75.75v2.25a.75.75 0 001.5 0v-2.25A.75.75 0 009 13.5zm3.75.75a.75.75 0 011.5 0v2.25a.75.75 0 01-1.5 0v-2.25zm4.5-.75a.75.75 0 00-.75.75v2.25a.75.75 0 001.5 0v-2.25a.75.75 0 00-.75-.75z" clipRule="evenodd" />
+        </svg>
+      );
+    case "snowy":
+      return (
+        <svg className={`${iconClasses} text-cyan-400`} fill="currentColor" viewBox="0 0 24 24">
+          <path d="M12 2l1.09 3.41L16.5 4.5l-.91 3.41L19 9l-3.41 1.09.91 3.41-3.41-.91L12 16l-1.09-3.41L7.5 13.5l.91-3.41L5 9l3.41-1.09-.91-3.41 3.41.91L12 2z" />
+          <path d="M12 18v4M9 20h6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" fill="none" />
+        </svg>
+      );
+    case "foggy":
+      return (
+        <svg className={`${iconClasses} text-gray-300`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeWidth="2" d="M4 8h16M4 12h16M4 16h12" />
+        </svg>
+      );
+    default:
+      return (
+        <svg className={`${iconClasses} text-yellow-500`} fill="currentColor" viewBox="0 0 24 24">
+          <path d="M12 2.25a.75.75 0 01.75.75v2.25a.75.75 0 01-1.5 0V3a.75.75 0 01.75-.75zM7.5 12a4.5 4.5 0 119 0 4.5 4.5 0 01-9 0z" />
+        </svg>
+      );
   }
-  if (condition === "cloudy") {
-    return (
-      <svg className="w-8 h-8 text-gray-500" fill="currentColor" viewBox="0 0 24 24">
-        <path fillRule="evenodd" d="M4.5 9.75a6 6 0 0111.573-2.226 3.75 3.75 0 014.133 4.303A4.5 4.5 0 0118 20.25H6.75a5.25 5.25 0 01-2.23-10.004 6.072 6.072 0 01-.02-.496z" clipRule="evenodd" />
-      </svg>
-    );
-  }
-  return (
-    <svg className="w-8 h-8 text-blue-500" fill="currentColor" viewBox="0 0 24 24">
-      <path fillRule="evenodd" d="M4.5 9.75a6 6 0 0111.573-2.226 3.75 3.75 0 014.133 4.303A4.5 4.5 0 0118 20.25H6.75a5.25 5.25 0 01-2.23-10.004 6.072 6.072 0 01-.02-.496zM9 13.5a.75.75 0 00-.75.75v2.25a.75.75 0 001.5 0v-2.25A.75.75 0 009 13.5zm3.75.75a.75.75 0 011.5 0v2.25a.75.75 0 01-1.5 0v-2.25zm4.5-.75a.75.75 0 00-.75.75v2.25a.75.75 0 001.5 0v-2.25a.75.75 0 00-.75-.75z" clipRule="evenodd" />
-    </svg>
-  );
 }
 
 export function Header() {
@@ -45,23 +68,21 @@ export function Header() {
   const [breakingNews, setBreakingNews] = useState<Article[]>([]);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
-
-  // Static weather for demo (no API calls as per requirements)
-  const weather = {
-    temp: 24,
-    condition: "sunny" as const,
-    location: "काठमाडौं",
-  };
+  const [weather, setWeather] = useState<WeatherData>(getFallbackWeather());
 
   useEffect(() => {
     async function loadData() {
       try {
-        const [cats, breaking] = await Promise.all([
+        const [cats, breaking, weatherData] = await Promise.all([
           getCategories(),
           getBreakingNews(5),
+          getWeather(),
         ]);
         setCategories(cats);
         setBreakingNews(breaking);
+        if (weatherData) {
+          setWeather(weatherData);
+        }
       } catch (error) {
         console.error("Failed to load header data:", error);
       } finally {
