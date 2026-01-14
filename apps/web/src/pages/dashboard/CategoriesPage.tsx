@@ -18,14 +18,14 @@ interface CategoryFormData {
   name: string;
   slug: string;
   description: string;
-  order: number;
+  sortOrder: number;
 }
 
 const initialFormData: CategoryFormData = {
   name: "",
   slug: "",
   description: "",
-  order: 0,
+  sortOrder: 0,
 };
 
 export function CategoriesPage() {
@@ -79,7 +79,7 @@ export function CategoriesPage() {
     const { name, value } = e.target;
     setFormData((prev) => ({
       ...prev,
-      [name]: name === "order" ? parseInt(value, 10) || 0 : value,
+      [name]: name === "sortOrder" ? parseInt(value, 10) || 0 : value,
     }));
   };
 
@@ -89,7 +89,7 @@ export function CategoriesPage() {
       name: category.name,
       slug: category.slug,
       description: category.description || "",
-      order: category.order || 0,
+      sortOrder: category.sortOrder || 0,
     });
     setShowForm(true);
     setError(null);
@@ -118,7 +118,7 @@ export function CategoriesPage() {
         name: formData.name.trim(),
         slug: formData.slug || generateSlug(formData.name),
         description: formData.description.trim() || undefined,
-        order: formData.order,
+        sortOrder: formData.sortOrder,
         isActive: true,
       };
 
@@ -293,9 +293,9 @@ export function CategoriesPage() {
               </label>
               <input
                 type="number"
-                id="order"
-                name="order"
-                value={formData.order}
+                id="sortOrder"
+                name="sortOrder"
+                value={formData.sortOrder}
                 onChange={handleChange}
                 min={0}
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition"
@@ -400,11 +400,11 @@ export function CategoriesPage() {
               </thead>
               <tbody className="divide-y">
                 {categories
-                  .sort((a, b) => (a.order || 0) - (b.order || 0))
+                  .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0))
                   .map((category) => (
                     <tr key={category.$id} className="hover:bg-gray-50">
                       <td className="px-6 py-4 text-sm text-gray-600">
-                        {toNepaliDigits(category.order || 0)}
+                        {toNepaliDigits(category.sortOrder || 0)}
                       </td>
                       <td className="px-6 py-4">
                         <span className="font-medium text-gray-800">

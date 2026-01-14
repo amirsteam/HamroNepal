@@ -19,7 +19,7 @@ export interface Category extends BaseDocument {
   description?: string;
   icon?: string;
   parentId?: string;
-  order: number;
+  sortOrder: number;
   isActive: boolean;
 }
 

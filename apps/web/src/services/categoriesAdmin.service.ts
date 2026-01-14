@@ -14,7 +14,7 @@ export interface CreateCategoryInput {
   description?: string;
   icon?: string;
   parentId?: string;
-  order: number;
+  sortOrder: number;
   isActive?: boolean;
 }
 
@@ -24,7 +24,7 @@ export interface UpdateCategoryInput {
   description?: string;
   icon?: string;
   parentId?: string;
-  order?: number;
+  sortOrder?: number;
   isActive?: boolean;
 }
 
@@ -112,7 +112,7 @@ export async function reorderCategories(orderedIds: string[]): Promise<void> {
       config.databaseId,
       config.collections.categories,
       id,
-      { order: index }
+      { sortOrder: index }
     )
   );
 
