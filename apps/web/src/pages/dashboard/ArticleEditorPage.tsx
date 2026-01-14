@@ -55,6 +55,7 @@ export function ArticleEditorPage() {
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showAdvanced, setShowAdvanced] = useState(false);
 
   const isEditing = !!id;
 
@@ -304,29 +305,56 @@ export function ArticleEditorPage() {
             />
           </div>
 
-          {/* Slug */}
-          <div>
-            <label
-              htmlFor="slug"
-              className="block text-sm font-medium text-gray-700 mb-1"
+          {/* Advanced Options Toggle */}
+          <button
+            type="button"
+            onClick={() => setShowAdvanced(!showAdvanced)}
+            className="flex items-center space-x-1 text-sm text-gray-500 hover:text-gray-700 transition"
+          >
+            <svg
+              className={`w-4 h-4 transition-transform ${showAdvanced ? 'rotate-90' : ''}`}
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
             >
-              स्लग (URL)
-            </label>
-            <div className="flex items-center">
-              <span className="px-3 py-2 bg-gray-100 border border-r-0 border-gray-300 rounded-l-lg text-gray-500 text-sm">
-                /news/
-              </span>
-              <input
-                type="text"
-                id="slug"
-                name="slug"
-                value={formData.slug}
-                onChange={handleChange}
-                className="flex-1 px-4 py-2 border border-gray-300 rounded-r-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition"
-                placeholder="auto-generated-slug"
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M9 5l7 7-7 7"
               />
+            </svg>
+            <span>उन्नत विकल्प</span>
+          </button>
+
+          {/* Slug - Hidden in Advanced */}
+          {showAdvanced && (
+            <div>
+              <label
+                htmlFor="slug"
+                className="block text-sm font-medium text-gray-700 mb-1"
+              >
+                स्लग (URL)
+              </label>
+              <div className="flex items-center">
+                <span className="px-3 py-2 bg-gray-100 border border-r-0 border-gray-300 rounded-l-lg text-gray-500 text-sm">
+                  /news/
+                </span>
+                <input
+                  type="text"
+                  id="slug"
+                  name="slug"
+                  value={formData.slug}
+                  onChange={handleChange}
+                  className="flex-1 px-4 py-2 border border-gray-300 rounded-r-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition"
+                  placeholder="auto-generated-slug"
+                />
+              </div>
+              <p className="text-xs text-gray-500 mt-1">
+                खाली छोड्नुहोस् शीर्षकबाट स्वतः बन्छ।
+              </p>
             </div>
-          </div>
+          )}
 
           {/* Excerpt */}
           <div>
