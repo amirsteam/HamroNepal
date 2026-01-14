@@ -1,17 +1,18 @@
 /**
- * AI Service - Google Gemini Integration
+ * AI Service - Groq API Integration
  *
- * Provides AI-powered article generation features using Gemini API.
+ * Provides AI-powered article generation features using Groq API (Llama 3.3).
+ * Free tier: 30 requests/minute, generous daily quota.
  */
 
-const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY || "";
-const GEMINI_API_URL =
-  "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent";
+const GROQ_API_KEY = import.meta.env.VITE_GROQ_API_KEY || "";
+const GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions";
+const MODEL = "llama-3.3-70b-versatile";
 
-interface GeminiResponse {
-  candidates?: Array<{
-    content: {
-      parts: Array<{ text: string }>;
+interface GroqResponse {
+  choices?: Array<{
+    message: {
+      content: string;
     };
   }>;
   error?: {
@@ -31,47 +32,46 @@ export interface SuggestedTags {
 }
 
 /**
- * Call Gemini API with a prompt
+ * Call Groq API with a prompt
  */
-async function callGemini(prompt: string): Promise<string> {
-  if (!GEMINI_API_KEY) {
-    throw new Error("Gemini API key not configured. Set VITE_GEMINI_API_KEY in .env.local");
+async function callGroq(prompt: string): Promise<string> {
+  if (!GROQ_API_KEY) {
+    throw new Error("Groq API key not configured. Set VITE_GROQ_API_KEY in .env.local");
   }
 
-  const response = await fetch(`${GEMINI_API_URL}?key=${GEMINI_API_KEY}`, {
+  const response = await fetch(GROQ_API_URL, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
+      "Authorization": `Bearer ${GROQ_API_KEY}`,
     },
     body: JSON.stringify({
-      contents: [
+      model: MODEL,
+      messages: [
         {
-          parts: [{ text: prompt }],
+          role: "user",
+          content: prompt,
         },
       ],
-      generationConfig: {
-        temperature: 0.7,
-        topK: 40,
-        topP: 0.95,
-        maxOutputTokens: 2048,
-      },
+      temperature: 0.7,
+      max_tokens: 2048,
     }),
   });
 
   if (!response.ok) {
     const error = await response.json();
-    throw new Error(error.error?.message || "Gemini API request failed");
+    throw new Error(error.error?.message || "Groq API request failed");
   }
 
-  const data: GeminiResponse = await response.json();
+  const data: GroqResponse = await response.json();
 
   if (data.error) {
     throw new Error(data.error.message);
   }
 
-  const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+  const text = data.choices?.[0]?.message?.content;
   if (!text) {
-    throw new Error("No response from Gemini");
+    throw new Error("No response from Groq");
   }
 
   return text;
@@ -112,7 +112,7 @@ export async function generateArticleDraft(topic: string): Promise<GeneratedArti
 JSON फर्म्याटमा मात्र उत्तर दिनुहोस्:
 {"title": "शीर्षक", "excerpt": "सारांश", "content": "<p>पहिलो अनुच्छेद</p><p>दोस्रो अनुच्छेद</p>"}`;
 
-  const response = await callGemini(prompt);
+  const response = await callGroq(prompt);
   return extractJSON<GeneratedArticle>(response);
 }
 
@@ -137,7 +137,7 @@ ${truncatedContent}
 
 केवल सारांश मात्र लेख्नुहोस्, अरू केही नलेख्नुहोस्:`;
 
-  const response = await callGemini(prompt);
+  const response = await callGroq(prompt);
   // Clean up - remove quotes if wrapped
   return response.trim().replace(/^["']|["']$/g, "");
 }
@@ -164,13 +164,13 @@ JSON फर्म्याटमा उत्तर दिनुहोस्:
 
 ट्यागहरू नेपालीमा र ३-५ वटा मात्र दिनुहोस्।`;
 
-  const response = await callGemini(prompt);
+  const response = await callGroq(prompt);
   return extractJSON<SuggestedTags>(response);
 }
 
 /**
- * Check if Gemini API is configured
+ * Check if Groq API is configured
  */
 export function isAIConfigured(): boolean {
-  return !!GEMINI_API_KEY;
+  return !!GROQ_API_KEY;
 }

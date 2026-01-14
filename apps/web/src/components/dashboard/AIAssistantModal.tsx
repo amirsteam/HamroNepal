@@ -144,7 +144,7 @@ export function AIAssistantModal({
         {!configured && (
           <div className="bg-yellow-50 border-b border-yellow-200 px-6 py-3">
             <p className="text-yellow-800 text-sm">
-              ⚠️ Gemini API key कन्फिगर गरिएको छैन। .env.local मा VITE_GEMINI_API_KEY थप्नुहोस्।
+              ⚠️ Groq API key कन्फिगर गरिएको छैन। .env.local मा VITE_GROQ_API_KEY थप्नुहोस्।
             </p>
           </div>
         )}
