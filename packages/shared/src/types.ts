@@ -48,12 +48,25 @@ export interface ArticleSource {
   aiConfidence?: number;
 }
 
+/** Who took a photo and where it came from (shown under the image). */
+export interface ImageCredit {
+  name: string;
+  url?: string;
+  /** e.g. "Pexels" */
+  provider?: string;
+  /** The photo's page on the provider's site. */
+  pageUrl?: string;
+  /** A stock photo standing in for the event ("प्रतीकात्मक तस्बिर"). */
+  symbolic?: boolean;
+}
+
 export interface Article extends BaseDocument {
   title: string;
   slug: string;
   excerpt: string;
   content: string;
   featuredImage?: string;
+  imageCredit?: ImageCredit | null;
   categoryId: string;
   locationIds: string[];
   tags: string[];

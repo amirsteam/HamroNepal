@@ -16,9 +16,12 @@ import {
   SidebarSkeleton,
 } from "@/components/ui/Skeleton";
 import { ErrorState } from "@/components/ui/ErrorState";
+import { useDocumentTitle } from "@/lib/useDocumentTitle";
 
 interface HomeData {
   featured: Article[];
+  /** Up to 5 articles for the side list next to the top story. */
+  side: Article[];
   latest: Article[];
   categories: Category[];
   categoryArticles: Record<string, Article[]>;
@@ -40,9 +43,22 @@ export function HomePage() {
       const categoryArticles: Record<string, Article[]> = {};
       for (const s of sections) categoryArticles[s.category.$id] = s.articles;
 
+      // Fall back to the latest news when nothing is marked featured.
+      const featured = home.featured.length ? home.featured : home.latest.slice(0, 5);
+      // Side list: other featured stories first, topped up with the latest news.
+      const seen = new Set([featured[0]?.$id]);
+      const side: Article[] = [];
+      for (const a of [...featured.slice(1), ...home.latest]) {
+        if (side.length >= 5) break;
+        if (!seen.has(a.$id)) {
+          seen.add(a.$id);
+          side.push(a);
+        }
+      }
+
       setData({
-        // Fall back to the latest news when nothing is marked featured.
-        featured: home.featured.length ? home.featured : home.latest.slice(0, 5),
+        featured,
+        side,
         latest: home.latest,
         categories: sections.map((s) => s.category),
         categoryArticles,
@@ -60,6 +76,8 @@ export function HomePage() {
     loadData();
   }, []);
 
+  useDocumentTitle();
+
   if (error) {
     return (
       <div className="container mx-auto px-4 py-8">
@@ -70,6 +88,8 @@ export function HomePage() {
 
   return (
     <div className="container mx-auto px-4 py-6">
+      <h1 className="sr-only">हाम्रो नेपाल – ताजा नेपाली समाचार</h1>
+
       {/* Featured Section */}
       <section className="mb-8">
         {isLoading ? (
@@ -86,17 +106,18 @@ export function HomePage() {
           data.featured.length > 0 && (
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               {/* Main Featured */}
-              <div className="lg:col-span-2">
+              <div className={data.side.length ? "lg:col-span-2" : "lg:col-span-3"}>
                 <NewsCard article={data.featured[0]} variant="featured" />
               </div>
 
-              {/* Side Featured List */}
+              {/* Side list (hidden when there is nothing else to show) */}
+              {data.side.length > 0 && (
               <div className="bg-white rounded-lg p-4 shadow-sm">
-                <h3 className="text-lg font-bold text-gray-900 mb-4 pb-2 border-b border-primary">
+                <h2 className="text-lg font-bold text-gray-900 mb-4 pb-2 border-b border-primary">
                   मुख्य समाचार
-                </h3>
+                </h2>
                 <div className="space-y-0">
-                  {data.featured.slice(1, 6).map((article) => (
+                  {data.side.map((article) => (
                     <NewsCard
                       key={article.$id}
                       article={article}
@@ -105,6 +126,7 @@ export function HomePage() {
                   ))}
                 </div>
               </div>
+              )}
             </div>
           )
         )}

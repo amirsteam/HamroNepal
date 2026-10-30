@@ -43,6 +43,11 @@ export const config = {
     minIntervalMs: num("AI_MIN_INTERVAL_MS", 4000),
   },
 
+  /** Free stock photos for AI drafts (Pexels). Empty = use topic default images. */
+  stockPhotos: {
+    pexelsKey: str("PEXELS_API_KEY"),
+  },
+
   ingest: {
     maxDrafts: num("INGEST_MAX_DRAFTS", 10),
     maxPerCategory: num("INGEST_MAX_PER_CATEGORY", 3),

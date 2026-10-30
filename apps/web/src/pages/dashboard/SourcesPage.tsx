@@ -123,12 +123,13 @@ export function SourcesPage() {
       {admin && (
         <form onSubmit={onAdd} className="bg-white rounded-lg shadow-sm p-5 grid grid-cols-1 md:grid-cols-5 gap-3 items-end">
           <div>
-            <label className="block text-xs text-gray-600 mb-1">नाम</label>
-            <input required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className={inputClass} />
+            <label htmlFor="source-name" className="block text-xs text-gray-600 mb-1">नाम</label>
+            <input id="source-name" required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className={inputClass} />
           </div>
           <div className="md:col-span-2">
-            <label className="block text-xs text-gray-600 mb-1">RSS URL</label>
+            <label htmlFor="source-url" className="block text-xs text-gray-600 mb-1">RSS URL</label>
             <input
+              id="source-url"
               required
               type="url"
               value={form.url}
@@ -138,8 +139,8 @@ export function SourcesPage() {
             />
           </div>
           <div>
-            <label className="block text-xs text-gray-600 mb-1">स्थान (स्थानीय मिडिया)</label>
-            <select value={form.locationId} onChange={(e) => setForm({ ...form, locationId: e.target.value })} className={inputClass}>
+            <label htmlFor="source-location" className="block text-xs text-gray-600 mb-1">स्थान (स्थानीय मिडिया)</label>
+            <select id="source-location" value={form.locationId} onChange={(e) => setForm({ ...form, locationId: e.target.value })} className={inputClass}>
               <option value="">राष्ट्रिय</option>
               {locations.map((l) => (
                 <option key={l.$id} value={l.$id}>
@@ -168,16 +169,19 @@ export function SourcesPage() {
           <tbody className="divide-y">
             {loading ? (
               <tr>
-                <td colSpan={5} className="px-4 py-6 text-center text-gray-400">
+                <td colSpan={5} className="px-4 py-6 text-center text-gray-500">
                   लोड हुँदैछ...
                 </td>
               </tr>
             ) : (
               sources.map((s) => (
-                <tr key={s.$id} className={s.isActive ? "" : "opacity-60"}>
+                <tr key={s.$id} className={s.isActive ? "" : "bg-gray-50"}>
                   <td className="px-4 py-3">
-                    <div className="font-medium text-gray-900">{s.name}</div>
-                    <div className="text-xs text-gray-400 truncate max-w-xs">{s.url}</div>
+                    <div className="font-medium text-gray-900">
+                      {s.name}
+                      {!s.isActive && <span className="ml-2 text-xs font-normal text-gray-600">(बन्द)</span>}
+                    </div>
+                    <div className="text-xs text-gray-500 truncate max-w-xs">{s.url}</div>
                   </td>
                   <td className="px-4 py-3">{nameOf(s.locationId) ?? "राष्ट्रिय"}</td>
                   <td className="px-4 py-3">
@@ -189,11 +193,11 @@ export function SourcesPage() {
                             {s.lastError}
                           </div>
                         ) : (
-                          <div className="text-xs text-gray-400">{toNepaliDigits(s.lastItemCount ?? 0)} समाचार</div>
+                          <div className="text-xs text-gray-500">{toNepaliDigits(s.lastItemCount ?? 0)} समाचार</div>
                         )}
                       </>
                     ) : (
-                      <span className="text-gray-400">अहिलेसम्म छैन</span>
+                      <span className="text-gray-500">अहिलेसम्म छैन</span>
                     )}
                   </td>
                   <td className="px-4 py-3">

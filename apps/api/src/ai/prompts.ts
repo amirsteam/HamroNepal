@@ -157,8 +157,23 @@ export const writeSchema = z.object({
   excerpt: z.string().min(20).max(500),
   content: z.string().min(150),
   tags: z.array(z.string()).max(8).default([]),
+  /** 2–4 English words to find a symbolic stock photo. */
+  imageQuery: z.string().max(100).default(""),
 });
 export type WrittenArticle = z.infer<typeof writeSchema>;
+
+const IMAGE_QUERY_RULE = `imageQuery: स्टक फोटो खोज्न समाचारको दृश्य जनाउने २-४ अंग्रेजी शब्द (व्यक्तिको नाम, पार्टी वा ब्रान्ड होइन; सामान्य दृश्य), जस्तै "electric power lines", "cricket stadium", "hospital ward", "mountain road landslide"।`;
+
+export const imageQuerySchema = z.object({ imageQuery: z.string().max(100) });
+
+/** For older drafts that have no imageQuery yet. */
+export function imageQueryPrompt(title: string, excerpt: string): string {
+  return `समाचार: ${title}
+${excerpt}
+
+${IMAGE_QUERY_RULE}
+JSON मात्र: {"imageQuery": "..."}`;
+}
 
 export function writePrompt(input: {
   title: string;
@@ -178,6 +193,8 @@ export function writePrompt(input: {
 ${input.sourceText}
 """
 
+${IMAGE_QUERY_RULE}
+
 JSON फर्म्याटमा मात्र उत्तर दिनुहोस्:
-{"title": "नयाँ शीर्षक", "excerpt": "२ वाक्यको सारांश", "content": "<p>...</p><p>...</p>", "tags": ["ट्याग१", "ट्याग२", "ट्याग३"]}`;
+{"title": "नयाँ शीर्षक", "excerpt": "२ वाक्यको सारांश", "content": "<p>...</p><p>...</p>", "tags": ["ट्याग१", "ट्याग२", "ट्याग३"], "imageQuery": "english words"}`;
 }

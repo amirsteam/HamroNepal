@@ -11,7 +11,8 @@
     "test": "vitest run",
     "ingest": "tsx --env-file-if-exists=.env src/ingest/cli.ts",
     "seed": "tsx --env-file-if-exists=.env scripts/seed.ts",
-    "user:set": "tsx --env-file-if-exists=.env scripts/set-user.ts"
+    "user:set": "tsx --env-file-if-exists=.env scripts/set-user.ts",
+    "images:backfill": "tsx --env-file-if-exists=.env scripts/backfill-images.ts"
   },
   "dependencies": {
     "@hamronepal/shared": "*",

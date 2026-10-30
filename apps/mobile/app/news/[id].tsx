@@ -12,6 +12,7 @@ import {
   StyleSheet,
   Share,
   Pressable,
+  Linking,
   useColorScheme,
   useWindowDimensions,
 } from "react-native";
@@ -183,6 +184,21 @@ export default function NewsDetailScreen() {
             </View>
           </View>
 
+          {/* Photo credit (stock photos must credit the photographer + Pexels) */}
+          {imageUrl && article.imageCredit?.name && (
+            <Text
+              style={[styles.photoCredit, { color: colors.textSecondary }]}
+              onPress={() => {
+                const link = article.imageCredit?.pageUrl || article.imageCredit?.url;
+                if (link) Linking.openURL(link);
+              }}
+            >
+              {article.imageCredit.symbolic ? "प्रतीकात्मक तस्बिर · " : ""}
+              फोटो: {article.imageCredit.name}
+              {article.imageCredit.provider ? ` / ${article.imageCredit.provider}` : ""}
+            </Text>
+          )}
+
           {/* Excerpt */}
           {article.excerpt && (
             <Text style={[styles.excerpt, { color: colors.textSecondary }]}>
@@ -230,6 +246,11 @@ const styles = StyleSheet.create({
   },
   image: {
     height: 250,
+  },
+  photoCredit: {
+    fontSize: 12,
+    marginTop: 8,
+    textDecorationLine: "underline",
   },
   content: {
     padding: Spacing.lg,

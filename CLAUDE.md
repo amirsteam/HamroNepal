@@ -24,6 +24,7 @@ npm run seed -w apps/api                         # idempotent: topics, 7 provinc
 npm run user:set -w apps/api -- --email x@y.np --name "नाम" --role admin   # prints a password if none given
 npm run ingest -w apps/api -- --dry-run --max 2  # AI pipeline, nothing saved
 npm run ingest -w apps/api -- --max 5            # saves pending drafts
+npm run images:backfill -w apps/api -- --dry-run # stock photos for older AI drafts (needs PEXELS_API_KEY)
 
 # mobile
 cd apps/mobile && npm install && npx expo start   # EXPO_PUBLIC_API_URL in apps/mobile/.env
@@ -79,7 +80,8 @@ Lint (`npm run lint`) is not clean: `react-hooks/set-state-in-effect` is used th
 7. AI writes a 150–300 word summary.
 8. Reject unsupported numbers.
 9. Code adds the "स्रोत:" credit line.
-10. Save as `pending` under the system user "हाम्रो नेपाल AI डेस्क" (`isSystem`, cannot log in).
+10. Pick a symbolic Pexels stock photo from the writer's English `imageQuery` (`src/services/stockPhoto.ts`, skips photos used in the last 14 days). The photo is saved with `imageCredit`, which the web and mobile apps show as a caption (Pexels requires the credit). Changing the image in the dashboard clears the credit.
+11. Save as `pending` under the system user "हाम्रो नेपाल AI डेस्क" (`isSystem`, cannot log in).
 
 How it runs and is tested:
 

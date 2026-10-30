@@ -7,6 +7,8 @@
 import { useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
+import { toNepaliDigits } from "@/lib/bs-date";
+import { useDocumentTitle } from "@/lib/useDocumentTitle";
 
 export function LoginPage() {
   const [email, setEmail] = useState("");
@@ -17,6 +19,7 @@ export function LoginPage() {
   const { login } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+  useDocumentTitle("लग इन (ड्यासबोर्ड)");
 
   const from =
     (location.state as { from?: Location })?.from?.pathname || "/dashboard";
@@ -38,7 +41,7 @@ export function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-100 px-4">
+    <main className="min-h-screen flex items-center justify-center bg-gray-100 px-4">
       <div className="w-full max-w-md">
         {/* Logo */}
         <div className="text-center mb-8">
@@ -136,10 +139,10 @@ export function LoginPage() {
         </div>
 
         {/* Footer */}
-        <p className="text-center text-sm text-gray-500 mt-6">
-          © {new Date().getFullYear()} हाम्रो नेपाल। सबै अधिकार सुरक्षित।
+        <p className="text-center text-sm text-gray-600 mt-6">
+          © {toNepaliDigits(new Date().getFullYear())} हाम्रो नेपाल। सबै अधिकार सुरक्षित।
         </p>
       </div>
-    </div>
+    </main>
   );
 }

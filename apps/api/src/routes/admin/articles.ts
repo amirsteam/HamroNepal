@@ -55,14 +55,22 @@ async function expandLocations(ids: string[]): Promise<string[]> {
 }
 
 /** Turn validated input into the fields we store, applying role rules. */
-async function buildUpdate(req: Request, input: ArticleInput, current?: { status: string; publishedAt?: Date | null }) {
+async function buildUpdate(
+  req: Request,
+  input: ArticleInput,
+  current?: { status: string; publishedAt?: Date | null; featuredImage?: string | null }
+) {
   const privileged = isEditorOrAdmin(req.user);
   const update: Record<string, unknown> = {};
 
   if (input.title !== undefined) update.title = toPlainText(input.title);
   if (input.excerpt !== undefined) update.excerpt = toPlainText(input.excerpt);
   if (input.content !== undefined) update.content = sanitizeArticleHtml(input.content);
-  if (input.featuredImage !== undefined) update.featuredImage = input.featuredImage || undefined;
+  if (input.featuredImage !== undefined) {
+    update.featuredImage = input.featuredImage || undefined;
+    // A new or removed image no longer matches the old photo credit.
+    if ((input.featuredImage || undefined) !== (current?.featuredImage || undefined)) update.imageCredit = undefined;
+  }
   if (input.featuredImagePublicId !== undefined) update.featuredImagePublicId = input.featuredImagePublicId || undefined;
   if (input.tags !== undefined) update.tags = [...new Set(input.tags.map(toPlainText).filter(Boolean))];
 

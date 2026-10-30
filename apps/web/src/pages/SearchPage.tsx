@@ -63,6 +63,7 @@ export function SearchPage() {
 
   return (
     <div className="container mx-auto px-4 py-6">
+      <h1 className="sr-only">समाचार खोज</h1>
       <form onSubmit={onSubmit} className="max-w-2xl mx-auto mb-8 flex gap-2" role="search">
         <label htmlFor="search" className="sr-only">
           समाचार खोज्नुहोस्
@@ -84,9 +85,9 @@ export function SearchPage() {
       {error && <ErrorState message={error} onRetry={() => run(query)} />}
 
       {query.length >= 2 && !isLoading && !error && (
-        <p className="text-gray-600 mb-6">
+        <h2 className="text-gray-600 mb-6 font-normal">
           “{query}” को लागि {toNepaliDigits(total)} समाचार भेटिए
-        </p>
+        </h2>
       )}
 
       {isLoading ? (

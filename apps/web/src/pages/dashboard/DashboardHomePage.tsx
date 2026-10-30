@@ -300,7 +300,8 @@ export function DashboardHomePage() {
                   {getStatusBadge(article.status)}
                   <Link
                     to={`/dashboard/articles/${article.$id}`}
-                    className="text-gray-400 hover:text-primary"
+                    className="text-gray-500 hover:text-primary"
+                    aria-label={`सम्पादन: ${article.title}`}
                   >
                     <svg
                       className="w-5 h-5"

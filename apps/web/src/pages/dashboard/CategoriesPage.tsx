@@ -425,7 +425,7 @@ export function CategoriesPage() {
                         <div className="flex items-center justify-end space-x-2">
                           <button
                             onClick={() => handleEdit(category)}
-                            className="p-2 text-gray-400 hover:text-primary rounded-lg hover:bg-primary/10"
+                            className="p-2 text-gray-500 hover:text-primary rounded-lg hover:bg-primary/10"
                             title="सम्पादन"
                           >
                             <svg
@@ -447,7 +447,7 @@ export function CategoriesPage() {
                               handleDelete(category.$id, category.name)
                             }
                             disabled={deleting === category.$id}
-                            className="p-2 text-gray-400 hover:text-red-600 rounded-lg hover:bg-red-50 disabled:opacity-50"
+                            className="p-2 text-gray-500 hover:text-red-600 rounded-lg hover:bg-red-50 disabled:opacity-50"
                             title="मेटाउनुहोस्"
                           >
                             {deleting === category.$id ? (

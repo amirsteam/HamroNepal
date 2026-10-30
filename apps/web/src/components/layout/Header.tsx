@@ -132,22 +132,23 @@ export function Header() {
             <button
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
               className="p-2 -ml-2 text-gray-700 hover:text-primary transition-colors"
-              aria-label="Toggle menu"
+              aria-label={mobileMenuOpen ? "मेनु बन्द गर्नुहोस्" : "मेनु खोल्नुहोस्"}
+              aria-expanded={mobileMenuOpen}
             >
               <HamburgerIcon isOpen={mobileMenuOpen} />
             </button>
 
             {/* Logo */}
-            <Link to="/" className="absolute left-1/2 -translate-x-1/2">
-              <h1 className="text-2xl font-black tracking-tight">
+            <Link to="/" className="absolute left-1/2 -translate-x-1/2" aria-label="हाम्रो नेपाल गृहपृष्ठ">
+              <span className="block text-2xl font-black tracking-tight">
                 <span className="text-primary">हाम्रो</span>
                 <span className="text-secondary ml-0.5">नेपाल</span>
-              </h1>
+              </span>
             </Link>
 
             {/* Search Icon */}
-            <Link to="/search" className="p-2 -mr-2 text-gray-700 hover:text-primary transition-colors">
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <Link to="/search" className="p-2 -mr-2 text-gray-700 hover:text-primary transition-colors" aria-label="खोज्नुहोस्">
+              <svg aria-hidden="true" className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
               </svg>
             </Link>
@@ -182,10 +183,10 @@ export function Header() {
                 {/* CENTER: Logo */}
                 <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
                   <Link to="/" className="block text-center group">
-                    <h1 className="text-5xl xl:text-6xl font-black tracking-tight">
+                    <span className="block text-5xl xl:text-6xl font-black tracking-tight">
                       <span className="text-primary transition-colors group-hover:text-primary/80">हाम्रो</span>
                       <span className="text-secondary transition-colors group-hover:text-secondary/80 ml-2">नेपाल</span>
-                    </h1>
+                    </span>
                     <p className="text-xs text-gray-500 tracking-[0.2em] uppercase mt-0.5">
                       Nepali News Portal
                     </p>
@@ -207,7 +208,7 @@ export function Header() {
           </div>
 
           {/* Desktop Navigation */}
-          <nav className="bg-secondary text-white">
+          <nav className="bg-secondary text-white" aria-label="मुख्य मेनु">
             <div className="container mx-auto px-4">
               <div className="relative flex items-center justify-between">
                 <div className="flex items-center">
@@ -282,7 +283,7 @@ export function Header() {
                     </div>
                   )}
                 </div>
-                <Link to="/search" className="p-3 hover:bg-secondary-dark transition-colors" aria-label="Search">
+                <Link to="/search" className="p-3 hover:bg-secondary-dark transition-colors" aria-label="खोज्नुहोस्">
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                   </svg>
@@ -335,7 +336,7 @@ export function Header() {
               <button
                 onClick={() => setMobileMenuOpen(false)}
                 className="p-2 hover:bg-secondary-dark rounded-lg transition-colors"
-                aria-label="Close menu"
+                aria-label="मेनु बन्द गर्नुहोस्"
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -344,7 +345,7 @@ export function Header() {
             </div>
 
             {/* Menu Items */}
-            <nav className="py-2">
+            <nav className="py-2" aria-label="मोबाइल मेनु">
               <NavLink
                 to="/"
                 onClick={() => setMobileMenuOpen(false)}
@@ -360,7 +361,7 @@ export function Header() {
                 गृहपृष्ठ
               </NavLink>
 
-              <div className="px-4 py-2 text-xs font-semibold text-gray-400 uppercase tracking-wider">
+              <div className="px-4 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wider">
                 श्रेणीहरू
               </div>
 
@@ -384,7 +385,7 @@ export function Header() {
 
               {provinces.length > 0 && (
                 <>
-                  <div className="px-4 pt-4 pb-2 text-xs font-semibold text-gray-400 uppercase tracking-wider">
+                  <div className="px-4 pt-4 pb-2 text-xs font-semibold text-gray-500 uppercase tracking-wider">
                     स्थानीय समाचार
                   </div>
                   {provinces.map((province) => (

@@ -271,7 +271,7 @@ export function ArticlesListPage() {
                           ) : (
                             <div className="w-16 h-12 bg-gray-200 rounded flex items-center justify-center">
                               <svg
-                                className="w-6 h-6 text-gray-400"
+                                className="w-6 h-6 text-gray-500"
                                 fill="none"
                                 stroke="currentColor"
                                 viewBox="0 0 24 24"
@@ -305,6 +305,7 @@ export function ArticlesListPage() {
                             handleStatusChange(article.$id, e.target.value)
                           }
                           disabled={statusUpdating === article.$id}
+                          aria-label={`स्थिति: ${article.title}`}
                           className="text-sm border rounded px-2 py-1 focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
                         >
                           <option value="draft">ड्राफ्ट</option>
@@ -321,7 +322,7 @@ export function ArticlesListPage() {
                           <Link
                             to={`/news/${article.slug}`}
                             target="_blank"
-                            className="p-2 text-gray-400 hover:text-blue-600 rounded-lg hover:bg-blue-50"
+                            className="p-2 text-gray-500 hover:text-blue-600 rounded-lg hover:bg-blue-50"
                             title="हेर्नुहोस्"
                           >
                             <svg
@@ -346,7 +347,7 @@ export function ArticlesListPage() {
                           </Link>
                           <Link
                             to={`/dashboard/articles/${article.$id}`}
-                            className="p-2 text-gray-400 hover:text-primary rounded-lg hover:bg-primary/10"
+                            className="p-2 text-gray-500 hover:text-primary rounded-lg hover:bg-primary/10"
                             title="सम्पादन"
                           >
                             <svg
@@ -368,7 +369,7 @@ export function ArticlesListPage() {
                               handleDelete(article.$id, article.title)
                             }
                             disabled={deleting === article.$id}
-                            className="p-2 text-gray-400 hover:text-red-600 rounded-lg hover:bg-red-50 disabled:opacity-50"
+                            className="p-2 text-gray-500 hover:text-red-600 rounded-lg hover:bg-red-50 disabled:opacity-50"
                             title="मेटाउनुहोस्"
                           >
                             {deleting === article.$id ? (
@@ -433,7 +434,7 @@ export function ArticlesListPage() {
                     ) : (
                       <div className="w-20 h-14 bg-gray-200 rounded flex items-center justify-center flex-shrink-0">
                         <svg
-                          className="w-6 h-6 text-gray-400"
+                          className="w-6 h-6 text-gray-500"
                           fill="none"
                           stroke="currentColor"
                           viewBox="0 0 24 24"
@@ -466,7 +467,8 @@ export function ArticlesListPage() {
                     <Link
                       to={`/news/${article.slug}`}
                       target="_blank"
-                      className="p-2 text-gray-400 hover:text-blue-600"
+                      className="p-2 text-gray-500 hover:text-blue-600"
+                      aria-label={`हेर्नुहोस्: ${article.title}`}
                     >
                       <svg
                         className="w-5 h-5"
@@ -490,7 +492,8 @@ export function ArticlesListPage() {
                     </Link>
                     <Link
                       to={`/dashboard/articles/${article.$id}`}
-                      className="p-2 text-gray-400 hover:text-primary"
+                      className="p-2 text-gray-500 hover:text-primary"
+                      aria-label={`सम्पादन: ${article.title}`}
                     >
                       <svg
                         className="w-5 h-5"
@@ -509,7 +512,8 @@ export function ArticlesListPage() {
                     <button
                       onClick={() => handleDelete(article.$id, article.title)}
                       disabled={deleting === article.$id}
-                      className="p-2 text-gray-400 hover:text-red-600 disabled:opacity-50"
+                      className="p-2 text-gray-500 hover:text-red-600 disabled:opacity-50"
+                      aria-label={`मेटाउनुहोस्: ${article.title}`}
                     >
                       <svg
                         className="w-5 h-5"

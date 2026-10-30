@@ -35,6 +35,7 @@ jobs:
           MONGODB_URI: ${{ secrets.MONGODB_URI }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
           AI_PRIMARY_MODEL: ${{ vars.AI_PRIMARY_MODEL || 'gemini-flash-lite-latest' }}
           AI_FALLBACK_MODEL: ${{ vars.AI_FALLBACK_MODEL || 'openai/gpt-oss-120b' }}
           INGEST_MAX_PER_CATEGORY: ${{ vars.INGEST_MAX_PER_CATEGORY || '3' }}

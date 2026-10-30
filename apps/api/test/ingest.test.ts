@@ -1,4 +1,6 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { config } from "../src/config";
+import { findStockPhoto, type FindStockPhoto } from "../src/services/stockPhoto";
 import { Article, Category, IngestedItem, NewsSource } from "../src/models";
 import { Gazetteer } from "../src/ingest/gazetteer";
 import { hashUrl, isNearDuplicate, titleTokens, unsupportedNumbers } from "../src/ingest/text";
@@ -123,15 +125,48 @@ describe("runIngest (fake feeds + fake AI)", () => {
           excerpt: "काभ्रेको पनौतीमा आगलागी हुँदा तीन घर जलेका छन्। कोही हताहत भएका छैनन्।",
           content: "<p>काभ्रेको पनौती नगरपालिकामा आगलागी हुँदा तीन घर जलेका छन्। प्रहरीका अनुसार कोही हताहत भएका छैनन्।</p><p>स्थानीय र प्रहरीको सहयोगमा आगो नियन्त्रणमा लिइएको हो।</p><script>x</script>",
           tags: ["आगलागी", "पनौती"],
+          imageQuery: "house fire",
         };
     return { data: schema.parse(raw), provider: "gemini", model: "fake-model" };
+  };
+
+  const photoQueries: string[] = [];
+  const fakePhoto: FindStockPhoto = async (query) => {
+    photoQueries.push(query);
+    return {
+      url: "https://images.pexels.com/photos/1/pexels-photo-1.jpeg?h=627&w=1200",
+      alt: "fire",
+      credit: { name: "Test Photographer", url: "https://www.pexels.com/@test", provider: "Pexels", pageUrl: "https://www.pexels.com/photo/1/", symbolic: true },
+    };
   };
 
   const deps = {
     fetchAll: async () => ({ items, results: [{ feed: items[0].feed, count: items.length }] }),
     extract: async (item: RawItem) => ({ text: item.text, url: item.url }),
     generate: fakeAI,
+    findPhoto: fakePhoto,
   };
+
+  it("adds a credited, symbolic stock photo from the AI's search words", async () => {
+    await runIngest({ maxDrafts: 5 }, deps);
+    const article = await Article.findOne().lean();
+    expect(photoQueries).toContain("house fire");
+    expect(article!.featuredImage).toContain("images.pexels.com");
+    expect(article!.imageCredit?.name).toBe("Test Photographer");
+    expect(article!.imageCredit?.provider).toBe("Pexels");
+    expect(article!.imageCredit?.symbolic).toBe(true);
+  });
+
+  it("still saves the draft when the photo lookup fails", async () => {
+    const report = await runIngest(
+      { maxDrafts: 5 },
+      { ...deps, findPhoto: async () => { throw new Error("Pexels HTTP 500"); } }
+    );
+    expect(report.stats.drafted).toBe(1);
+    const article = await Article.findOne().lean();
+    expect(article!.featuredImage).toBeUndefined();
+    expect(article!.imageCredit).toBeUndefined();
+  });
 
   it("creates one pending, attributed, location-tagged draft and skips the rest", async () => {
     const report = await runIngest({ maxDrafts: 5 }, deps);
@@ -164,5 +199,40 @@ describe("runIngest (fake feeds + fake AI)", () => {
     expect(report.drafts).toHaveLength(1);
     expect(await Article.countDocuments()).toBe(0);
     expect(await IngestedItem.countDocuments()).toBe(0);
+  });
+});
+
+describe("stock photos (Pexels client)", () => {
+  const photo = (id: number) => ({
+    id,
+    url: `https://www.pexels.com/photo/${id}/`,
+    alt: "power lines",
+    photographer: "Ram",
+    photographer_url: "https://www.pexels.com/@ram",
+    src: { landscape: `https://images.pexels.com/photos/${id}/l.jpeg`, large: `https://images.pexels.com/photos/${id}/b.jpeg` },
+  });
+  const original = config.stockPhotos.pexelsKey;
+  afterEach(() => {
+    config.stockPhotos.pexelsKey = original;
+    vi.unstubAllGlobals();
+  });
+
+  it("returns nothing without an API key", async () => {
+    config.stockPhotos.pexelsKey = "";
+    expect(await findStockPhoto("power lines")).toBeNull();
+  });
+
+  it("sends the key, skips recently used photos and credits Pexels", async () => {
+    config.stockPhotos.pexelsKey = "test-key";
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({ photos: [photo(1), photo(2)] }), { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await findStockPhoto("power lines", new Set(["https://images.pexels.com/photos/1/l.jpeg"]));
+    const [url, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
+    expect(url).toContain("query=power+lines");
+    expect(url).toContain("orientation=landscape");
+    expect((init.headers as Record<string, string>).Authorization).toBe("test-key");
+    expect(result?.url).toBe("https://images.pexels.com/photos/2/l.jpeg");
+    expect(result?.credit).toMatchObject({ name: "Ram", provider: "Pexels", pageUrl: "https://www.pexels.com/photo/2/", symbolic: true });
   });
 });

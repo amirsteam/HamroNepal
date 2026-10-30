@@ -64,6 +64,17 @@ const sourceSchema = new Schema(
   { _id: false }
 );
 
+const imageCreditSchema = new Schema(
+  {
+    name: { type: String, required: true },
+    url: String,
+    provider: String,
+    pageUrl: String,
+    symbolic: Boolean,
+  },
+  { _id: false }
+);
+
 const articleSchema = new Schema(
   {
     title: { type: String, required: true, trim: true },
@@ -72,6 +83,7 @@ const articleSchema = new Schema(
     content: { type: String, default: "" },
     featuredImage: String,
     featuredImagePublicId: String,
+    imageCredit: { type: imageCreditSchema, default: undefined },
     categoryId: { type: ObjectId, ref: "Category", required: true },
     locationIds: { type: [{ type: ObjectId, ref: "Category" }], default: [] },
     tags: { type: [String], default: [] },

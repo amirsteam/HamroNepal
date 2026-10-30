@@ -5,13 +5,15 @@
  */
 
 import { useState } from "react";
-import { Outlet, NavLink, useNavigate } from "react-router-dom";
+import { Outlet, NavLink, useNavigate, useLocation } from "react-router-dom";
+import { useDocumentTitle } from "@/lib/useDocumentTitle";
 import { useAuth } from "@/contexts/AuthContext";
 import { canManageCategories } from "@/services/auth.service";
 
 export function DashboardLayout() {
   const { author, logout } = useAuth();
   const navigate = useNavigate();
+  const { pathname } = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const handleLogout = async () => {
@@ -131,6 +133,12 @@ export function DashboardLayout() {
     });
   }
 
+  // Tab title from the closest matching menu item, e.g. "AI समीक्षा - हाम्रो नेपाल".
+  const current = [...navItems]
+    .sort((a, b) => b.to.length - a.to.length)
+    .find((item) => pathname === item.to || pathname.startsWith(item.to + "/"));
+  useDocumentTitle(current ? `${current.label} (ड्यासबोर्ड)` : "ड्यासबोर्ड");
+
   return (
     <div className="min-h-screen bg-gray-100">
       {/* Mobile sidebar backdrop */}
@@ -155,6 +163,7 @@ export function DashboardLayout() {
           <button
             onClick={() => setSidebarOpen(false)}
             className="lg:hidden p-1 hover:bg-white/10 rounded"
+            aria-label="मेनु बन्द गर्नुहोस्"
           >
             <svg
               className="w-6 h-6"
@@ -204,7 +213,7 @@ export function DashboardLayout() {
               <p className="text-sm font-medium truncate">
                 {author?.name}
               </p>
-              <p className="text-xs text-gray-400 capitalize">
+              <p className="text-xs text-gray-300 capitalize">
                 {author?.role || "User"}
               </p>
             </div>
@@ -239,6 +248,7 @@ export function DashboardLayout() {
             <button
               onClick={() => setSidebarOpen(true)}
               className="lg:hidden p-2 hover:bg-gray-100 rounded-lg"
+              aria-label="मेनु खोल्नुहोस्"
             >
               <svg
                 className="w-6 h-6"

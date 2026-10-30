@@ -368,7 +368,7 @@ export function ArticleEditorPage() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Classification */}
           <div className="bg-white rounded-lg shadow-sm p-6 space-y-4">
-            <h3 className="font-semibold text-gray-800">वर्गीकरण</h3>
+            <h2 className="font-semibold text-gray-800">वर्गीकरण</h2>
 
             <div>
               <label htmlFor="categoryId" className="block text-sm font-medium text-gray-700 mb-1">
@@ -442,7 +442,7 @@ export function ArticleEditorPage() {
 
           {/* Featured Image */}
           <div className="bg-white rounded-lg shadow-sm p-6 space-y-4">
-            <h3 className="font-semibold text-gray-800">मुख्य छवि</h3>
+            <h2 className="font-semibold text-gray-800">मुख्य छवि</h2>
 
             {formData.featuredImage ? (
               <div className="relative">
@@ -485,7 +485,7 @@ export function ArticleEditorPage() {
                       />
                     </svg>
                     <span className="text-sm">छवि अपलोड गर्नुहोस्</span>
-                    <span className="text-xs text-gray-400 mt-1">अधिकतम ५ MB</span>
+                    <span className="text-xs text-gray-500 mt-1">अधिकतम ५ MB</span>
                   </div>
                 )}
               </label>
@@ -548,7 +548,7 @@ export function ArticleEditorPage() {
                     onChange={(e) => setFormData((prev) => ({ ...prev, isFeatured: e.target.checked }))}
                     className="w-4 h-4 text-yellow-600 focus:ring-yellow-500 rounded"
                   />
-                  <span className="text-sm text-yellow-600 font-medium">मुख्य समाचार</span>
+                  <span className="text-sm text-yellow-700 font-medium">मुख्य समाचार</span>
                 </label>
               </>
             )}

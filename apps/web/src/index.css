@@ -113,10 +113,38 @@ body {
   color: #374151;
 }
 
+.article-content a {
+  color: var(--color-primary);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.article-content a:hover {
+  text-decoration-thickness: 2px;
+}
+
+.article-content .source-credit {
+  font-size: 1rem;
+  font-weight: 600;
+  margin-top: 1.5rem;
+}
+
 .article-content img {
   width: 100%;
   border-radius: 0.5rem;
   margin: 1rem 0;
+}
+
+/* Keyboard focus: always visible (red ring; white on dark backgrounds) */
+:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+.bg-secondary :focus-visible,
+.bg-primary :focus-visible {
+  outline-color: #ffffff;
+  outline-offset: -3px;
 }
 
 /* Scrollbar styling */

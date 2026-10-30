@@ -16,6 +16,7 @@ import { NewsGrid } from "@/components/news/NewsGrid";
 import { NewsGridSkeleton, SidebarSkeleton } from "@/components/ui/Skeleton";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { toNepaliDigits } from "@/lib/bs-date";
+import { useDocumentTitle } from "@/lib/useDocumentTitle";
 
 /** "/category/all" lists every published article. */
 const ALL_NEWS: Category = {
@@ -104,6 +105,8 @@ export function CategoryPage() {
     loadCategory();
   }, [slug]);
 
+  useDocumentTitle(isLoading ? null : category?.name);
+
   if (error) {
     return (
       <div className="container mx-auto px-4 py-8">
@@ -117,7 +120,7 @@ export function CategoryPage() {
   return (
     <div className="container mx-auto px-4 py-6">
       {/* Breadcrumb */}
-      <nav className="text-sm text-gray-500 mb-4">
+      <nav className="text-sm text-gray-500 mb-4" aria-label="ब्रेडक्रम्ब">
         <Link to="/" className="hover:text-primary">
           गृहपृष्ठ
         </Link>
@@ -148,6 +151,7 @@ export function CategoryPage() {
             <NewsGridSkeleton count={6} />
           ) : articles.length > 0 ? (
             <>
+              <h2 className="sr-only">समाचारहरू</h2>
               <NewsGrid articles={articles} columns={3} />
 
               {/* Load More Button */}
@@ -199,9 +203,9 @@ export function CategoryPage() {
         <div className="lg:col-span-1">
           {/* Categories List */}
           <div className="bg-white rounded-lg p-4 shadow-sm sticky top-24">
-            <h3 className="text-lg font-bold text-gray-900 mb-4 pb-2 border-b border-primary">
+            <h2 className="text-lg font-bold text-gray-900 mb-4 pb-2 border-b border-primary">
               श्रेणीहरू
-            </h3>
+            </h2>
 
             {isLoading ? (
               <SidebarSkeleton />

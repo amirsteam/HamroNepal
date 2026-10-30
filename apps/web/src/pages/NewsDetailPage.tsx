@@ -6,6 +6,14 @@
 
 import { useState, useEffect } from "react";
 import DOMPurify from "dompurify";
+
+// Links to other sites (e.g. the "स्रोत:" credit) open in a new tab.
+DOMPurify.addHook("afterSanitizeAttributes", (node) => {
+  if (node.tagName === "A" && /^https?:\/\//i.test(node.getAttribute("href") || "")) {
+    node.setAttribute("target", "_blank");
+    node.setAttribute("rel", "noopener noreferrer nofollow");
+  }
+});
 import { useParams, Link } from "react-router-dom";
 import type { Article, Category } from "@/types";
 import {
@@ -18,6 +26,7 @@ import { getCategoryById } from "@/services/categories.service";
 import { NewsCard } from "@/components/news/NewsCard";
 import { ArticleDetailSkeleton, SidebarSkeleton } from "@/components/ui";
 import { ErrorState } from "@/components/ui/ErrorState";
+import { ImageCredit } from "@/components/news/ImageCredit";
 import { formatDualDate, toNepaliDigits } from "@/lib/bs-date";
 
 export function NewsDetailPage() {
@@ -179,13 +188,16 @@ export function NewsDetailPage() {
 
                 {/* Featured Image */}
                 {article.featuredImage && (
-                  <div className="px-6">
+                  <figure className="px-6">
                     <img
                       src={getArticleImageUrl(article.featuredImage, 800, 450)}
                       alt={article.title}
-                      className="w-full rounded-lg"
+                      width={800}
+                      height={450}
+                      className="w-full h-auto aspect-video object-cover rounded-lg bg-gray-100"
                     />
-                  </div>
+                    <ImageCredit credit={article.imageCredit} className="mt-2" />
+                  </figure>
                 )}
 
                 {/* Excerpt */}
@@ -300,9 +312,9 @@ export function NewsDetailPage() {
         <aside className="lg:col-span-1">
           {/* Related Articles */}
           <div className="bg-white rounded-lg p-4 shadow-sm sticky top-24">
-            <h3 className="text-lg font-bold text-gray-900 mb-4 pb-2 border-b border-primary">
+            <h2 className="text-lg font-bold text-gray-900 mb-4 pb-2 border-b border-primary">
               सम्बन्धित समाचार
-            </h3>
+            </h2>
 
             {isLoading ? (
               <SidebarSkeleton />

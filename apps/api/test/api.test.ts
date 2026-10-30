@@ -100,6 +100,29 @@ describe("roles", () => {
   });
 });
 
+describe("photo credits", () => {
+  it("drops the old photo credit when an editor changes the image", async () => {
+    const editor = await loginAs("editor@test.np");
+    const created = await editor.post("/api/admin/articles").send({
+      ...base(),
+      featuredImage: "https://images.pexels.com/photos/1/l.jpeg",
+    });
+    await Article.updateOne(
+      { _id: created.body.$id },
+      { $set: { imageCredit: { name: "Ram", provider: "Pexels", symbolic: true } } }
+    );
+
+    // Saving without changing the image keeps the credit.
+    await editor.patch(`/api/admin/articles/${created.body.$id}`).send({ title: "नयाँ शीर्षक", featuredImage: "https://images.pexels.com/photos/1/l.jpeg" });
+    expect((await Article.findById(created.body.$id).lean())!.imageCredit?.name).toBe("Ram");
+
+    // A new image removes it.
+    const res = await editor.patch(`/api/admin/articles/${created.body.$id}`).send({ featuredImage: "https://res.cloudinary.com/x/image/upload/a.jpg" });
+    expect(res.status).toBe(200);
+    expect((await Article.findById(created.body.$id).lean())!.imageCredit).toBeUndefined();
+  });
+});
+
 describe("content safety", () => {
   it("strips scripts and event handlers on save", async () => {
     const editor = await loginAs("editor@test.np");

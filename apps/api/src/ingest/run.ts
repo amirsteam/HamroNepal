@@ -22,6 +22,7 @@ import { extractSourceText as defaultExtract, MIN_SOURCE_CHARS, type ExtractText
 import { Gazetteer, type LocationEntry } from "./gazetteer";
 import { hashUrl, isNearDuplicate, titleTokens, unsupportedNumbers } from "./text";
 import { classifyItems, writeArticle } from "./steps";
+import { findStockPhoto as defaultFindPhoto, type FindStockPhoto, type StockPhoto } from "../services/stockPhoto";
 
 export const AI_DESK_EMAIL = "ai-desk@hamronepal.local";
 export const AI_DESK_NAME = "हाम्रो नेपाल AI डेस्क";
@@ -37,6 +38,7 @@ export interface IngestDeps {
   fetchAll?: typeof defaultFetchAll;
   extract?: ExtractText;
   generate?: GenerateJSON;
+  findPhoto?: FindStockPhoto;
 }
 
 export interface IngestReport {
@@ -68,6 +70,7 @@ export async function runIngest(opts: IngestOptions = {}, deps: IngestDeps = {})
   const fetchAll = deps.fetchAll ?? defaultFetchAll;
   const extract = deps.extract ?? defaultExtract;
   const generate = deps.generate ?? defaultGenerate;
+  const findPhoto = deps.findPhoto ?? defaultFindPhoto;
 
   const stats: IngestRunStats = { fetched: 0, duplicates: 0, skipped: 0, classified: 0, drafted: 0, failed: 0 };
   const errorLog: string[] = [];
@@ -223,6 +226,14 @@ export async function runIngest(opts: IngestOptions = {}, deps: IngestDeps = {})
 
     // ---------------------------------------------------------- 6. write + save
     const aiDesk = dryRun ? null : await ensureAiDeskUser();
+    // Photos used in the last two weeks, so the site doesn't keep repeating one image.
+    const recentImages = new Set(
+      (
+        await Article.find({ featuredImage: { $exists: true }, createdAt: { $gte: new Date(Date.now() - 14 * 864e5) } })
+          .select("featuredImage")
+          .lean()
+      ).map((a) => a.featuredImage as string)
+    );
     for (const pick of chosen) {
       if (stats.drafted >= maxDrafts) break;
       const { item } = pick;
@@ -255,8 +266,18 @@ export async function runIngest(opts: IngestOptions = {}, deps: IngestDeps = {})
         }
         if (invented.length) confidence = Math.round(confidence * 50) / 100;
 
+        let photo: StockPhoto | null = null;
+        if (written.imageQuery) {
+          try {
+            photo = await findPhoto(written.imageQuery, recentImages);
+          } catch (err) {
+            log(`  (photo lookup failed: ${(err as Error).message})`);
+          }
+        }
+        if (photo) recentImages.add(photo.url);
+
         const label = `${topic.name}${location ? ` / ${location.name}` : ""}`;
-        log(`  ✎ [${label}] ${written.title}`);
+        log(`  ✎ [${label}] ${written.title}${photo ? `  🖼 "${written.imageQuery}"` : ""}`);
 
         if (dryRun) {
           stats.drafted++;
@@ -269,7 +290,8 @@ export async function runIngest(opts: IngestOptions = {}, deps: IngestDeps = {})
           slug: await uniqueSlug(Article, written.title),
           excerpt: written.excerpt,
           content: written.content,
-          featuredImage: topic.defaultImage || undefined,
+          featuredImage: photo?.url ?? (topic.defaultImage || undefined),
+          imageCredit: photo?.credit,
           categoryId: topic._id,
           locationIds: location ? gazetteer.withAncestors(location.id) : [],
           tags: written.tags,

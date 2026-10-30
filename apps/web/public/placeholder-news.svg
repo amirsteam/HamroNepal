@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 250" role="img" aria-label="हाम्रो नेपाल">
+  <rect width="400" height="250" fill="#eef1f5"/>
+  <rect x="0" y="244" width="400" height="6" fill="#dc2626"/>
+  <text x="200" y="138" font-family="'Noto Sans Devanagari', Mukta, sans-serif" font-size="34" font-weight="800" text-anchor="middle">
+    <tspan fill="#dc2626">हाम्रो</tspan><tspan fill="#1e3a5f" dx="8">नेपाल</tspan>
+  </text>
+</svg>

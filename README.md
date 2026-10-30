@@ -20,7 +20,7 @@ api/index.mjs              Vercel serverless entry (re-exports apps/api)
 | --- | --- |
 | Database | MongoDB Atlas (free M0 is enough) |
 | API | Express 5, Mongoose 8, zod, JWT in an httpOnly cookie |
-| Images | Cloudinary (free tier) |
+| Images | Cloudinary (free tier) for uploads; Pexels (free) stock photos for AI drafts |
 | AI | Google Gemini Flash-Lite (free tier) → Groq GPT-OSS 120B fallback |
 | Hosting | Vercel (static site + one serverless function) |
 | Scheduler | GitHub Actions (hourly) |
@@ -36,7 +36,8 @@ api/index.mjs              Vercel serverless entry (re-exports apps/api)
   3. Match place names (77 districts + towns, with Nepali postpositions like "काभ्रेमा") to find the location.
   4. AI picks the topic and confirms the location (from a fixed list only).
   5. Read the full source article and have AI write an original 150–300 word Nepali summary using only facts from the source. A "स्रोत:" credit link is added by code.
-  6. Save as **pending**. Nothing goes live until an editor approves it.
+  6. Add a symbolic stock photo: the AI suggests English search words and the photo comes from [Pexels](https://www.pexels.com/api/), captioned "प्रतीकात्मक तस्बिर · फोटो: name / Pexels". Without `PEXELS_API_KEY`, the topic's default image is used.
+  7. Save as **pending**. Nothing goes live until an editor approves it.
 
   Priority locations (Kavre / Panauti by default) are written first. Drafts with numbers that are not in the source are skipped or marked lower confidence.
 
@@ -63,7 +64,14 @@ npm run ingest -w apps/api -- --dry-run --max 3   # see what it would write, sav
 npm run ingest -w apps/api -- --max 5             # save up to 5 pending drafts
 ```
 
-Review them in **Dashboard → AI समीक्षा**.
+Review them in **Dashboard → AI समीक्षा**. Editors can replace any photo; the old credit is removed automatically.
+
+To add photos to AI drafts saved before `PEXELS_API_KEY` was set:
+
+```bash
+npm run images:backfill -w apps/api -- --dry-run
+npm run images:backfill -w apps/api
+```
 
 Free-tier limits change. Check [Gemini rate limits](https://ai.google.dev/gemini-api/docs/rate-limits) and your [Groq limits](https://console.groq.com/settings/limits). A normal hourly run makes about 2–4 classification calls plus up to 10 writing calls, paced by `AI_MIN_INTERVAL_MS`. Models are set by `AI_PRIMARY_MODEL` (default `gemini-flash-lite-latest`) and `AI_FALLBACK_MODEL` (default `openai/gpt-oss-120b`). Providers retire models often; if a run fails with "model not found", pick a current one from the provider's model list.
 
@@ -88,7 +96,7 @@ npm run typecheck
 1. **MongoDB Atlas:** create a free M0 cluster and a database user. Under *Network Access*, allow `0.0.0.0/0`, because Vercel and GitHub Actions use changing IPs; this makes a strong password essential.
 2. **Cloudinary:** copy the `CLOUDINARY_URL` from the dashboard.
 3. **Vercel:** import the repo with the project root at the repository root (the included `vercel.json` handles build, function, and rewrites). Add environment variables: `MONGODB_URI`, `JWT_SECRET`, `PUBLIC_SITE_URL` (e.g. `https://hamronepal.com`), `CLOUDINARY_URL`, `GEMINI_API_KEY`, `GROQ_API_KEY`, `OPENWEATHER_API_KEY`.
-4. **GitHub → Settings → Secrets and variables → Actions:** add `MONGODB_URI`, `GEMINI_API_KEY`, `GROQ_API_KEY`. The *AI news ingest* workflow then runs every hour. Use "Run workflow" for a manual or dry run.
+4. **GitHub → Settings → Secrets and variables → Actions:** add `MONGODB_URI`, `GEMINI_API_KEY`, `GROQ_API_KEY`, and optionally `PEXELS_API_KEY`. The *AI news ingest* workflow then runs every hour. Use "Run workflow" for a manual or dry run.
 5. Run `npm run seed -w apps/api` and `npm run user:set -w apps/api -- ...` once against the Atlas database (from your computer, with `MONGODB_URI` in `apps/api/.env`).
 
 `PUBLIC_SITE_URL` is also used at build time for the share-preview links (`og:url`, `og:image`) in `apps/web/index.html`.

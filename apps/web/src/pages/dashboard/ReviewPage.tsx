@@ -10,6 +10,8 @@ import { getArticlesAdmin, updateArticleStatus } from "@/services/admin.service"
 import { getCategories, getLocationCategories } from "@/services/categories.service";
 import { getIngestRuns } from "@/services/sources.service";
 import { formatDualDate, toNepaliDigits } from "@/lib/bs-date";
+import { getArticleImageUrl } from "@/services/news.service";
+import { ImageCredit } from "@/components/news/ImageCredit";
 import type { IngestRun } from "@/types";
 
 const PAGE_SIZE = 20;
@@ -80,7 +82,7 @@ export function ReviewPage() {
             AI ले अरू सञ्चारमाध्यमका समाचारबाट तयार पारेका मस्यौदा। स्रोतसँग मिलाएर मात्र प्रकाशित गर्नुहोस्।
           </p>
         </div>
-        <div className="text-sm text-gray-500 text-right">
+        <div className="text-sm text-gray-600 text-right">
           <div>समीक्षामा: {toNepaliDigits(total)}</div>
           {lastRun && (
             <div>
@@ -124,11 +126,25 @@ export function ReviewPage() {
                       विश्वास {toNepaliDigits(Math.round(confidence * 100))}%
                     </span>
                   )}
-                  <span className="text-gray-400">{formatDualDate(a.$createdAt).relative}</span>
+                  <span className="text-gray-500">{formatDualDate(a.$createdAt).relative}</span>
                 </div>
 
-                <h2 className="text-lg font-semibold text-gray-900">{a.title}</h2>
-                <p className="text-gray-600 mt-1 line-clamp-2">{a.excerpt}</p>
+                <div className="flex gap-4">
+                  {a.featuredImage && (
+                    <figure className="shrink-0 w-32 sm:w-44">
+                      <img
+                        src={getArticleImageUrl(a.featuredImage, 352, 198)}
+                        alt=""
+                        className="w-full aspect-video object-cover rounded bg-gray-100"
+                      />
+                      <ImageCredit credit={a.imageCredit} className="mt-1 hidden sm:block" />
+                    </figure>
+                  )}
+                  <div className="min-w-0">
+                    <h2 className="text-lg font-semibold text-gray-900">{a.title}</h2>
+                    <p className="text-gray-600 mt-1 line-clamp-2">{a.excerpt}</p>
+                  </div>
+                </div>
 
                 {a.source?.url && (
                   <p className="text-sm text-gray-500 mt-2">

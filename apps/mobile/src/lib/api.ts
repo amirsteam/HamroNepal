@@ -44,5 +44,11 @@ export function getImageUrl(url: string, width?: number, height?: number): strin
       .join(",");
     return url.replace("/upload/", `/upload/${t}/`);
   }
+  // Pexels stock photos: request the displayed size from their CDN.
+  if (url.includes("images.pexels.com") && (width || height)) {
+    const base = url.split("?")[0];
+    const q = ["auto=compress", "cs=tinysrgb", "fit=crop", width && `w=${width}`, height && `h=${height}`].filter(Boolean).join("&");
+    return `${base}?${q}`;
+  }
   return url;
 }

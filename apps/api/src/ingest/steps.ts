@@ -65,7 +65,7 @@ export interface WriteOutput extends WrittenArticle {
 
 /** Credit line added by code (not the model) so attribution is always present. */
 export function sourceCredit(name: string, url: string): string {
-  return `<p class="source-credit">स्रोत: <a href="${escapeXml(url)}">${escapeXml(name)}</a></p>`;
+  return `<p class="source-credit">स्रोत: <a href="${escapeXml(url)}" target="_blank" rel="noopener noreferrer nofollow">${escapeXml(name)}</a></p>`;
 }
 
 export async function writeArticle(generate: GenerateJSON, input: WriteInput): Promise<WriteOutput> {
@@ -81,6 +81,7 @@ export async function writeArticle(generate: GenerateJSON, input: WriteInput): P
     excerpt: toPlainText(data.excerpt),
     content: sanitizeArticleHtml(data.content) + sourceCredit(input.sourceName, input.sourceUrl),
     tags: [...new Set(data.tags.map(toPlainText).filter(Boolean))].slice(0, 6),
+    imageQuery: toPlainText(data.imageQuery ?? "").slice(0, 80),
     model,
   };
 }

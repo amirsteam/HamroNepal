@@ -3,13 +3,15 @@
  */
 
 import { Link } from "react-router-dom";
+import { useDocumentTitle } from "@/lib/useDocumentTitle";
 
 export function NotFoundPage() {
+  useDocumentTitle("पृष्ठ भेटिएन");
   return (
     <div className="container mx-auto px-4 py-16 text-center">
       <div className="max-w-md mx-auto">
-        <h1 className="text-9xl font-bold text-primary mb-4">४०४</h1>
-        <h2 className="text-2xl font-bold text-gray-900 mb-4">पृष्ठ भेटिएन</h2>
+        <p className="text-9xl font-bold text-primary mb-4" aria-hidden="true">४०४</p>
+        <h1 className="text-2xl font-bold text-gray-900 mb-4">पृष्ठ भेटिएन</h1>
         <p className="text-gray-600 mb-8">
           तपाईंले खोज्नुभएको पृष्ठ अवस्थित छैन वा हटाइएको हुन सक्छ।
         </p>

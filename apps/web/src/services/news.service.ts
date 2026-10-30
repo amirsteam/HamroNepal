@@ -72,7 +72,7 @@ export async function incrementViewCount(articleId: string): Promise<void> {
   }
 }
 
-const PLACEHOLDER = "/placeholder-news.jpg";
+export const PLACEHOLDER = "/placeholder-news.svg";
 
 /**
  * Image URL at a given size. Cloudinary URLs get a resize transform; other
@@ -85,6 +85,21 @@ export function getArticleImageUrl(imageRef: string, width?: number, height?: nu
       .filter(Boolean)
       .join(",");
     return imageRef.replace("/upload/", `/upload/${t}/`);
+  }
+  // Pexels stock photos: ask their CDN for the size we show.
+  if (imageRef.includes("images.pexels.com") && (width || height)) {
+    try {
+      const u = new URL(imageRef);
+      u.search = "";
+      u.searchParams.set("auto", "compress");
+      u.searchParams.set("cs", "tinysrgb");
+      u.searchParams.set("fit", "crop");
+      if (width) u.searchParams.set("w", String(width));
+      if (height) u.searchParams.set("h", String(height));
+      return u.toString();
+    } catch {
+      return imageRef;
+    }
   }
   return imageRef;
 }
