@@ -1,0 +1,46 @@
+name: AI news ingest
+
+# Every hour: read Nepali RSS feeds, sort stories into topic + location
+# menus with AI, and save short attributed drafts as "pending" for editors.
+on:
+  schedule:
+    - cron: "17 * * * *"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Dry run (classify and write, but save nothing)"
+        type: boolean
+        default: false
+      max:
+        description: "Maximum drafts this run"
+        default: "10"
+
+concurrency:
+  group: ingest
+  cancel-in-progress: false
+
+jobs:
+  ingest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Run ingest
+        env:
+          MONGODB_URI: ${{ secrets.MONGODB_URI }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          AI_PRIMARY_MODEL: ${{ vars.AI_PRIMARY_MODEL || 'gemini-flash-lite-latest' }}
+          AI_FALLBACK_MODEL: ${{ vars.AI_FALLBACK_MODEL || 'openai/gpt-oss-120b' }}
+          INGEST_MAX_PER_CATEGORY: ${{ vars.INGEST_MAX_PER_CATEGORY || '3' }}
+          INGEST_MIN_CONFIDENCE: ${{ vars.INGEST_MIN_CONFIDENCE || '0.6' }}
+        run: >
+          npm run ingest -w apps/api --
+          --trigger cron
+          --max ${{ inputs.max || '10' }}
+          ${{ inputs.dry_run && '--dry-run' || '' }}

@@ -1,157 +1,71 @@
 /**
- * Categories Admin Service
- *
- * CRUD operations for categories.
+ * Categories Admin Service – CRUD for topic and location categories.
  */
 
-import { ID, Query } from "appwrite";
-import { databases, config } from "@/lib/appwrite";
-import type { Category } from "@/types";
+import { api } from "@/lib/api";
+import type { Category, CategoryType } from "@/types";
 
 export interface CreateCategoryInput {
   name: string;
-  slug: string;
-  description?: string;
-  icon?: string;
-  parentId?: string;
-  sortOrder: number;
-  isActive?: boolean;
-}
-
-export interface UpdateCategoryInput {
-  name?: string;
   slug?: string;
   description?: string;
   icon?: string;
-  parentId?: string;
+  color?: string;
+  parentId?: string | null;
   sortOrder?: number;
   isActive?: boolean;
+  type?: CategoryType;
+  showInMenu?: boolean;
+  ingest?: boolean;
+  aliases?: string[];
+  defaultImage?: string;
 }
 
-/**
- * Get all categories for admin (including inactive).
- */
-export async function getAdminCategories(): Promise<Category[]> {
-  const response = await databases.listDocuments(
-    config.databaseId,
-    config.collections.categories,
-    [Query.orderAsc("sortOrder"), Query.limit(100)]
-  );
+export type UpdateCategoryInput = Partial<CreateCategoryInput>;
 
-  return response.documents as unknown as Category[];
+/** All categories including inactive ones. Defaults to topics. */
+export async function getAdminCategories(type: CategoryType | "all" = "topic"): Promise<Category[]> {
+  return api.get("/admin/categories", { type: type === "all" ? undefined : type });
 }
 
-/**
- * Alias for backward compatibility.
- */
 export const getAllCategoriesAdmin = getAdminCategories;
 
-/**
- * Create a new category.
- */
-export async function createCategory(
-  data: CreateCategoryInput
-): Promise<Category> {
-  const doc = await databases.createDocument(
-    config.databaseId,
-    config.collections.categories,
-    ID.unique(),
-    data
-  );
-
-  return doc as unknown as Category;
+export async function createCategory(data: CreateCategoryInput): Promise<Category> {
+  return api.post("/admin/categories", clean(data));
 }
 
-/**
- * Update a category.
- */
-export async function updateCategory(
-  id: string,
-  data: UpdateCategoryInput
-): Promise<Category> {
-  const doc = await databases.updateDocument(
-    config.databaseId,
-    config.collections.categories,
-    id,
-    data
-  );
-
-  return doc as unknown as Category;
+export async function updateCategory(id: string, data: UpdateCategoryInput): Promise<Category> {
+  return api.patch(`/admin/categories/${id}`, clean(data));
 }
 
-/**
- * Delete a category.
- */
 export async function deleteCategory(id: string): Promise<void> {
-  await databases.deleteDocument(
-    config.databaseId,
-    config.collections.categories,
-    id
-  );
+  await api.delete(`/admin/categories/${id}`);
 }
 
-/**
- * Toggle category active status.
- */
-export async function toggleCategoryStatus(id: string): Promise<Category> {
-  const cat = await databases.getDocument(
-    config.databaseId,
-    config.collections.categories,
-    id
-  );
-
-  return updateCategory(id, { isActive: !cat.isActive });
+export async function toggleCategoryStatus(category: Category): Promise<Category> {
+  return updateCategory(category.$id, { isActive: !category.isActive });
 }
 
-/**
- * Reorder categories.
- */
 export async function reorderCategories(orderedIds: string[]): Promise<void> {
-  const updates = orderedIds.map((id, index) =>
-    databases.updateDocument(
-      config.databaseId,
-      config.collections.categories,
-      id,
-      { sortOrder: index }
-    )
-  );
-
-  await Promise.all(updates);
+  await api.post("/admin/categories/reorder", { ids: orderedIds });
 }
 
-/**
- * Check if slug is unique.
- */
-export async function isCategorySlugUnique(
-  slug: string,
-  excludeId?: string
-): Promise<boolean> {
-  const response = await databases.listDocuments(
-    config.databaseId,
-    config.collections.categories,
-    [Query.equal("slug", slug), Query.limit(1)]
-  );
-
-  if (response.documents.length === 0) {
-    return true;
-  }
-
-  if (excludeId && response.documents[0].$id === excludeId) {
-    return true;
-  }
-
-  return false;
-}
-
-/**
- * Generate slug from name.
- */
 export function generateCategorySlug(name: string): string {
   return name
     .toLowerCase()
     .trim()
-    .replace(/[^\w\s\u0900-\u097F-]/g, "")
+    .replace(/[^\w\sऀ-ॿ-]/g, "")
     .replace(/\s+/g, "-")
     .replace(/-+/g, "-")
     .substring(0, 100);
+}
+
+/** The API rejects empty strings for optional URL/ID fields. */
+function clean<T extends object>(data: T): T {
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(data)) {
+    if (v === "" && (k === "parentId" || k === "slug")) continue;
+    out[k] = v;
+  }
+  return out as T;
 }

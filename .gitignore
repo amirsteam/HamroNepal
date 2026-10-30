@@ -69,3 +69,6 @@ web-build/
 
 # TypeScript cache
 *.tsbuildinfo
+
+# Debug data exports (may contain personal data)
+*_debug.json

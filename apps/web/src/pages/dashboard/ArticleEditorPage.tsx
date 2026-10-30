@@ -1,10 +1,11 @@
 /**
  * Article Editor Page
  *
- * Create and edit articles with image upload.
+ * Create and edit articles with image upload, topic + location, and the AI
+ * assistant. Publishing rules are enforced by the API.
  */
 
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import {
   createArticle,
@@ -13,10 +14,15 @@ import {
   uploadImage,
   getImagePreviewUrl,
 } from "@/services/admin.service";
-import { getCategories } from "@/services/categories.service";
+import {
+  getCategories,
+  getLocationCategories,
+  buildLocationTree,
+  type LocationNode,
+} from "@/services/categories.service";
+import { canPublish } from "@/services/auth.service";
 import { useAuth } from "@/contexts/AuthContext";
-import type { Category } from "@/types";
-import { adToBS, formatBSDate } from "@/lib/bs-date";
+import type { Article, ArticleStatus, Category } from "@/types";
 import { AIAssistantModal } from "@/components/dashboard/AIAssistantModal";
 import type { GeneratedArticle } from "@/services/ai.service";
 
@@ -26,9 +32,10 @@ interface ArticleFormData {
   excerpt: string;
   content: string;
   categoryId: string;
+  locationId: string;
   featuredImage: string;
   tags: string;
-  status: "draft" | "published";
+  status: ArticleStatus;
   isBreaking: boolean;
   isFeatured: boolean;
 }
@@ -39,6 +46,7 @@ const initialFormData: ArticleFormData = {
   excerpt: "",
   content: "",
   categoryId: "",
+  locationId: "",
   featuredImage: "",
   tags: "",
   status: "draft",
@@ -46,13 +54,32 @@ const initialFormData: ArticleFormData = {
   isFeatured: false,
 };
 
+const inputClass =
+  "w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition";
+
+function Spinner({ className = "w-5 h-5" }: { className?: string }) {
+  return (
+    <svg className={`${className} animate-spin`} fill="none" viewBox="0 0 24 24">
+      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+      <path
+        className="opacity-75"
+        fill="currentColor"
+        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+      ></path>
+    </svg>
+  );
+}
+
 export function ArticleEditorPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { author } = useAuth();
+  const mayPublish = canPublish(author);
 
   const [formData, setFormData] = useState<ArticleFormData>(initialFormData);
   const [categories, setCategories] = useState<Category[]>([]);
+  const [locationTree, setLocationTree] = useState<LocationNode[]>([]);
+  const [source, setSource] = useState<Article["source"]>(undefined);
   const [loading, setLoading] = useState(!!id);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -62,34 +89,36 @@ export function ArticleEditorPage() {
 
   const isEditing = !!id;
 
-  // Load article if editing
   useEffect(() => {
     const loadData = async () => {
       try {
-        // Load categories
-        const categoriesData = await getCategories();
+        const [categoriesData, locations] = await Promise.all([getCategories(), getLocationCategories()]);
         setCategories(categoriesData);
+        setLocationTree(buildLocationTree(locations));
 
-        // Load article if editing
         if (id) {
           const article = await getArticleById(id);
-          if (article) {
-            setFormData({
-              title: article.title,
-              slug: article.slug,
-              excerpt: article.excerpt || "",
-              content: article.content,
-              categoryId: article.categoryId || "",
-              featuredImage: article.featuredImage || "",
-              tags: article.tagIds?.join(", ") || "",
-              status: article.status === "published" ? "published" : "draft",
-              isBreaking: article.isBreaking || false,
-              isFeatured: article.isFeatured || false,
-            });
-          }
+          setSource(article.source);
+          // Most specific location = the one that is not a parent of another selected one.
+          const selected = locations.filter((l) => article.locationIds?.includes(l.$id));
+          const parents = new Set(selected.map((l) => l.parentId));
+          const locationId = selected.find((l) => !parents.has(l.$id))?.$id ?? "";
+          setFormData({
+            title: article.title,
+            slug: article.slug,
+            excerpt: article.excerpt || "",
+            content: article.content,
+            categoryId: article.categoryId || "",
+            locationId,
+            featuredImage: article.featuredImage || "",
+            tags: article.tags?.join(", ") || "",
+            status: article.status,
+            isBreaking: article.isBreaking || false,
+            isFeatured: article.isFeatured || false,
+          });
         }
-      } catch (error) {
-        console.error("Failed to load data:", error);
+      } catch (err) {
+        console.error("Failed to load data:", err);
         setError("डाटा लोड गर्न सकिएन।");
       } finally {
         setLoading(false);
@@ -99,36 +128,24 @@ export function ArticleEditorPage() {
     loadData();
   }, [id]);
 
-  // Auto-generate slug from title
-  const generateSlug = (title: string): string => {
-    // Simple transliteration for Nepali to English slug
-    // Keep alphanumeric, spaces, hyphens, and Devanagari script
-    return title
+  const generateSlug = (title: string): string =>
+    title
       .toLowerCase()
-      .replace(/[^\w\s\u0900-\u097F-]/g, "")
+      .replace(/[^\w\sऀ-ॿ-]/g, "")
       .replace(/\s+/g, "-")
       .replace(/-+/g, "-")
       .substring(0, 100);
-  };
 
   const handleTitleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const title = e.target.value;
     setFormData((prev) => ({
       ...prev,
       title,
-      // Only auto-generate slug if it's empty or hasn't been manually edited
-      slug:
-        prev.slug === generateSlug(prev.title) || !prev.slug
-          ? generateSlug(title)
-          : prev.slug,
+      slug: prev.slug === generateSlug(prev.title) || !prev.slug ? generateSlug(title) : prev.slug,
     }));
   };
 
-  const handleChange = (
-    e: React.ChangeEvent<
-      HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
-    >
-  ) => {
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
@@ -136,14 +153,10 @@ export function ArticleEditorPage() {
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-
-    // Validate file type
     if (!file.type.startsWith("image/")) {
       alert("कृपया छवि फाइल मात्र अपलोड गर्नुहोस्।");
       return;
     }
-
-    // Validate file size (5MB max)
     if (file.size > 5 * 1024 * 1024) {
       alert("फाइल साइज ५ MB भन्दा कम हुनुपर्छ।");
       return;
@@ -153,9 +166,9 @@ export function ArticleEditorPage() {
     try {
       const imageUrl = await uploadImage(file);
       setFormData((prev) => ({ ...prev, featuredImage: imageUrl }));
-    } catch (error) {
-      console.error("Failed to upload image:", error);
-      alert("छवि अपलोड गर्न सकिएन।");
+    } catch (err) {
+      console.error("Failed to upload image:", err);
+      alert(err instanceof Error ? err.message : "छवि अपलोड गर्न सकिएन।");
     } finally {
       setUploading(false);
     }
@@ -165,75 +178,39 @@ export function ArticleEditorPage() {
     e.preventDefault();
     if (!author) return;
 
-    // Validate required fields
-    if (!formData.title.trim()) {
-      setError("शीर्षक आवश्यक छ।");
-      return;
-    }
-    if (!formData.content.trim()) {
-      setError("सामग्री आवश्यक छ।");
-      return;
-    }
-    if (!formData.categoryId) {
-      setError("श्रेणी छान्नुहोस्।");
-      return;
-    }
+    if (!formData.title.trim()) return setError("शीर्षक आवश्यक छ।");
+    if (!formData.content.trim()) return setError("सामग्री आवश्यक छ।");
+    if (!formData.categoryId) return setError("श्रेणी छान्नुहोस्।");
 
     setError(null);
     setSaving(true);
 
     try {
-      // Get featured image URL if it's a file ID
-      const featuredImageUrl = formData.featuredImage
-        ? formData.featuredImage.startsWith("http")
-          ? formData.featuredImage
-          : getImagePreviewUrl(formData.featuredImage, 1200, 630)
-        : undefined;
-
-      const baseData = {
+      const data = {
         title: formData.title.trim(),
         slug: formData.slug || generateSlug(formData.title),
         excerpt: formData.excerpt.trim() || formData.title.trim(),
         content: formData.content.trim(),
         categoryId: formData.categoryId,
-        featuredImage: featuredImageUrl,
-        tagIds: formData.tags
-          ? formData.tags
-              .split(",")
-              .map((t) => t.trim())
-              .filter(Boolean)
-          : [],
-        status: formData.status as
-          | "draft"
-          | "pending"
-          | "published"
-          | "archived",
+        locationIds: formData.locationId ? [formData.locationId] : [],
+        featuredImage: formData.featuredImage || "",
+        tags: formData.tags
+          .split(",")
+          .map((t) => t.trim())
+          .filter(Boolean),
+        // The server sets publish dates and turns a reporter's "published" into "pending".
+        status: formData.status,
         isBreaking: formData.isBreaking,
         isFeatured: formData.isFeatured,
-        // Set publishedAt when publishing
-        ...(formData.status === "published" && {
-          publishedAt: new Date().toISOString(),
-          publishedAtBS: formatBSDate(adToBS(new Date())),
-        }),
       };
 
-      if (isEditing) {
-        await updateArticle(id!, baseData);
-      } else {
-        // Create new article with required fields
-        const createdAtBS = formatBSDate(adToBS(new Date()));
-        await createArticle({
-          ...baseData,
-          authorId: author.userId,
-          authorName: author.displayName || author.userId,
-          createdAtBS,
-        });
-      }
+      if (isEditing) await updateArticle(id!, data);
+      else await createArticle(data);
 
-      navigate("/dashboard/articles");
-    } catch (error) {
-      console.error("Failed to save article:", error);
-      setError("समाचार सेभ गर्न सकिएन। कृपया पुन: प्रयास गर्नुहोस्।");
+      navigate(source?.type === "ai" ? "/dashboard/review" : "/dashboard/articles");
+    } catch (err) {
+      console.error("Failed to save article:", err);
+      setError(err instanceof Error && err.message ? err.message : "समाचार सेभ गर्न सकिएन। कृपया पुन: प्रयास गर्नुहोस्।");
     } finally {
       setSaving(false);
     }
@@ -256,44 +233,41 @@ export function ArticleEditorPage() {
     <div className="max-w-4xl mx-auto">
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold text-gray-800">
-          {isEditing ? "समाचार सम्पादन" : "नयाँ समाचार"}
-        </h1>
-        <button
-          onClick={() => navigate("/dashboard/articles")}
-          className="text-gray-600 hover:text-gray-800"
-        >
-          <svg
-            className="w-6 h-6"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M6 18L18 6M6 6l12 12"
-            />
+        <h1 className="text-2xl font-bold text-gray-800">{isEditing ? "समाचार सम्पादन" : "नयाँ समाचार"}</h1>
+        <button onClick={() => navigate(-1)} className="text-gray-600 hover:text-gray-800" aria-label="बन्द गर्नुहोस्">
+          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
           </svg>
         </button>
       </div>
 
-      {error && (
-        <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg text-red-600">
-          {error}
+      {error && <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg text-red-600">{error}</div>}
+
+      {source?.type === "ai" && (
+        <div className="mb-6 p-4 bg-purple-50 border border-purple-200 rounded-lg text-sm text-purple-900 space-y-1">
+          <p className="font-semibold">✨ AI ले तयार पारेको मस्यौदा – प्रकाशन अघि स्रोतसँग मिलाएर जाँच्नुहोस्।</p>
+          {source.url && (
+            <p>
+              स्रोत:{" "}
+              <a href={source.url} target="_blank" rel="noopener noreferrer" className="underline">
+                {source.name || source.url}
+              </a>
+              {source.title && <span className="text-purple-700"> – “{source.title}”</span>}
+            </p>
+          )}
+          {typeof source.aiConfidence === "number" && (
+            <p>
+              विश्वास स्तर: {Math.round(source.aiConfidence * 100)}% · मोडेल: {source.aiModel}
+            </p>
+          )}
         </div>
       )}
 
       <form onSubmit={handleSubmit} className="space-y-6">
         {/* Main content */}
         <div className="bg-white rounded-lg shadow-sm p-6 space-y-6">
-          {/* Title */}
           <div>
-            <label
-              htmlFor="title"
-              className="block text-sm font-medium text-gray-700 mb-1"
-            >
+            <label htmlFor="title" className="block text-sm font-medium text-gray-700 mb-1">
               शीर्षक <span className="text-red-500">*</span>
             </label>
             <input
@@ -303,12 +277,11 @@ export function ArticleEditorPage() {
               value={formData.title}
               onChange={handleTitleChange}
               required
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition"
+              className={inputClass}
               placeholder="समाचारको शीर्षक लेख्नुहोस्..."
             />
           </div>
 
-          {/* AI Assistant Button */}
           <button
             type="button"
             onClick={() => setShowAIModal(true)}
@@ -318,35 +291,25 @@ export function ArticleEditorPage() {
             AI सहायता
           </button>
 
-          {/* Advanced Options Toggle */}
           <button
             type="button"
             onClick={() => setShowAdvanced(!showAdvanced)}
             className="flex items-center space-x-1 text-sm text-gray-500 hover:text-gray-700 transition"
           >
             <svg
-              className={`w-4 h-4 transition-transform ${showAdvanced ? 'rotate-90' : ''}`}
+              className={`w-4 h-4 transition-transform ${showAdvanced ? "rotate-90" : ""}`}
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"
             >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M9 5l7 7-7 7"
-              />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
             </svg>
             <span>उन्नत विकल्प</span>
           </button>
 
-          {/* Slug - Hidden in Advanced */}
           {showAdvanced && (
             <div>
-              <label
-                htmlFor="slug"
-                className="block text-sm font-medium text-gray-700 mb-1"
-              >
+              <label htmlFor="slug" className="block text-sm font-medium text-gray-700 mb-1">
                 स्लग (URL)
               </label>
               <div className="flex items-center">
@@ -363,18 +326,12 @@ export function ArticleEditorPage() {
                   placeholder="auto-generated-slug"
                 />
               </div>
-              <p className="text-xs text-gray-500 mt-1">
-                खाली छोड्नुहोस् शीर्षकबाट स्वतः बन्छ।
-              </p>
+              <p className="text-xs text-gray-500 mt-1">खाली छोड्नुहोस् शीर्षकबाट स्वतः बन्छ।</p>
             </div>
           )}
 
-          {/* Excerpt */}
           <div>
-            <label
-              htmlFor="excerpt"
-              className="block text-sm font-medium text-gray-700 mb-1"
-            >
+            <label htmlFor="excerpt" className="block text-sm font-medium text-gray-700 mb-1">
               सारांश
             </label>
             <textarea
@@ -383,17 +340,13 @@ export function ArticleEditorPage() {
               value={formData.excerpt}
               onChange={handleChange}
               rows={2}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition resize-none"
+              className={`${inputClass} resize-none`}
               placeholder="समाचारको छोटो सारांश..."
             />
           </div>
 
-          {/* Content */}
           <div>
-            <label
-              htmlFor="content"
-              className="block text-sm font-medium text-gray-700 mb-1"
-            >
+            <label htmlFor="content" className="block text-sm font-medium text-gray-700 mb-1">
               सामग्री <span className="text-red-500">*</span>
             </label>
             <textarea
@@ -403,27 +356,22 @@ export function ArticleEditorPage() {
               onChange={handleChange}
               required
               rows={15}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition resize-y font-mono text-sm"
+              className={`${inputClass} resize-y font-mono text-sm`}
               placeholder="समाचारको विस्तृत सामग्री लेख्नुहोस्..."
             />
             <p className="text-xs text-gray-500 mt-1">
-              HTML ट्याग प्रयोग गर्न सकिन्छ।
+              HTML ट्याग प्रयोग गर्न सकिन्छ (स्क्रिप्ट जस्ता असुरक्षित ट्याग सेभ गर्दा हटाइन्छन्)।
             </p>
           </div>
         </div>
 
-        {/* Sidebar options */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Category & Tags */}
+          {/* Classification */}
           <div className="bg-white rounded-lg shadow-sm p-6 space-y-4">
             <h3 className="font-semibold text-gray-800">वर्गीकरण</h3>
 
-            {/* Category */}
             <div>
-              <label
-                htmlFor="categoryId"
-                className="block text-sm font-medium text-gray-700 mb-1"
-              >
+              <label htmlFor="categoryId" className="block text-sm font-medium text-gray-700 mb-1">
                 श्रेणी <span className="text-red-500">*</span>
               </label>
               <select
@@ -432,7 +380,7 @@ export function ArticleEditorPage() {
                 value={formData.categoryId}
                 onChange={handleChange}
                 required
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition"
+                className={inputClass}
               >
                 <option value="">श्रेणी छान्नुहोस्</option>
                 {categories.map((category) => (
@@ -443,12 +391,40 @@ export function ArticleEditorPage() {
               </select>
             </div>
 
-            {/* Tags */}
             <div>
-              <label
-                htmlFor="tags"
-                className="block text-sm font-medium text-gray-700 mb-1"
+              <label htmlFor="locationId" className="block text-sm font-medium text-gray-700 mb-1">
+                स्थान (स्थानीय समाचार)
+              </label>
+              <select
+                id="locationId"
+                name="locationId"
+                value={formData.locationId}
+                onChange={handleChange}
+                className={inputClass}
               >
+                <option value="">राष्ट्रिय / कुनै खास स्थान छैन</option>
+                {locationTree.map((province) => (
+                  <optgroup key={province.$id} label={province.name}>
+                    <option value={province.$id}>{province.name} (पूरै प्रदेश)</option>
+                    {province.children.map((district) => (
+                      <Fragment key={district.$id}>
+                        <option value={district.$id}>{district.name}</option>
+                        {district.children.map((m) => (
+                          <option key={m.$id} value={m.$id}>
+                            {"  ↳ "}
+                            {m.name}
+                          </option>
+                        ))}
+                      </Fragment>
+                    ))}
+                  </optgroup>
+                ))}
+              </select>
+              <p className="text-xs text-gray-500 mt-1">जिल्ला छान्दा समाचार प्रदेशको मेनुमा पनि देखिन्छ।</p>
+            </div>
+
+            <div>
+              <label htmlFor="tags" className="block text-sm font-medium text-gray-700 mb-1">
                 ट्यागहरू
               </label>
               <input
@@ -457,12 +433,10 @@ export function ArticleEditorPage() {
                 name="tags"
                 value={formData.tags}
                 onChange={handleChange}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition"
+                className={inputClass}
                 placeholder="ट्याग १, ट्याग २, ट्याग ३"
               />
-              <p className="text-xs text-gray-500 mt-1">
-                कमाले छुट्याएर लेख्नुहोस्
-              </p>
+              <p className="text-xs text-gray-500 mt-1">कमाले छुट्याएर लेख्नुहोस्</p>
             </div>
           </div>
 
@@ -473,11 +447,7 @@ export function ArticleEditorPage() {
             {formData.featuredImage ? (
               <div className="relative">
                 <img
-                  src={
-                    formData.featuredImage.startsWith("http")
-                      ? formData.featuredImage
-                      : getImagePreviewUrl(formData.featuredImage, 600, 400)
-                  }
+                  src={getImagePreviewUrl(formData.featuredImage, 600, 400)}
                   alt="Featured"
                   className="w-full h-40 object-cover rounded-lg"
                   onError={(e) => {
@@ -487,66 +457,26 @@ export function ArticleEditorPage() {
                 />
                 <button
                   type="button"
-                  onClick={() =>
-                    setFormData((prev) => ({ ...prev, featuredImage: "" }))
-                  }
+                  onClick={() => setFormData((prev) => ({ ...prev, featuredImage: "" }))}
                   className="absolute top-2 right-2 p-1 bg-red-500 text-white rounded-full hover:bg-red-600"
+                  aria-label="छवि हटाउनुहोस्"
                 >
-                  <svg
-                    className="w-4 h-4"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M6 18L18 6M6 6l12 12"
-                    />
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                   </svg>
                 </button>
               </div>
             ) : (
               <label className="flex flex-col items-center justify-center w-full h-40 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:border-primary transition">
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={handleImageUpload}
-                  disabled={uploading}
-                  className="hidden"
-                />
+                <input type="file" accept="image/*" onChange={handleImageUpload} disabled={uploading} className="hidden" />
                 {uploading ? (
                   <div className="flex flex-col items-center text-gray-500">
-                    <svg
-                      className="w-8 h-8 animate-spin mb-2"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                    >
-                      <circle
-                        className="opacity-25"
-                        cx="12"
-                        cy="12"
-                        r="10"
-                        stroke="currentColor"
-                        strokeWidth="4"
-                      ></circle>
-                      <path
-                        className="opacity-75"
-                        fill="currentColor"
-                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                      ></path>
-                    </svg>
+                    <Spinner className="w-8 h-8 mb-2" />
                     <span className="text-sm">अपलोड हुँदैछ...</span>
                   </div>
                 ) : (
                   <div className="flex flex-col items-center text-gray-500">
-                    <svg
-                      className="w-10 h-10 mb-2"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
+                    <svg className="w-10 h-10 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path
                         strokeLinecap="round"
                         strokeLinejoin="round"
@@ -555,21 +485,17 @@ export function ArticleEditorPage() {
                       />
                     </svg>
                     <span className="text-sm">छवि अपलोड गर्नुहोस्</span>
-                    <span className="text-xs text-gray-400 mt-1">
-                      अधिकतम ५ MB
-                    </span>
+                    <span className="text-xs text-gray-400 mt-1">अधिकतम ५ MB</span>
                   </div>
                 )}
               </label>
             )}
-
-
           </div>
         </div>
 
         {/* Actions */}
         <div className="bg-white rounded-lg shadow-sm p-6 flex flex-col sm:flex-row items-center justify-between gap-4">
-          <div className="flex items-center space-x-4">
+          <div className="flex flex-wrap items-center gap-4">
             <label className="flex items-center space-x-2 cursor-pointer">
               <input
                 type="radio"
@@ -585,42 +511,53 @@ export function ArticleEditorPage() {
               <input
                 type="radio"
                 name="status"
-                value="published"
-                checked={formData.status === "published"}
+                value="pending"
+                checked={formData.status === "pending"}
                 onChange={handleChange}
                 className="w-4 h-4 text-primary focus:ring-primary"
               />
-              <span className="text-sm text-gray-700">प्रकाशित गर्नुहोस्</span>
+              <span className="text-sm text-gray-700">समीक्षाको लागि</span>
             </label>
-            <span className="text-gray-300">|</span>
-            <label className="flex items-center space-x-2 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={formData.isBreaking}
-                onChange={(e) =>
-                  setFormData((prev) => ({ ...prev, isBreaking: e.target.checked }))
-                }
-                className="w-4 h-4 text-red-600 focus:ring-red-500 rounded"
-              />
-              <span className="text-sm text-red-600 font-medium">ब्रेकिङ न्युज</span>
-            </label>
-            <label className="flex items-center space-x-2 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={formData.isFeatured}
-                onChange={(e) =>
-                  setFormData((prev) => ({ ...prev, isFeatured: e.target.checked }))
-                }
-                className="w-4 h-4 text-yellow-600 focus:ring-yellow-500 rounded"
-              />
-              <span className="text-sm text-yellow-600 font-medium">मुख्य समाचार</span>
-            </label>
+            {mayPublish && (
+              <>
+                <label className="flex items-center space-x-2 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="status"
+                    value="published"
+                    checked={formData.status === "published"}
+                    onChange={handleChange}
+                    className="w-4 h-4 text-primary focus:ring-primary"
+                  />
+                  <span className="text-sm text-gray-700">प्रकाशित गर्नुहोस्</span>
+                </label>
+                <span className="text-gray-300">|</span>
+                <label className="flex items-center space-x-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={formData.isBreaking}
+                    onChange={(e) => setFormData((prev) => ({ ...prev, isBreaking: e.target.checked }))}
+                    className="w-4 h-4 text-red-600 focus:ring-red-500 rounded"
+                  />
+                  <span className="text-sm text-red-600 font-medium">ब्रेकिङ न्युज</span>
+                </label>
+                <label className="flex items-center space-x-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={formData.isFeatured}
+                    onChange={(e) => setFormData((prev) => ({ ...prev, isFeatured: e.target.checked }))}
+                    className="w-4 h-4 text-yellow-600 focus:ring-yellow-500 rounded"
+                  />
+                  <span className="text-sm text-yellow-600 font-medium">मुख्य समाचार</span>
+                </label>
+              </>
+            )}
           </div>
 
           <div className="flex items-center space-x-3">
             <button
               type="button"
-              onClick={() => navigate("/dashboard/articles")}
+              onClick={() => navigate(-1)}
               className="px-6 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition"
             >
               रद्द गर्नुहोस्
@@ -632,25 +569,7 @@ export function ArticleEditorPage() {
             >
               {saving ? (
                 <>
-                  <svg
-                    className="w-5 h-5 animate-spin"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                  >
-                    <circle
-                      className="opacity-25"
-                      cx="12"
-                      cy="12"
-                      r="10"
-                      stroke="currentColor"
-                      strokeWidth="4"
-                    ></circle>
-                    <path
-                      className="opacity-75"
-                      fill="currentColor"
-                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                    ></path>
-                  </svg>
+                  <Spinner />
                   <span>सेभ हुँदैछ...</span>
                 </>
               ) : (
@@ -661,7 +580,6 @@ export function ArticleEditorPage() {
         </div>
       </form>
 
-      {/* AI Assistant Modal */}
       <AIAssistantModal
         isOpen={showAIModal}
         onClose={() => setShowAIModal(false)}
@@ -669,27 +587,15 @@ export function ArticleEditorPage() {
         currentContent={formData.content}
         categories={categories}
         onApplyDraft={(draft: GeneratedArticle) => {
-          setFormData((prev) => ({
-            ...prev,
-            title: draft.title,
-            excerpt: draft.excerpt,
-            content: draft.content,
-          }));
+          setFormData((prev) => ({ ...prev, title: draft.title, excerpt: draft.excerpt, content: draft.content }));
           setShowAIModal(false);
         }}
         onApplyExcerpt={(excerpt: string) => {
-          setFormData((prev) => ({
-            ...prev,
-            excerpt,
-          }));
+          setFormData((prev) => ({ ...prev, excerpt }));
           setShowAIModal(false);
         }}
         onApplyTags={(categoryId: string, tags: string) => {
-          setFormData((prev) => ({
-            ...prev,
-            categoryId,
-            tags,
-          }));
+          setFormData((prev) => ({ ...prev, categoryId: categoryId || prev.categoryId, tags }));
           setShowAIModal(false);
         }}
       />

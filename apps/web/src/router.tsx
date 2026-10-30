@@ -4,7 +4,7 @@
 
 import { createBrowserRouter } from "react-router-dom";
 import { Layout } from "@/components/layout";
-import { HomePage, CategoryPage, NewsDetailPage, NotFoundPage } from "@/pages";
+import { HomePage, CategoryPage, NewsDetailPage, NotFoundPage, SearchPage } from "@/pages";
 import { DashboardLayout } from "@/components/dashboard";
 import { ProtectedRoute } from "@/components/auth";
 import {
@@ -13,6 +13,8 @@ import {
   ArticlesListPage,
   ArticleEditorPage,
   CategoriesPage,
+  ReviewPage,
+  SourcesPage,
 } from "@/pages/dashboard";
 
 export const router = createBrowserRouter([
@@ -32,6 +34,10 @@ export const router = createBrowserRouter([
       {
         path: "news/:slug",
         element: <NewsDetailPage />,
+      },
+      {
+        path: "search",
+        element: <SearchPage />,
       },
       {
         path: "*",
@@ -76,6 +82,22 @@ export const router = createBrowserRouter([
         element: (
           <ProtectedRoute allowedRoles={["admin", "editor"]}>
             <CategoriesPage />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: "review",
+        element: (
+          <ProtectedRoute allowedRoles={["admin", "editor"]}>
+            <ReviewPage />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: "sources",
+        element: (
+          <ProtectedRoute allowedRoles={["admin", "editor"]}>
+            <SourcesPage />
           </ProtectedRoute>
         ),
       },

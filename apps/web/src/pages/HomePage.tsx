@@ -7,12 +7,7 @@
 import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import type { Article, Category } from "@/types";
-import {
-  getFeaturedArticles,
-  getLatestArticles,
-  getArticlesByCategory,
-} from "@/services/news.service";
-import { getCategories } from "@/services/categories.service";
+import { getHomeData } from "@/services/news.service";
 import { NewsCard } from "@/components/news/NewsCard";
 import { NewsGrid } from "@/components/news/NewsGrid";
 import {
@@ -27,6 +22,7 @@ interface HomeData {
   latest: Article[];
   categories: Category[];
   categoryArticles: Record<string, Article[]>;
+  local: Array<{ category: Category; articles: Article[] }>;
 }
 
 export function HomePage() {
@@ -39,21 +35,19 @@ export function HomePage() {
     setError(null);
 
     try {
-      const [featured, latest, categories] = await Promise.all([
-        getFeaturedArticles(5),
-        getLatestArticles(12),
-        getCategories(),
-      ]);
-
-      // Load articles for first 3 categories
+      const home = await getHomeData();
+      const sections = home.sections.slice(0, 3);
       const categoryArticles: Record<string, Article[]> = {};
-      const categoryPromises = categories.slice(0, 3).map(async (cat) => {
-        const result = await getArticlesByCategory(cat.$id, { limit: 4 });
-        categoryArticles[cat.$id] = result.documents;
-      });
-      await Promise.all(categoryPromises);
+      for (const s of sections) categoryArticles[s.category.$id] = s.articles;
 
-      setData({ featured, latest, categories, categoryArticles });
+      setData({
+        // Fall back to the latest news when nothing is marked featured.
+        featured: home.featured.length ? home.featured : home.latest.slice(0, 5),
+        latest: home.latest,
+        categories: sections.map((s) => s.category),
+        categoryArticles,
+        local: home.local,
+      });
     } catch (err) {
       console.error("Failed to load home page:", err);
       setError("गृहपृष्ठ लोड गर्न सकिएन।");
@@ -138,6 +132,22 @@ export function HomePage() {
           )
         )}
       </section>
+
+      {/* Local News (priority locations such as Kavre / Panauti) */}
+      {!isLoading &&
+        data?.local.map(({ category, articles }) => (
+          <section key={category.$id} className="mb-10">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-2xl font-bold text-gray-900 relative">
+                <span className="border-b-4 border-secondary pb-2">स्थानीय: {category.name}</span>
+              </h2>
+              <Link to={`/category/${category.slug}`} className="text-primary hover:underline font-medium">
+                थप हेर्नुहोस् →
+              </Link>
+            </div>
+            <NewsGrid articles={articles.slice(0, 4)} columns={4} />
+          </section>
+        ))}
 
       {/* Category Sections */}
       {!isLoading &&

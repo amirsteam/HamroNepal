@@ -1,97 +1,48 @@
 /**
- * Categories Service
- *
- * Handles fetching categories from Appwrite.
+ * Categories Service – topic menus and location (प्रदेश/जिल्ला) menus.
  */
 
-import { Query } from "appwrite";
-import { databases, config } from "@/lib/appwrite";
+import { api } from "@/lib/api";
 import type { Category } from "@/types";
 
-/**
- * Get all active categories.
- */
+/** Active topic categories (राजनीति, खेलकुद ...), in menu order. */
 export async function getCategories(): Promise<Category[]> {
-  const response = await databases.listDocuments(
-    config.databaseId,
-    config.collections.categories,
-    [
-      Query.equal("isActive", true),
-      Query.orderAsc("sortOrder"),
-      Query.limit(100),
-    ]
-  );
-
-  return response.documents as unknown as Category[];
+  return api.get<Category[]>("/categories", { type: "topic" });
 }
 
-/**
- * Get category by slug.
- */
-export async function getCategoryBySlug(
-  slug: string
-): Promise<Category | null> {
-  const response = await databases.listDocuments(
-    config.databaseId,
-    config.collections.categories,
-    [Query.equal("slug", slug), Query.equal("isActive", true), Query.limit(1)]
-  );
-
-  if (response.documents.length === 0) {
-    return null;
-  }
-
-  return response.documents[0] as unknown as Category;
+/** Active location categories (provinces, districts, municipalities). */
+export async function getLocationCategories(): Promise<Category[]> {
+  return api.get<Category[]>("/categories", { type: "location" });
 }
 
-/**
- * Get category by ID.
- */
-export async function getCategoryById(id: string): Promise<Category | null> {
+export async function getCategoryBySlug(slug: string): Promise<Category | null> {
   try {
-    const doc = await databases.getDocument(
-      config.databaseId,
-      config.collections.categories,
-      id
-    );
-    return doc as unknown as Category;
-  } catch {
-    return null;
+    return await api.get<Category>(`/categories/${encodeURIComponent(slug)}`);
+  } catch (err) {
+    if ((err as { status?: number }).status === 404) return null;
+    throw err;
   }
 }
 
-/**
- * Get root categories (no parent).
- */
-export async function getRootCategories(): Promise<Category[]> {
-  const response = await databases.listDocuments(
-    config.databaseId,
-    config.collections.categories,
-    [
-      Query.isNull("parentId"),
-      Query.equal("isActive", true),
-      Query.orderAsc("sortOrder"),
-    ]
-  );
+export const getCategoryById = getCategoryBySlug;
 
-  return response.documents as unknown as Category[];
+export interface LocationNode extends Category {
+  children: LocationNode[];
 }
 
-/**
- * Get child categories of a parent.
- */
-export async function getChildCategories(
-  parentId: string
-): Promise<Category[]> {
-  const response = await databases.listDocuments(
-    config.databaseId,
-    config.collections.categories,
-    [
-      Query.equal("parentId", parentId),
-      Query.equal("isActive", true),
-      Query.orderAsc("sortOrder"),
-    ]
-  );
-
-  return response.documents as unknown as Category[];
+/** Province → district → municipality tree from a flat list. */
+export function buildLocationTree(locations: Category[]): LocationNode[] {
+  const nodes = new Map<string, LocationNode>(locations.map((l) => [l.$id, { ...l, children: [] }]));
+  const roots: LocationNode[] = [];
+  for (const node of nodes.values()) {
+    const parent = node.parentId ? nodes.get(node.parentId) : undefined;
+    if (parent) parent.children.push(node);
+    else roots.push(node);
+  }
+  const sort = (list: LocationNode[]) => {
+    list.sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name, "ne"));
+    list.forEach((n) => sort(n.children));
+  };
+  sort(roots);
+  return roots;
 }

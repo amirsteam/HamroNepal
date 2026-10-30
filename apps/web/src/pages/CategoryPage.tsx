@@ -7,7 +7,7 @@
 import { useState, useEffect } from "react";
 import { useParams, Link } from "react-router-dom";
 import type { Article, Category } from "@/types";
-import { getArticlesByCategory } from "@/services/news.service";
+import { getArticlesByCategory, getPublishedArticles } from "@/services/news.service";
 import {
   getCategoryBySlug,
   getCategories,
@@ -16,6 +16,18 @@ import { NewsGrid } from "@/components/news/NewsGrid";
 import { NewsGridSkeleton, SidebarSkeleton } from "@/components/ui/Skeleton";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { toNepaliDigits } from "@/lib/bs-date";
+
+/** "/category/all" lists every published article. */
+const ALL_NEWS: Category = {
+  $id: "all",
+  $createdAt: "",
+  $updatedAt: "",
+  name: "ताजा समाचार",
+  slug: "all",
+  sortOrder: 0,
+  isActive: true,
+  type: "topic",
+};
 
 export function CategoryPage() {
   const { slug } = useParams<{ slug: string }>();
@@ -30,6 +42,11 @@ export function CategoryPage() {
 
   const ITEMS_PER_PAGE = 12;
 
+  function fetchPage(cat: Category, offset: number) {
+    const page = { limit: ITEMS_PER_PAGE, offset };
+    return cat.$id === ALL_NEWS.$id ? getPublishedArticles(page) : getArticlesByCategory(cat.$id, page);
+  }
+
   async function loadCategory() {
     if (!slug) return;
 
@@ -40,7 +57,7 @@ export function CategoryPage() {
 
     try {
       const [cat, cats] = await Promise.all([
-        getCategoryBySlug(slug),
+        slug === "all" ? Promise.resolve(ALL_NEWS) : getCategoryBySlug(slug),
         getCategories(),
       ]);
 
@@ -53,10 +70,7 @@ export function CategoryPage() {
       setCategory(cat);
       setAllCategories(cats);
 
-      const result = await getArticlesByCategory(cat.$id, {
-        limit: ITEMS_PER_PAGE,
-        offset: 0,
-      });
+      const result = await fetchPage(cat, 0);
 
       setArticles(result.documents);
       setTotal(result.total);
@@ -75,10 +89,7 @@ export function CategoryPage() {
     const nextPage = page + 1;
 
     try {
-      const result = await getArticlesByCategory(category.$id, {
-        limit: ITEMS_PER_PAGE,
-        offset: nextPage * ITEMS_PER_PAGE,
-      });
+      const result = await fetchPage(category, nextPage * ITEMS_PER_PAGE);
 
       setArticles((prev) => [...prev, ...result.documents]);
       setPage(nextPage);

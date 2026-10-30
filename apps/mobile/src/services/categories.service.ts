@@ -1,61 +1,32 @@
 /**
- * Categories Service for Mobile
- *
- * Fetch categories from Appwrite.
+ * Categories Service for Mobile – topic menus plus location menus.
  */
 
-import { Query } from "appwrite";
-import { databases, config } from "@/lib/appwrite";
+import { apiGet } from "@/lib/api";
 import type { Category } from "@/types";
 
 /**
- * Get all active categories
+ * Topic categories, followed by the priority local areas (e.g. Kavre,
+ * Panauti) and the 7 provinces, so local news is one tap away.
  */
 export async function getCategories(): Promise<Category[]> {
-  const response = await databases.listDocuments(
-    config.databaseId,
-    config.collections.categories,
-    [
-      Query.equal("isActive", true),
-      Query.orderAsc("sortOrder"),
-      Query.limit(50),
-    ]
-  );
-
-  return response.documents as unknown as Category[];
+  const [topics, locations] = await Promise.all([
+    apiGet<Category[]>("/categories", { type: "topic" }),
+    apiGet<Category[]>("/categories", { type: "location" }),
+  ]);
+  const local = locations.filter((l) => l.ingest || l.level === "province");
+  local.sort((a, b) => Number(!!b.ingest) - Number(!!a.ingest) || a.sortOrder - b.sortOrder);
+  return [...topics, ...local];
 }
 
-/**
- * Get category by slug
- */
-export async function getCategoryBySlug(
-  slug: string
-): Promise<Category | null> {
-  const response = await databases.listDocuments(
-    config.databaseId,
-    config.collections.categories,
-    [Query.equal("slug", slug), Query.limit(1)]
-  );
-
-  if (response.documents.length === 0) {
-    return null;
-  }
-
-  return response.documents[0] as unknown as Category;
-}
-
-/**
- * Get category by ID
- */
-export async function getCategoryById(id: string): Promise<Category | null> {
+async function getOne(key: string): Promise<Category | null> {
   try {
-    const doc = await databases.getDocument(
-      config.databaseId,
-      config.collections.categories,
-      id
-    );
-    return doc as unknown as Category;
-  } catch {
-    return null;
+    return await apiGet<Category>(`/categories/${encodeURIComponent(key)}`);
+  } catch (err) {
+    if ((err as { status?: number }).status === 404) return null;
+    throw err;
   }
 }
+
+export const getCategoryBySlug = getOne;
+export const getCategoryById = getOne;

@@ -16,7 +16,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import type { Article } from "@/types";
 import { toNepaliDigits, formatBSDate, adToBS } from "@/lib/bs-date";
 
-type StatusFilter = "all" | "published" | "draft" | "archived";
+type StatusFilter = "all" | "pending" | "published" | "draft" | "archived";
 
 export function ArticlesListPage() {
   const { author } = useAuth();
@@ -38,7 +38,7 @@ export function ArticlesListPage() {
     setLoading(true);
     try {
       const result = await getMyArticles(
-        author.userId,
+        author.$id,
         limit,
         (page - 1) * limit,
         statusFilter === "all" ? undefined : statusFilter
@@ -77,7 +77,7 @@ export function ArticlesListPage() {
     try {
       await updateArticleStatus(
         articleId,
-        newStatus as "draft" | "published" | "archived"
+        newStatus as Article["status"]
       );
       setArticles((prev) =>
         prev.map((a) =>
@@ -116,6 +116,12 @@ export function ArticlesListPage() {
         return (
           <span className="px-2 py-1 text-xs font-medium bg-yellow-100 text-yellow-700 rounded">
             ड्राफ्ट
+          </span>
+        );
+      case "pending":
+        return (
+          <span className="px-2 py-1 text-xs font-medium bg-blue-100 text-blue-700 rounded">
+            समीक्षामा
           </span>
         );
       case "archived":
@@ -162,7 +168,7 @@ export function ArticlesListPage() {
 
       {/* Filters */}
       <div className="flex flex-wrap gap-2">
-        {(["all", "published", "draft", "archived"] as StatusFilter[]).map(
+        {(["all", "pending", "published", "draft", "archived"] as StatusFilter[]).map(
           (status) => (
             <button
               key={status}
@@ -174,6 +180,7 @@ export function ArticlesListPage() {
               }`}
             >
               {status === "all" && "सबै"}
+              {status === "pending" && "समीक्षामा"}
               {status === "published" && "प्रकाशित"}
               {status === "draft" && "ड्राफ्ट"}
               {status === "archived" && "संग्रहित"}
@@ -301,6 +308,7 @@ export function ArticlesListPage() {
                           className="text-sm border rounded px-2 py-1 focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
                         >
                           <option value="draft">ड्राफ्ट</option>
+                          <option value="pending">समीक्षामा</option>
                           <option value="published">प्रकाशित</option>
                           <option value="archived">संग्रहित</option>
                         </select>

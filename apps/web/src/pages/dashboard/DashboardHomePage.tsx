@@ -6,17 +6,16 @@
 
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { getDashboardStats, getMyArticles, getImagePreviewUrl } from "@/services/admin.service";
+import {
+  getDashboardStats,
+  getMyArticles,
+  getImagePreviewUrl,
+  type DashboardStats,
+} from "@/services/admin.service";
 import { useAuth } from "@/contexts/AuthContext";
 import type { Article } from "@/types";
 import { toNepaliDigits, formatBSDate, adToBS } from "@/lib/bs-date";
 
-interface DashboardStats {
-  totalArticles: number;
-  publishedArticles: number;
-  draftArticles: number;
-  totalViews: number;
-}
 
 export function DashboardHomePage() {
   const { author } = useAuth();
@@ -30,8 +29,8 @@ export function DashboardHomePage() {
 
       try {
         const [statsData, articlesData] = await Promise.all([
-          getDashboardStats(author.userId),
-          getMyArticles(author.userId, 5),
+          getDashboardStats(author.$id),
+          getMyArticles(author.$id, 5),
         ]);
 
         setStats(statsData);
@@ -58,6 +57,12 @@ export function DashboardHomePage() {
         return (
           <span className="px-2 py-1 text-xs font-medium bg-yellow-100 text-yellow-700 rounded">
             ड्राफ्ट
+          </span>
+        );
+      case "pending":
+        return (
+          <span className="px-2 py-1 text-xs font-medium bg-blue-100 text-blue-700 rounded">
+            समीक्षामा
           </span>
         );
       case "archived":
@@ -94,12 +99,21 @@ export function DashboardHomePage() {
       {/* Welcome */}
       <div>
         <h1 className="text-2xl font-bold text-gray-800">
-          स्वागत छ, {author?.displayName}!
+          स्वागत छ, {author?.name}!
         </h1>
         <p className="text-gray-600 mt-1">
           आज {formatBSDate(adToBS(new Date()))} हो।
         </p>
       </div>
+
+      {!!stats?.aiPending && (
+        <Link
+          to="/dashboard/review"
+          className="block p-4 bg-purple-50 border border-purple-200 rounded-lg text-purple-900 hover:bg-purple-100 transition"
+        >
+          ✨ AI ले तयार पारेका {toNepaliDigits(stats.aiPending)} वटा स्थानीय/राष्ट्रिय समाचार समीक्षाको पर्खाइमा छन् →
+        </Link>
+      )}
 
       {/* Stats */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">

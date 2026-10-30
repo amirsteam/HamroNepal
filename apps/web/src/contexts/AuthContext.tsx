@@ -1,20 +1,15 @@
 /**
  * Auth Context
  *
- * Provides authentication state throughout the app.
+ * Provides authentication state throughout the app. `user` and `author` are
+ * the same object (one dashboard account per person); both names are kept
+ * for the existing components.
  */
 
-import {
-  createContext,
-  useState,
-  useEffect,
-  useCallback,
-  type ReactNode,
-} from "react";
+import { createContext, useState, useEffect, useCallback, type ReactNode } from "react";
 import type { Author } from "@/types";
 import {
   getCurrentUser,
-  getAuthorProfile,
   login as authLogin,
   logout as authLogout,
   type AuthUser,
@@ -31,61 +26,41 @@ interface AuthContextType {
   refreshAuth: () => Promise<void>;
 }
 
-export const AuthContext = createContext<AuthContextType | undefined>(
-  undefined
-);
+export const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
-  const [author, setAuthor] = useState<Author | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   const refreshAuth = useCallback(async () => {
     try {
-      const currentUser = await getCurrentUser();
-      if (currentUser) {
-        setUser(currentUser);
-        const authorProfile = await getAuthorProfile(currentUser.$id);
-        setAuthor(authorProfile);
-      } else {
-        setUser(null);
-        setAuthor(null);
-      }
+      setUser(await getCurrentUser());
     } catch {
       setUser(null);
-      setAuthor(null);
     }
   }, []);
 
   const login = async (credentials: LoginCredentials) => {
-    const loggedInUser = await authLogin(credentials);
-    setUser(loggedInUser);
-
-    const authorProfile = await getAuthorProfile(loggedInUser.$id);
-    setAuthor(authorProfile);
+    setUser(await authLogin(credentials));
   };
 
   const logout = async () => {
-    await authLogout();
-    setUser(null);
-    setAuthor(null);
+    try {
+      await authLogout();
+    } finally {
+      setUser(null);
+    }
   };
 
   useEffect(() => {
-    const initAuth = async () => {
-      setIsLoading(true);
-      await refreshAuth();
-      setIsLoading(false);
-    };
-
-    initAuth();
+    refreshAuth().finally(() => setIsLoading(false));
   }, [refreshAuth]);
 
   return (
     <AuthContext.Provider
       value={{
         user,
-        author,
+        author: user,
         isLoading,
         isAuthenticated: !!user,
         login,

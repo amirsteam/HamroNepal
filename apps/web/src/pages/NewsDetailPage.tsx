@@ -5,6 +5,7 @@
  */
 
 import { useState, useEffect } from "react";
+import DOMPurify from "dompurify";
 import { useParams, Link } from "react-router-dom";
 import type { Article, Category } from "@/types";
 import {
@@ -43,6 +44,7 @@ export function NewsDetailPage() {
       }
 
       setArticle(art);
+      document.title = `${art.title} - हाम्रो नेपाल`;
 
       // Increment view count (fire and forget)
       incrementViewCount(art.$id);
@@ -196,22 +198,29 @@ export function NewsDetailPage() {
                 {/* Content */}
                 <div
                   className="px-6 pb-6 article-content"
-                  dangerouslySetInnerHTML={{ __html: article.content }}
+                  dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(article.content, { ADD_ATTR: ["target"] }) }}
                 />
 
+                {article.source?.type === "ai" && (
+                  <p className="px-6 pb-4 text-xs text-gray-500">
+                    यो समाचार AI को सहायताले {article.source.name ? `${article.source.name}को` : "अन्य सञ्चारमाध्यमको"} रिपोर्टका आधारमा तयार पारी हाम्रो सम्पादकले जाँच गरेका हुन्।
+                  </p>
+                )}
+
                 {/* Tags */}
-                {article.tagIds && article.tagIds.length > 0 && (
+                {article.tags && article.tags.length > 0 && (
                   <div className="px-6 pb-6 pt-4 border-t">
                     <span className="text-gray-500 text-sm mr-2">
                       ट्यागहरू:
                     </span>
-                    {article.tagIds.map((tagId) => (
-                      <span
-                        key={tagId}
-                        className="inline-block bg-gray-100 text-gray-700 text-sm px-3 py-1 rounded-full mr-2 mb-2"
+                    {article.tags.map((tag) => (
+                      <Link
+                        key={tag}
+                        to={`/search?q=${encodeURIComponent(tag)}`}
+                        className="inline-block bg-gray-100 text-gray-700 text-sm px-3 py-1 rounded-full mr-2 mb-2 hover:bg-gray-200"
                       >
-                        #{tagId}
-                      </span>
+                        #{tag}
+                      </Link>
                     ))}
                   </div>
                 )}

@@ -4,13 +4,14 @@
  * Provides AI-powered article generation features in a modal dialog.
  */
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import DOMPurify from "dompurify";
 import type { Category } from "@/types";
 import {
   generateArticleDraft,
   improveExcerpt,
   suggestTags,
-  isAIConfigured,
+  getAIStatus,
   type GeneratedArticle,
   type SuggestedTags,
 } from "@/services/ai.service";
@@ -47,10 +48,16 @@ export function AIAssistantModal({
   const [generatedDraft, setGeneratedDraft] = useState<GeneratedArticle | null>(null);
   const [generatedExcerpt, setGeneratedExcerpt] = useState<string | null>(null);
   const [suggestedTags, setSuggestedTags] = useState<SuggestedTags | null>(null);
+  const [configured, setConfigured] = useState(true);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    getAIStatus()
+      .then((s) => setConfigured(s.configured))
+      .catch(() => setConfigured(false));
+  }, [isOpen]);
 
   if (!isOpen) return null;
-
-  const configured = isAIConfigured();
 
   const handleGenerateDraft = async () => {
     if (!topic.trim()) {
@@ -103,8 +110,7 @@ export function AIAssistantModal({
     setSuggestedTags(null);
 
     try {
-      const categoriesForAI = categories.map((c) => ({ id: c.$id, name: c.name }));
-      const tags = await suggestTags(currentContent, categoriesForAI);
+      const tags = await suggestTags(currentContent);
       setSuggestedTags(tags);
     } catch (err) {
       setError(err instanceof Error ? err.message : "AI त्रुटि भयो");
@@ -144,7 +150,7 @@ export function AIAssistantModal({
         {!configured && (
           <div className="bg-yellow-50 border-b border-yellow-200 px-6 py-3">
             <p className="text-yellow-800 text-sm">
-              ⚠️ Groq API key कन्फिगर गरिएको छैन। .env.local मा VITE_GROQ_API_KEY थप्नुहोस्।
+              ⚠️ AI सेवा कन्फिगर गरिएको छैन। सर्भरमा GEMINI_API_KEY वा GROQ_API_KEY राख्नुहोस्।
             </p>
           </div>
         )}
@@ -237,7 +243,7 @@ export function AIAssistantModal({
                       <span className="text-xs text-gray-500">सामग्री:</span>
                       <div
                         className="text-gray-700 text-sm mt-1 prose prose-sm max-w-none"
-                        dangerouslySetInnerHTML={{ __html: generatedDraft.content }}
+                        dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(generatedDraft.content) }}
                       />
                     </div>
                   </div>

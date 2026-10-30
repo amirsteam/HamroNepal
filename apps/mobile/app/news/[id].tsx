@@ -196,9 +196,9 @@ export default function NewsDetailScreen() {
           </Text>
 
           {/* Tags */}
-          {article.tagIds && article.tagIds.length > 0 && (
+          {article.tags && article.tags.length > 0 && (
             <View style={styles.tags}>
-              {article.tagIds.map((tag, index) => (
+              {article.tags.map((tag, index) => (
                 <View
                   key={index}
                   style={[styles.tag, { backgroundColor: colors.background }]}

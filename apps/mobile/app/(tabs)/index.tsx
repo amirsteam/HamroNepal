@@ -153,7 +153,7 @@ export default function HomeScreen() {
                 $id: "all",
                 name: "सबै",
                 slug: "all",
-                order: 0,
+                sortOrder: 0,
                 isActive: true,
               } as Category
             }

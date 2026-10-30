@@ -1,225 +1,90 @@
 /**
- * News Service
- *
- * Handles fetching articles from Appwrite.
+ * News Service – public article reads.
  */
 
-import { Query } from "appwrite";
-import { databases, storage, config } from "@/lib/appwrite";
-import type { Article, PaginatedResponse, PaginationParams } from "@/types";
+import { api } from "@/lib/api";
+import type { Article, HomeData, PaginatedResponse, PaginationParams } from "@/types";
 
-/**
- * Get published articles with pagination.
- */
+export async function getHomeData(): Promise<HomeData> {
+  return api.get<HomeData>("/home");
+}
+
 export async function getPublishedArticles(
   pagination?: PaginationParams
 ): Promise<PaginatedResponse<Article>> {
-  const queries = [
-    Query.equal("status", "published"),
-    Query.orderDesc("publishedAt"),
-  ];
-
-  if (pagination?.limit) {
-    queries.push(Query.limit(pagination.limit));
-  } else {
-    queries.push(Query.limit(20));
-  }
-
-  if (pagination?.offset) {
-    queries.push(Query.offset(pagination.offset));
-  }
-
-  const response = await databases.listDocuments(
-    config.databaseId,
-    config.collections.articles,
-    queries
-  );
-
-  return {
-    documents: response.documents as unknown as Article[],
-    total: response.total,
-  };
+  return api.get("/articles", { limit: pagination?.limit ?? 20, offset: pagination?.offset });
 }
 
-/**
- * Get article by slug.
- */
 export async function getArticleBySlug(slug: string): Promise<Article | null> {
-  const response = await databases.listDocuments(
-    config.databaseId,
-    config.collections.articles,
-    [
-      Query.equal("slug", slug),
-      Query.equal("status", "published"),
-      Query.limit(1),
-    ]
-  );
-
-  if (response.documents.length === 0) {
-    return null;
+  try {
+    return await api.get<Article>(`/articles/${encodeURIComponent(slug)}`);
+  } catch (err) {
+    if ((err as { status?: number }).status === 404) return null;
+    throw err;
   }
-
-  return response.documents[0] as unknown as Article;
 }
 
-/**
- * Get featured articles.
- */
 export async function getFeaturedArticles(limit = 5): Promise<Article[]> {
-  const response = await databases.listDocuments(
-    config.databaseId,
-    config.collections.articles,
-    [
-      Query.equal("status", "published"),
-      Query.equal("isFeatured", true),
-      Query.orderDesc("publishedAt"),
-      Query.limit(limit),
-    ]
-  );
-
-  return response.documents as unknown as Article[];
+  const res = await api.get<PaginatedResponse<Article>>("/articles", { featured: true, limit });
+  return res.documents;
 }
 
-/**
- * Get breaking news.
- */
 export async function getBreakingNews(limit = 10): Promise<Article[]> {
-  const response = await databases.listDocuments(
-    config.databaseId,
-    config.collections.articles,
-    [
-      Query.equal("status", "published"),
-      Query.equal("isBreaking", true),
-      Query.orderDesc("publishedAt"),
-      Query.limit(limit),
-    ]
-  );
-
-  return response.documents as unknown as Article[];
+  const res = await api.get<PaginatedResponse<Article>>("/articles", { breaking: true, limit });
+  return res.documents;
 }
 
-/**
- * Get articles by category.
- */
+/** Works for topic categories and location categories (id or slug). */
 export async function getArticlesByCategory(
   categoryId: string,
   pagination?: PaginationParams
 ): Promise<PaginatedResponse<Article>> {
-  const queries = [
-    Query.equal("status", "published"),
-    Query.equal("categoryId", categoryId),
-    Query.orderDesc("publishedAt"),
-  ];
-
-  if (pagination?.limit) {
-    queries.push(Query.limit(pagination.limit));
-  } else {
-    queries.push(Query.limit(20));
-  }
-
-  if (pagination?.offset) {
-    queries.push(Query.offset(pagination.offset));
-  }
-
-  const response = await databases.listDocuments(
-    config.databaseId,
-    config.collections.articles,
-    queries
-  );
-
-  return {
-    documents: response.documents as unknown as Article[],
-    total: response.total,
-  };
+  return api.get("/articles", {
+    category: categoryId,
+    limit: pagination?.limit ?? 20,
+    offset: pagination?.offset,
+  });
 }
 
-/**
- * Get related articles.
- */
-export async function getRelatedArticles(
-  articleId: string,
-  categoryId: string,
-  limit = 5
-): Promise<Article[]> {
-  const response = await databases.listDocuments(
-    config.databaseId,
-    config.collections.articles,
-    [
-      Query.equal("status", "published"),
-      Query.equal("categoryId", categoryId),
-      Query.notEqual("$id", articleId),
-      Query.orderDesc("publishedAt"),
-      Query.limit(limit),
-    ]
-  );
-
-  return response.documents as unknown as Article[];
+export async function getRelatedArticles(articleId: string, _categoryId?: string, limit = 5): Promise<Article[]> {
+  void _categoryId;
+  return api.get(`/articles/${articleId}/related`, { limit });
 }
 
-/**
- * Get latest articles.
- */
 export async function getLatestArticles(limit = 10): Promise<Article[]> {
-  const response = await databases.listDocuments(
-    config.databaseId,
-    config.collections.articles,
-    [
-      Query.equal("status", "published"),
-      Query.orderDesc("publishedAt"),
-      Query.limit(limit),
-    ]
-  );
-
-  return response.documents as unknown as Article[];
+  const res = await getPublishedArticles({ limit });
+  return res.documents;
 }
 
-/**
- * Increment view count (fire and forget).
- */
+export async function searchArticles(
+  q: string,
+  pagination?: PaginationParams
+): Promise<PaginatedResponse<Article>> {
+  return api.get("/search", { q, limit: pagination?.limit ?? 20, offset: pagination?.offset });
+}
+
+/** Fire and forget; the server increments atomically. */
 export async function incrementViewCount(articleId: string): Promise<void> {
   try {
-    const article = await databases.getDocument(
-      config.databaseId,
-      config.collections.articles,
-      articleId
-    );
-
-    await databases.updateDocument(
-      config.databaseId,
-      config.collections.articles,
-      articleId,
-      { viewCount: (article.viewCount || 0) + 1 }
-    );
-  } catch (error) {
-    console.error("Failed to increment view count:", error);
+    await api.post(`/articles/${articleId}/view`);
+  } catch {
+    // Not important enough to bother the reader.
   }
 }
+
+const PLACEHOLDER = "/placeholder-news.jpg";
 
 /**
- * Get article image URL.
+ * Image URL at a given size. Cloudinary URLs get a resize transform; other
+ * URLs are used as they are.
  */
-export function getArticleImageUrl(
-  imageRef: string,
-  width?: number,
-  height?: number
-): string {
-  if (!imageRef) return "/placeholder-news.jpg";
-
-  // If it's already a full URL, return it directly
-  if (imageRef.startsWith("http://") || imageRef.startsWith("https://")) {
-    return imageRef;
+export function getArticleImageUrl(imageRef: string, width?: number, height?: number): string {
+  if (!imageRef) return PLACEHOLDER;
+  if (imageRef.includes("res.cloudinary.com") && imageRef.includes("/upload/") && (width || height)) {
+    const t = ["c_fill", "g_auto", "f_auto", "q_auto", width && `w_${width}`, height && `h_${height}`]
+      .filter(Boolean)
+      .join(",");
+    return imageRef.replace("/upload/", `/upload/${t}/`);
   }
-
-  // Otherwise treat it as a file ID
-  return storage
-    .getFilePreview(
-      config.buckets.articleImages,
-      imageRef,
-      width,
-      height,
-      undefined,
-      85
-    )
-    .toString();
+  return imageRef;
 }
-

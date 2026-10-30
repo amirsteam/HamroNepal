@@ -8,7 +8,12 @@
 import React, { useState, useEffect } from "react";
 import { Link, NavLink } from "react-router-dom";
 import type { Category, Article } from "@/types";
-import { getCategories } from "@/services/categories.service";
+import {
+  getCategories,
+  getLocationCategories,
+  buildLocationTree,
+  type LocationNode,
+} from "@/services/categories.service";
 import { getBreakingNews } from "@/services/news.service";
 import { getWeather, getFallbackWeather, type WeatherData } from "@/services/weather.service";
 import {
@@ -63,6 +68,7 @@ function HamburgerIcon({ isOpen }: { isOpen: boolean }) {
 
 export function Header() {
   const [categories, setCategories] = useState<Category[]>([]);
+  const [provinces, setProvinces] = useState<LocationNode[]>([]);
   const [breakingNews, setBreakingNews] = useState<Article[]>([]);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -71,12 +77,14 @@ export function Header() {
   useEffect(() => {
     async function loadData() {
       try {
-        const [cats, breaking, weatherData] = await Promise.all([
+        const [cats, breaking, weatherData, locations] = await Promise.all([
           getCategories(),
           getBreakingNews(5),
           getWeather(),
+          getLocationCategories().catch(() => [] as Category[]),
         ]);
         setCategories(cats);
+        setProvinces(buildLocationTree(locations.filter((l) => l.showInMenu !== false)));
         setBreakingNews(breaking);
         if (weatherData) {
           setWeather(weatherData);
@@ -201,7 +209,7 @@ export function Header() {
           {/* Desktop Navigation */}
           <nav className="bg-secondary text-white">
             <div className="container mx-auto px-4">
-              <div className="flex items-center justify-between">
+              <div className="relative flex items-center justify-between">
                 <div className="flex items-center">
                   <NavLink
                     to="/"
@@ -214,7 +222,7 @@ export function Header() {
                     गृहपृष्ठ
                   </NavLink>
                   {!isLoading &&
-                    categories.slice(0, 8).map((category) => (
+                    categories.slice(0, 7).map((category) => (
                       <NavLink
                         key={category.$id}
                         to={`/category/${category.slug}`}
@@ -227,6 +235,52 @@ export function Header() {
                         {category.name}
                       </NavLink>
                     ))}
+                  {provinces.length > 0 && (
+                    <div className="group">
+                      <button
+                        type="button"
+                        className="px-4 py-3 font-medium transition-colors hover:bg-secondary-dark flex items-center gap-1"
+                        aria-haspopup="true"
+                      >
+                        स्थानीय
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                        </svg>
+                      </button>
+                      <div className="absolute left-0 right-0 top-full z-50 hidden group-hover:block group-focus-within:block bg-white text-gray-800 shadow-2xl rounded-b-lg p-6">
+                        <div className="grid grid-cols-4 xl:grid-cols-7 gap-6">
+                          {provinces.map((province) => (
+                            <div key={province.$id}>
+                              <Link
+                                to={`/category/${province.slug}`}
+                                className="block font-bold text-secondary hover:text-primary mb-2 pb-1 border-b"
+                              >
+                                {province.name}
+                              </Link>
+                              <ul className="space-y-1 text-sm">
+                                {province.children.map((district) => (
+                                  <li key={district.$id}>
+                                    <Link to={`/category/${district.slug}`} className="hover:text-primary">
+                                      {district.name}
+                                    </Link>
+                                    {district.children.map((m) => (
+                                      <Link
+                                        key={m.$id}
+                                        to={`/category/${m.slug}`}
+                                        className="block pl-3 text-gray-500 hover:text-primary"
+                                      >
+                                        ↳ {m.name}
+                                      </Link>
+                                    ))}
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
                 <Link to="/search" className="p-3 hover:bg-secondary-dark transition-colors" aria-label="Search">
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -328,6 +382,54 @@ export function Header() {
                 </NavLink>
               ))}
 
+              {provinces.length > 0 && (
+                <>
+                  <div className="px-4 pt-4 pb-2 text-xs font-semibold text-gray-400 uppercase tracking-wider">
+                    स्थानीय समाचार
+                  </div>
+                  {provinces.map((province) => (
+                    <details key={province.$id} className="group">
+                      <summary className="flex items-center justify-between px-4 py-3 text-gray-700 font-medium cursor-pointer hover:bg-gray-50 list-none">
+                        {province.name}
+                        <svg className="w-4 h-4 text-gray-400 transition-transform group-open:rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                        </svg>
+                      </summary>
+                      <div className="pb-2">
+                        <Link
+                          to={`/category/${province.slug}`}
+                          onClick={() => setMobileMenuOpen(false)}
+                          className="block pl-8 pr-4 py-2 text-sm text-secondary font-medium hover:bg-gray-50"
+                        >
+                          सबै {province.name}
+                        </Link>
+                        {province.children.map((district) => (
+                          <div key={district.$id}>
+                            <Link
+                              to={`/category/${district.slug}`}
+                              onClick={() => setMobileMenuOpen(false)}
+                              className="block pl-8 pr-4 py-2 text-sm text-gray-600 hover:bg-gray-50"
+                            >
+                              {district.name}
+                            </Link>
+                            {district.children.map((m) => (
+                              <Link
+                                key={m.$id}
+                                to={`/category/${m.slug}`}
+                                onClick={() => setMobileMenuOpen(false)}
+                                className="block pl-12 pr-4 py-2 text-sm text-gray-500 hover:bg-gray-50"
+                              >
+                                ↳ {m.name}
+                              </Link>
+                            ))}
+                          </div>
+                        ))}
+                      </div>
+                    </details>
+                  ))}
+                </>
+              )}
+
               <div className="border-t border-gray-100 mt-2 pt-2">
                 <Link
                   to="/search"
@@ -343,7 +445,7 @@ export function Header() {
             </nav>
 
             {/* Footer */}
-            <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-gray-100 bg-gray-50">
+            <div className="p-4 border-t border-gray-100 bg-gray-50">
               <p className="text-xs text-gray-500 text-center">
                 © हाम्रो नेपाल न्युज पोर्टल
               </p>
