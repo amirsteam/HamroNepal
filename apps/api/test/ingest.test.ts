@@ -105,13 +105,17 @@ describe("runIngest (fake feeds + fake AI)", () => {
     "काभ्रे, कात्तिक १३ । काभ्रेको पनौती नगरपालिकामा आज बिहान आगलागी हुँदा तीन घर जलेका छन् । " +
     "प्रहरीका अनुसार आगलागीमा कोही हताहत भएका छैनन् । स्थानीय र प्रहरीको सहयोगमा आगो नियन्त्रणमा लिइएको हो । ".repeat(4);
 
+  // The pipeline sorts newest first and the fake AI answers by position, so the
+  // fire story must stay newest. Two `new Date()` calls can land a millisecond
+  // apart and swap the order, which made this flaky in CI.
+  const now = Date.now();
   const items: RawItem[] = [
     {
       url: "https://feed.test/news/1?utm_source=rss",
       title: "काभ्रेमा आगलागी, तीन घर जले",
       text: sourceText,
       sourceName: "परीक्षण खबर",
-      publishedAt: new Date(),
+      publishedAt: new Date(now),
       feed: { name: "परीक्षण खबर", url: "https://feed.test/rss" },
     },
     {
@@ -119,7 +123,7 @@ describe("runIngest (fake feeds + fake AI)", () => {
       title: "राशिफल: आजको दिन",
       text: "राशिफल ".repeat(80),
       sourceName: "परीक्षण खबर",
-      publishedAt: new Date(),
+      publishedAt: new Date(now - 60_000),
       feed: { name: "परीक्षण खबर", url: "https://feed.test/rss" },
     },
   ];
