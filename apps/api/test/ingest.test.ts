@@ -5,6 +5,7 @@ import { Article, Category, IngestedItem, NewsSource } from "../src/models";
 import { Gazetteer } from "../src/ingest/gazetteer";
 import { hashUrl, isNearDuplicate, scriptIssues, titleTokens, unsupportedNumbers } from "../src/ingest/text";
 import { runIngest } from "../src/ingest/run";
+import { cleanImageUrl, feedItemImage } from "../src/ingest/images";
 import type { GenerateJSON } from "../src/ai";
 import type { RawItem } from "../src/ingest/fetch";
 import { clearDb, startDb, stopDb } from "./helpers";
@@ -194,6 +195,40 @@ describe("runIngest (fake feeds + fake AI)", () => {
     expect(article!.source?.aiConfidence).toBe(0.9);
   });
 
+  it("links the outlet's own photo, credited to the outlet, when source images are on", async () => {
+    photoQueries.length = 0;
+    const withImage = {
+      ...deps,
+      extract: async (item: RawItem) => ({ text: item.text, url: item.url, imageUrl: "https://cdn.feed.test/fire.jpg" }),
+      checkImage: async () => true,
+    };
+    await runIngest({ maxDrafts: 5, sourceImages: true }, withImage);
+    const article = await Article.findOne().lean();
+    expect(article!.featuredImage).toBe("https://cdn.feed.test/fire.jpg");
+    expect(article!.imageCredit?.name).toBe("परीक्षण खबर");
+    expect(article!.imageCredit?.url).toBe("https://feed.test/news/1?utm_source=rss");
+    expect(article!.imageCredit?.symbolic).toBeFalsy();
+    expect(photoQueries).toEqual([]); // no Pexels call needed
+  });
+
+  it("falls back to a stock photo when the outlet refuses its image", async () => {
+    const blocked = {
+      ...deps,
+      extract: async (item: RawItem) => ({ text: item.text, url: item.url, imageUrl: "https://cdn.feed.test/fire.jpg" }),
+      checkImage: async () => false,
+    };
+    await runIngest({ maxDrafts: 5, sourceImages: true }, blocked);
+    const article = await Article.findOne().lean();
+    expect(article!.featuredImage).toContain("images.pexels.com");
+    expect(article!.imageCredit?.provider).toBe("Pexels");
+  });
+
+  it("ignores the outlet's photo when source images are off", async () => {
+    const withImage = { ...deps, extract: async (item: RawItem) => ({ text: item.text, url: item.url, imageUrl: "https://cdn.feed.test/fire.jpg" }) };
+    await runIngest({ maxDrafts: 5, sourceImages: false }, withImage);
+    expect((await Article.findOne().lean())!.featuredImage).toContain("images.pexels.com");
+  });
+
   it("still saves the draft when the photo lookup fails", async () => {
     const report = await runIngest(
       { maxDrafts: 5 },
@@ -236,6 +271,29 @@ describe("runIngest (fake feeds + fake AI)", () => {
     expect(report.drafts).toHaveLength(1);
     expect(await Article.countDocuments()).toBe(0);
     expect(await IngestedItem.countDocuments()).toBe(0);
+  });
+});
+
+describe("source images", () => {
+  it("skips logos and share posters, and asks BBC for a bigger photo", () => {
+    expect(cleanImageUrl("https://gorkhapatraonline.com/commons/gopa_static.png")).toBeUndefined();
+    expect(cleanImageUrl("https://static.files.bbci.co.uk/x/metadata/poster-1024x576.png")).toBeUndefined();
+    expect(cleanImageUrl("javascript:alert(1)")).toBeUndefined();
+    expect(cleanImageUrl("https://ichef.bbci.co.uk/ace/standard/240/cpsprodpb/41b8/live/a.jpg")).toBe(
+      "https://ichef.bbci.co.uk/ace/standard/976/cpsprodpb/41b8/live/a.jpg"
+    );
+  });
+
+  it("reads the largest image an RSS item lists", () => {
+    expect(
+      feedItemImage({
+        mediaThumbnail: [{ $: { url: "https://x.test/small.jpg", width: "240" } }, { $: { url: "https://x.test/big.jpg", width: "976" } }],
+      })
+    ).toBe("https://x.test/big.jpg");
+    expect(feedItemImage({ mediaContent: [{ $: { url: "https://x.test/clip.mp4", medium: "video" } }], html: '<p><img src="https://x.test/in.jpg"></p>' })).toBe(
+      "https://x.test/in.jpg"
+    );
+    expect(feedItemImage({ enclosure: { url: "https://x.test/a.mp3", type: "audio/mpeg" } })).toBeUndefined();
   });
 });
 

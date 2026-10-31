@@ -40,6 +40,9 @@ jobs:
           AI_FALLBACK_MODEL: ${{ vars.AI_FALLBACK_MODEL || 'openai/gpt-oss-120b' }}
           INGEST_MAX_PER_CATEGORY: ${{ vars.INGEST_MAX_PER_CATEGORY || '3' }}
           INGEST_MIN_CONFIDENCE: ${{ vars.INGEST_MIN_CONFIDENCE || '0.6' }}
+          # Demo: link the outlets' own photos (their copyright). Before going
+          # live, set the repo variable INGEST_SOURCE_IMAGES to 'false'.
+          INGEST_SOURCE_IMAGES: ${{ vars.INGEST_SOURCE_IMAGES || 'true' }}
         run: >
           npm run ingest -w apps/api --
           --trigger cron

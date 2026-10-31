@@ -54,6 +54,11 @@ export const config = {
     minConfidence: num("INGEST_MIN_CONFIDENCE", 0.6),
     maxAgeHours: num("INGEST_MAX_AGE_HOURS", 24),
     fetchPages: str("INGEST_FETCH_PAGES", "true") === "true",
+    /**
+     * Link the source outlet's own photo instead of a Pexels stock photo.
+     * The photos belong to the outlets: for demos or with their permission.
+     */
+    sourceImages: str("INGEST_SOURCE_IMAGES", "false") === "true",
   },
 
   weather: {

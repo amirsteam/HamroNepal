@@ -18,7 +18,13 @@ import { generateJSON as defaultGenerate, type GenerateJSON } from "../ai";
 import { uniqueSlug } from "../lib/slug";
 import { bsDateString } from "../lib/bs";
 import { fetchAll as defaultFetchAll, type FeedSource, type RawItem } from "./fetch";
-import { extractSourceText as defaultExtract, MIN_SOURCE_CHARS, type ExtractText } from "./extract";
+import {
+  extractSourceText as defaultExtract,
+  imageLoads as defaultCheckImage,
+  MIN_SOURCE_CHARS,
+  type CheckImage,
+  type ExtractText,
+} from "./extract";
 import { Gazetteer, type LocationEntry } from "./gazetteer";
 import { draftWarnings, hashUrl, isNearDuplicate, titleTokens, unsupportedNumbers } from "./text";
 import { classifyItems, writeArticle } from "./steps";
@@ -32,6 +38,8 @@ export interface IngestOptions {
   maxDrafts?: number;
   trigger?: "cron" | "manual" | "cli";
   log?: (line: string) => void;
+  /** Use the outlet's own photo (default: INGEST_SOURCE_IMAGES). */
+  sourceImages?: boolean;
 }
 
 export interface IngestDeps {
@@ -39,6 +47,7 @@ export interface IngestDeps {
   extract?: ExtractText;
   generate?: GenerateJSON;
   findPhoto?: FindStockPhoto;
+  checkImage?: CheckImage;
 }
 
 export interface IngestReport {
@@ -66,11 +75,13 @@ async function ensureAiDeskUser() {
 export async function runIngest(opts: IngestOptions = {}, deps: IngestDeps = {}): Promise<IngestReport> {
   const dryRun = !!opts.dryRun;
   const maxDrafts = opts.maxDrafts ?? config.ingest.maxDrafts;
+  const sourceImages = opts.sourceImages ?? config.ingest.sourceImages;
   const log = opts.log ?? (() => {});
   const fetchAll = deps.fetchAll ?? defaultFetchAll;
   const extract = deps.extract ?? defaultExtract;
   const generate = deps.generate ?? defaultGenerate;
   const findPhoto = deps.findPhoto ?? defaultFindPhoto;
+  const checkImage = deps.checkImage ?? defaultCheckImage;
 
   const stats: IngestRunStats = { fetched: 0, duplicates: 0, skipped: 0, classified: 0, drafted: 0, failed: 0 };
   const errorLog: string[] = [];
@@ -275,7 +286,14 @@ export async function runIngest(opts: IngestOptions = {}, deps: IngestDeps = {})
         const warnings = draftWarnings(`${ownText} ${written.tags.join(" ")}`, invented);
 
         let photo: StockPhoto | null = null;
-        if (written.imageQuery) {
+        // The outlet's own photo, linked from its server and credited to it,
+        // if the outlet serves it to other sites.
+        const candidate = sourceImages ? (source.imageUrl ?? item.imageUrl) : undefined;
+        const sourceImage = candidate && (await checkImage(candidate)) ? candidate : undefined;
+        if (candidate && !sourceImage) log(`  (source photo blocked, using stock photo: ${candidate})`);
+        if (sourceImage) {
+          photo = { url: sourceImage, alt: written.title, credit: { name: item.sourceName, url: source.url } };
+        } else if (written.imageQuery) {
           try {
             photo = await findPhoto(written.imageQuery, recentImages);
           } catch (err) {
@@ -285,7 +303,8 @@ export async function runIngest(opts: IngestOptions = {}, deps: IngestDeps = {})
         if (photo) recentImages.add(photo.url);
 
         const label = `${topic.name}${location ? ` / ${location.name}` : ""}`;
-        log(`  ✎ [${label}] ${written.title}${photo ? `  🖼 "${written.imageQuery}"` : ""}`);
+        const photoNote = sourceImage ? "  🖼 स्रोतको तस्बिर" : photo ? `  🖼 "${written.imageQuery}"` : "";
+        log(`  ✎ [${label}] ${written.title}${photoNote}`);
         for (const w of warnings) log(`      ⚠ ${w}`);
 
         if (dryRun) {

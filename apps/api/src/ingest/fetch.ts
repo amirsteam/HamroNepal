@@ -9,6 +9,7 @@
 
 import Parser from "rss-parser";
 import { stripHtml } from "./text";
+import { feedItemImage } from "./images";
 
 export interface FeedSource {
   id?: string;
@@ -26,18 +27,27 @@ export interface RawItem {
   /** Outlet that published the story. */
   sourceName: string;
   publishedAt?: Date;
+  /** The story's photo as listed in the feed, if any. */
+  imageUrl?: string;
   feed: FeedSource;
 }
 
 export const USER_AGENT =
   "Mozilla/5.0 (compatible; HamroNepalBot/1.0; +https://hamronepal.com/about)";
 
-type FeedItem = Parser.Item & { "content:encoded"?: string };
+type FeedItem = Parser.Item &
+  Pick<Parameters<typeof feedItemImage>[0], "mediaContent" | "mediaThumbnail"> & { "content:encoded"?: string };
 
 const parser: Parser<object, FeedItem> = new Parser({
   timeout: 20_000,
   headers: { "User-Agent": USER_AGENT, Accept: "application/rss+xml, application/xml, text/xml" },
-  customFields: { item: ["content:encoded"] as never },
+  customFields: {
+    item: [
+      "content:encoded",
+      ["media:content", "mediaContent", { keepArray: true }],
+      ["media:thumbnail", "mediaThumbnail", { keepArray: true }],
+    ] as never,
+  },
 });
 
 export async function fetchFeed(feed: FeedSource, maxAgeHours: number): Promise<RawItem[]> {
@@ -57,6 +67,7 @@ export async function fetchFeed(feed: FeedSource, maxAgeHours: number): Promise<
       text: stripHtml(html),
       sourceName: feed.name,
       publishedAt,
+      imageUrl: feedItemImage({ ...item, html }),
       feed,
     });
   }
