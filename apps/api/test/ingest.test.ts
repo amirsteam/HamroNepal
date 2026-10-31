@@ -231,6 +231,44 @@ describe("runIngest (fake feeds + fake AI)", () => {
     expect((await Article.findOne().lean())!.featuredImage).toContain("images.pexels.com");
   });
 
+  it("lets topics take turns, so local news can't crowd out politics", async () => {
+    await Category.create({ name: "राजनीति", slug: "rajniti", type: "topic" });
+    await Category.create({ name: "गोरखा", slug: "gorkha", type: "location", level: "district" });
+    const body = "स्थानीय बासिन्दाका अनुसार घटनाबारे थप जानकारी आउन बाँकी छ । ".repeat(12);
+    const story = (n: number, title: string): RawItem => ({
+      url: `https://feed.test/turns/${n}`,
+      title,
+      text: body,
+      sourceName: "परीक्षण खबर",
+      publishedAt: new Date(Date.now() - n * 60_000), // newest first, in this order
+      feed: items[0].feed,
+    });
+    const stories = [
+      story(1, "गोरखामा बाढी, पुल बग्यो"),
+      story(2, "गोरखामा पहिरो, सडक बन्द"),
+      story(3, "गोरखामा विद्यालय भवन भत्कियो"),
+      story(4, "संसदमा बजेटमाथि दलहरूबीच विवाद"),
+    ];
+    const ai: GenerateJSON = async ({ schema, prompt }) => {
+      const raw = prompt.includes("वर्गीकरण")
+        ? {
+            results: [0, 1, 2].map((i) => ({ i, topic: "samaj", isLocal: true, location: "gorkha", newsworthy: true, confidence: 0.95 }))
+              .concat([{ i: 3, topic: "rajniti", isLocal: false, location: null, newsworthy: true, confidence: 0.7 } as never]),
+          }
+        : {
+            title: prompt.match(/स्रोत शीर्षक: (.+)/)![1],
+            excerpt: "छोटो सारांश यहाँ लेखिएको छ, थप विवरण समाचारमा।",
+            content: `<p>${body}</p>`,
+            tags: [],
+            imageQuery: "",
+          };
+      return { data: schema.parse(raw), provider: "gemini", model: "fake-model" };
+    };
+    await runIngest({ maxDrafts: 2 }, { ...deps, generate: ai, fetchAll: async () => ({ items: stories, results: [] }) });
+    const titles = (await Article.find().lean()).map((a) => a.title).sort();
+    expect(titles).toEqual(["गोरखामा बाढी, पुल बग्यो", "संसदमा बजेटमाथि दलहरूबीच विवाद"].sort());
+  });
+
   it("still saves the draft when the photo lookup fails", async () => {
     const report = await runIngest(
       { maxDrafts: 5 },

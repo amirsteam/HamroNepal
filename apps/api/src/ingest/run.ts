@@ -220,16 +220,32 @@ export async function runIngest(opts: IngestOptions = {}, deps: IngestDeps = {})
       picks.push({ item, topicId: String(topic._id), locationId: loc ? String(loc._id) : undefined, confidence: d.confidence });
     }
 
-    // Priority locations (`ingest: true`, e.g. Kavre/Panauti) first, then other
-    // local stories, then national; within a group by confidence. Cap per topic.
+    // Priority locations (`ingest: true`, e.g. Kavre/Panauti) first. Cap per topic.
     const priority = new Set(locations.filter((l) => l.ingest).map((l) => String(l._id)));
     const weight = (p: Pick) => {
       if (!p.locationId) return 0;
       return gazetteer.withAncestors(p.locationId).some((id) => priority.has(id)) ? 2 : 1;
     };
     picks.sort((a, b) => weight(b) - weight(a) || b.confidence - a.confidence);
+    // Then topics take turns (best story of each topic, then the second best…),
+    // so local news or one busy topic can't fill every draft slot and national
+    // topics such as politics still get written.
+    const byTopic = new Map<string, Pick[]>();
+    for (const p of picks) {
+      if (weight(p) === 2) continue;
+      if (!byTopic.has(p.topicId)) byTopic.set(p.topicId, []);
+      byTopic.get(p.topicId)!.push(p);
+    }
+    const turns: Pick[] = [];
+    for (let round = 0; ; round++) {
+      const row = [...byTopic.values()].map((list) => list[round]).filter((p): p is Pick => !!p);
+      if (!row.length) break;
+      turns.push(...row);
+    }
+    const ordered = [...picks.filter((p) => weight(p) === 2), ...turns];
+
     const perTopic = new Map<string, number>();
-    const chosen = picks.filter((p) => {
+    const chosen = ordered.filter((p) => {
       const n = perTopic.get(p.topicId) ?? 0;
       if (n >= config.ingest.maxPerCategory) return false;
       perTopic.set(p.topicId, n + 1);

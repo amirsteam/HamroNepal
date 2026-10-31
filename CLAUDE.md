@@ -75,7 +75,7 @@ Lint (`npm run lint`) is not clean: `react-hooks/set-state-in-effect` is used th
 2. Dedupe by URL hash (`IngestedItem`, 30-day TTL) and by near-duplicate titles (Jaccard ≥ 0.6, last 72 h).
 3. Match places with the gazetteer (`gazetteer.ts`). It allows Nepali postpositions such as "काभ्रेमा".
 4. Classify in AI batches; the topic and location must come from the allowed lists.
-5. Write priority locations first (`PRIORITY_DISTRICTS`, Kavre/Panauti), capped per topic.
+5. Write priority locations first (`PRIORITY_DISTRICTS`, Kavre/Panauti), then let topics take turns (best story of each topic, then the second best…) so local news can't crowd out national topics such as politics; capped per topic.
 6. Extract the full page with Readability.
 7. AI writes a 150–300 word summary.
 8. Reject unsupported numbers (हजार/लाख/करोड rewrites of source figures count as supported). Leftover English words and other-script letters are saved as `source.aiWarnings`, shown on the AI समीक्षा card and rechecked when an editor saves.
