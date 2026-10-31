@@ -100,7 +100,7 @@ for (const s of SOURCES) {
   let note = "added";
   if (verify) {
     try {
-      const items = await fetchFeed({ name: s.name, url: s.url }, 24 * 7);
+      const items = await fetchFeed({ name: s.name, url: s.url, kind: s.kind }, 24 * 7);
       isActive = items.length > 0;
       note = isActive ? `ok (${items.length} items)` : "no recent items – added disabled";
     } catch (err) {

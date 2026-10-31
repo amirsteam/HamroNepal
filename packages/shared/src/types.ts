@@ -130,6 +130,8 @@ export interface WeatherData {
 export interface NewsSource extends BaseDocument {
   name: string;
   url: string;
+  /** "rss" feed, or a section "page" listing story links (sites with no feed). */
+  kind?: "rss" | "page";
   categoryId?: string | null;
   locationId?: string | null;
   isActive: boolean;

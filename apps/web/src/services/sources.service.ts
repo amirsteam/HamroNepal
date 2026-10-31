@@ -8,6 +8,7 @@ import type { IngestRun, NewsSource } from "@/types";
 export interface SourceInput {
   name: string;
   url: string;
+  kind?: "rss" | "page";
   categoryId?: string | null;
   locationId?: string | null;
   isActive?: boolean;

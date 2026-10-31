@@ -6,7 +6,8 @@
 
 import { JSDOM, VirtualConsole } from "jsdom";
 import { Readability } from "@mozilla/readability";
-import { USER_AGENT, type RawItem } from "./fetch";
+import type { RawItem } from "./fetch";
+import { USER_AGENT } from "./agent";
 import { config } from "../config";
 import { pickSourceImage } from "./images";
 
@@ -15,7 +16,8 @@ const ENOUGH_FEED_CHARS = 800;
 const MAX_SOURCE_CHARS = 6000;
 const MAX_HTML_CHARS = 2_000_000;
 
-async function readPage(url: string): Promise<{ text: string; url: string; imageUrl?: string }> {
+/** An HTML page and the URL it ended up at (after redirects). */
+export async function getHtml(url: string): Promise<{ html: string; url: string }> {
   const res = await fetch(url, {
     headers: { "User-Agent": USER_AGENT, Accept: "text/html" },
     redirect: "follow",
@@ -24,11 +26,34 @@ async function readPage(url: string): Promise<{ text: string; url: string; image
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   const type = res.headers.get("content-type") ?? "";
   if (!type.includes("html")) throw new Error(`Not HTML (${type})`);
-  const html = (await res.text()).slice(0, MAX_HTML_CHARS);
+  return { html: (await res.text()).slice(0, MAX_HTML_CHARS), url: res.url };
+}
 
-  const dom = new JSDOM(html, { url: res.url, virtualConsole: new VirtualConsole() });
+/**
+ * A time from a page. Times without a zone (eKantipur writes
+ * "2026-10-31 20:48:48") are taken as Nepal time.
+ */
+export function parsePageTime(raw: string | undefined | null): Date | undefined {
+  const s = raw?.trim();
+  if (!s) return undefined;
+  const hasZone = /(Z|[+-]\d{2}:?\d{2})$/i.test(s);
+  const iso = s.replace(" ", "T");
+  const d = new Date(hasZone ? iso : /T\d/.test(iso) ? `${iso}+05:45` : `${iso}T00:00:00+05:45`);
+  return Number.isNaN(d.getTime()) ? undefined : d;
+}
+
+export interface PageContent {
+  text: string;
+  url: string;
+  imageUrl?: string;
+  publishedAt?: Date;
+}
+
+export async function readPage(pageUrl: string): Promise<PageContent> {
+  const { html, url } = await getHtml(pageUrl);
+  const dom = new JSDOM(html, { url, virtualConsole: new VirtualConsole() });
   try {
-    // Read the share image before Readability, which changes the document.
+    // Read the meta tags before Readability, which changes the document.
     const doc = dom.window.document;
     const meta = (sel: string) => doc.querySelector<HTMLMetaElement>(sel)?.content;
     const imageUrl = pickSourceImage(
@@ -36,13 +61,19 @@ async function readPage(url: string): Promise<{ text: string; url: string; image
       meta('meta[name="twitter:image"]'),
       meta('meta[property="og:image:url"]')
     );
+    const publishedAt = parsePageTime(
+      meta('meta[property="article:published_time"]') ??
+        meta('meta[itemprop="datePublished"]') ??
+        html.match(/"datePublished"\s*:\s*"([^"]+)"/)?.[1] ??
+        doc.querySelector("time[datetime]")?.getAttribute("datetime")
+    );
 
     const article = new Readability(doc).parse();
     const text = (article?.textContent ?? "")
       .replace(/[ \t]+/g, " ")
       .replace(/\n\s*\n+/g, "\n\n")
       .trim();
-    return { text, url: res.url, imageUrl };
+    return { text, url, imageUrl, publishedAt };
   } finally {
     dom.window.close();
   }
@@ -68,7 +99,7 @@ export const imageLoads: CheckImage = async (url) => {
   }
 };
 
-export type ExtractText =(item: RawItem) => Promise<{ text: string; url: string; imageUrl?: string }>;
+export type ExtractText = (item: RawItem) => Promise<{ text: string; url: string; imageUrl?: string }>;
 
 export const extractSourceText: ExtractText = async (item) => {
   let url = item.url;
@@ -77,7 +108,9 @@ export const extractSourceText: ExtractText = async (item) => {
 
   // With source images on, read the page even when the feed text is enough:
   // its share image is usually larger than the feed's thumbnail.
-  if (text.length < ENOUGH_FEED_CHARS || config.ingest.sourceImages) {
+  // ("page" sources have already read the article.)
+  const alreadyRead = item.feed.kind === "page";
+  if (!alreadyRead && (text.length < ENOUGH_FEED_CHARS || config.ingest.sourceImages)) {
     try {
       const page = await readPage(item.url);
       pageImage = page.imageUrl;

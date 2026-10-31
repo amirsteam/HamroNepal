@@ -10,6 +10,8 @@
 import Parser from "rss-parser";
 import { stripHtml } from "./text";
 import { feedItemImage } from "./images";
+import { USER_AGENT } from "./agent";
+import { fetchListing } from "./listing";
 
 export interface FeedSource {
   id?: string;
@@ -17,6 +19,8 @@ export interface FeedSource {
   url: string;
   categoryId?: string | null;
   locationId?: string | null;
+  /** "rss" (default) or "page": a section page listing story links (sites with no feed). */
+  kind?: "rss" | "page";
 }
 
 export interface RawItem {
@@ -32,8 +36,7 @@ export interface RawItem {
   feed: FeedSource;
 }
 
-export const USER_AGENT =
-  "Mozilla/5.0 (compatible; HamroNepalBot/1.0; +https://hamronepal.com/about)";
+export { USER_AGENT };
 
 type FeedItem = Parser.Item &
   Pick<Parameters<typeof feedItemImage>[0], "mediaContent" | "mediaThumbnail"> & { "content:encoded"?: string };
@@ -51,6 +54,7 @@ const parser: Parser<object, FeedItem> = new Parser({
 });
 
 export async function fetchFeed(feed: FeedSource, maxAgeHours: number): Promise<RawItem[]> {
+  if (feed.kind === "page") return fetchListing(feed, maxAgeHours);
   const parsed = await parser.parseURL(feed.url);
   const cutoff = Date.now() - maxAgeHours * 3600_000;
   const items: RawItem[] = [];

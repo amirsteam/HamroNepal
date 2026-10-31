@@ -181,8 +181,11 @@ export const TOPICS: Array<{ slug: string; name: string }> = [
   { slug: "antarrashtriya", name: "अन्तर्राष्ट्रिय" },
 ];
 
-/** RSS feeds checked to be online (Oct 2026). The seed re-checks before enabling. */
-export const SOURCES: Array<{ name: string; url: string }> = [
+/**
+ * Feeds checked to be online (Oct 2026). The seed re-checks before enabling.
+ * kind "page": the site has no RSS, so its section page is read instead.
+ */
+export const SOURCES: Array<{ name: string; url: string; kind?: "rss" | "page" }> = [
   { name: "अनलाइनखबर", url: "https://www.onlinekhabar.com/feed" },
   { name: "रातोपाटी", url: "https://ratopati.com/feed" },
   { name: "नागरिक", url: "https://nagariknews.nagariknetwork.com/feed" },
@@ -202,4 +205,6 @@ export const SOURCES: Array<{ name: string; url: string }> = [
   { name: "बीबीसी नेपाली", url: "https://feeds.bbci.co.uk/nepali/rss.xml" },
   // English world news; the AI writes the Nepali summary (अन्तर्राष्ट्रिय).
   { name: "बीबीसी (विश्व)", url: "https://feeds.bbci.co.uk/news/world/rss.xml" },
+  // No RSS feed (Oct 2026); the समाचार section page is read instead.
+  { name: "कान्तिपुर", url: "https://ekantipur.com/news", kind: "page" },
 ];

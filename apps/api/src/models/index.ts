@@ -137,6 +137,8 @@ const newsSourceSchema = new Schema(
   {
     name: { type: String, required: true, trim: true },
     url: { type: String, required: true, unique: true, trim: true },
+    /** "rss" feed, or a section "page" listing story links (sites with no feed). */
+    kind: { type: String, enum: ["rss", "page"], default: "rss" },
     /** Topic to fall back on when the AI is unsure. */
     categoryId: { type: ObjectId, ref: "Category", default: null },
     /** Location for local outlets (e.g. a Kavre news site). */

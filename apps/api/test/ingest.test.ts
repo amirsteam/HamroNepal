@@ -6,6 +6,8 @@ import { Gazetteer } from "../src/ingest/gazetteer";
 import { hashUrl, isNearDuplicate, scriptIssues, titleTokens, unsupportedNumbers } from "../src/ingest/text";
 import { runIngest } from "../src/ingest/run";
 import { cleanImageUrl, feedItemImage } from "../src/ingest/images";
+import { fetchListing, listingLinks } from "../src/ingest/listing";
+import { parsePageTime } from "../src/ingest/extract";
 import type { GenerateJSON } from "../src/ai";
 import type { RawItem } from "../src/ingest/fetch";
 import { clearDb, startDb, stopDb } from "./helpers";
@@ -271,6 +273,49 @@ describe("runIngest (fake feeds + fake AI)", () => {
     expect(report.drafts).toHaveLength(1);
     expect(await Article.countDocuments()).toBe(0);
     expect(await IngestedItem.countDocuments()).toBe(0);
+  });
+});
+
+describe("page sources (sites with no RSS)", () => {
+  const today = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Kathmandu" }).replace(/-/g, "/");
+  const listing = `
+    <a href="/news/${today}/flood-in-gorkha.html"><img src="x.jpg"></a>
+    <h2><a href="/news/${today}/flood-in-gorkha.html">गोरखामा बाढी, चारवटा पुल बगे</a></h2>
+    <h2><a href="https://ekantipur.com/news/2020/01/01/old-story.html">पुरानो समाचार यहाँ छ</a></h2>
+    <a href="/news">समाचार</a>
+    <a href="https://other.test/news/${today}/elsewhere.html">अर्को साइटको समाचार</a>`;
+
+  it("collects dated story links on the same site, keeping the headline", () => {
+    const links = listingLinks(listing, "https://ekantipur.com/news");
+    expect(links.map((l) => l.url)).toEqual([
+      `https://ekantipur.com/news/${today}/flood-in-gorkha.html`,
+      "https://ekantipur.com/news/2020/01/01/old-story.html",
+    ]);
+    expect(links[0].title).toBe("गोरखामा बाढी, चारवटा पुल बगे");
+  });
+
+  it("reads recent articles for their time, text and photo", async () => {
+    const read = vi.fn(async () => ({ text: "पूरा समाचार", url: "", imageUrl: "https://cdn.test/p.jpg", publishedAt: new Date() }));
+    const items = await fetchListing(
+      { name: "कान्तिपुर", url: "https://ekantipur.com/news", kind: "page" },
+      24,
+      { get: async (url) => ({ html: listing, url }), read }
+    );
+    expect(read).toHaveBeenCalledTimes(1); // the 2020 story is never opened
+    expect(items).toHaveLength(1);
+    expect(items[0]).toMatchObject({ title: "गोरखामा बाढी, चारवटा पुल बगे", text: "पूरा समाचार", imageUrl: "https://cdn.test/p.jpg" });
+  });
+
+  it("reports a page with no story links instead of finding nothing", async () => {
+    await expect(
+      fetchListing({ name: "x", url: "https://x.test/", kind: "page" }, 24, { get: async (url) => ({ html: "<p>नयाँ डिजाइन</p>", url }) })
+    ).rejects.toThrow(/No dated story links/);
+  });
+
+  it("reads page times without a zone as Nepal time", () => {
+    expect(parsePageTime("2026-10-31 20:48:48")?.toISOString()).toBe("2026-10-31T15:03:48.000Z");
+    expect(parsePageTime("2026-10-31T20:48:48+05:45")?.toISOString()).toBe("2026-10-31T15:03:48.000Z");
+    expect(parsePageTime("not a date")).toBeUndefined();
   });
 });
 

@@ -71,7 +71,7 @@ Lint (`npm run lint`) is not clean: `react-hooks/set-state-in-effect` is used th
 
 `run.ts` runs these steps in order:
 
-1. Fetch the active `NewsSource` RSS feeds.
+1. Fetch the active `NewsSource` feeds. `kind: "rss"` is a normal feed. `kind: "page"` (sites with no RSS, e.g. ekantipur.com/news) reads a section page for same-site links with a date in the path, then the newest 15 articles for their publish time, text and photo (`listing.ts`).
 2. Dedupe by URL hash (`IngestedItem`, 30-day TTL) and by near-duplicate titles (Jaccard ≥ 0.6, last 72 h).
 3. Match places with the gazetteer (`gazetteer.ts`). It allows Nepali postpositions such as "काभ्रेमा".
 4. Classify in AI batches; the topic and location must come from the allowed lists.

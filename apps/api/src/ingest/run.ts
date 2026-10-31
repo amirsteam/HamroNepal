@@ -130,6 +130,7 @@ export async function runIngest(opts: IngestOptions = {}, deps: IngestDeps = {})
       id: String(s._id),
       name: s.name,
       url: s.url,
+      kind: s.kind === "page" ? "page" : "rss",
       categoryId: s.categoryId ? String(s.categoryId) : null,
       locationId: s.locationId ? String(s.locationId) : null,
     }));

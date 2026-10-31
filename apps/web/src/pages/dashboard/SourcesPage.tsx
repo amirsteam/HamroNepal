@@ -35,7 +35,8 @@ export function SourcesPage() {
   const [message, setMessage] = useState<string | null>(null);
   const [running, setRunning] = useState(false);
   const [report, setReport] = useState<IngestReport | null>(null);
-  const [form, setForm] = useState({ name: "", url: "", categoryId: "", locationId: "" });
+  const emptyForm = { name: "", url: "", kind: "rss" as "rss" | "page", categoryId: "", locationId: "" };
+  const [form, setForm] = useState(emptyForm);
 
   async function load() {
     setLoading(true);
@@ -61,11 +62,12 @@ export function SourcesPage() {
       const created = await createSource({
         name: form.name.trim(),
         url: form.url.trim(),
+        kind: form.kind,
         categoryId: form.categoryId || null,
         locationId: form.locationId || null,
       });
       setSources((prev) => [created, ...prev]);
-      setForm({ name: "", url: "", categoryId: "", locationId: "" });
+      setForm(emptyForm);
     } catch (err) {
       setMessage(err instanceof Error ? err.message : "स्रोत थप्न सकिएन।");
     }
@@ -121,20 +123,34 @@ export function SourcesPage() {
       {message && <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg text-blue-800 text-sm">{message}</div>}
 
       {admin && (
-        <form onSubmit={onAdd} className="bg-white rounded-lg shadow-sm p-5 grid grid-cols-1 md:grid-cols-5 gap-3 items-end">
+        <form onSubmit={onAdd} className="bg-white rounded-lg shadow-sm p-5 grid grid-cols-1 md:grid-cols-6 gap-3 items-end">
           <div>
             <label htmlFor="source-name" className="block text-xs text-gray-600 mb-1">नाम</label>
             <input id="source-name" required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className={inputClass} />
           </div>
+          <div>
+            <label htmlFor="source-kind" className="block text-xs text-gray-600 mb-1">प्रकार</label>
+            <select
+              id="source-kind"
+              value={form.kind}
+              onChange={(e) => setForm({ ...form, kind: e.target.value as "rss" | "page" })}
+              className={inputClass}
+            >
+              <option value="rss">RSS फिड</option>
+              <option value="page">वेब पेज (RSS नभएको साइट)</option>
+            </select>
+          </div>
           <div className="md:col-span-2">
-            <label htmlFor="source-url" className="block text-xs text-gray-600 mb-1">RSS URL</label>
+            <label htmlFor="source-url" className="block text-xs text-gray-600 mb-1">
+              {form.kind === "page" ? "समाचार सूची भएको पेजको URL" : "RSS URL"}
+            </label>
             <input
               id="source-url"
               required
               type="url"
               value={form.url}
               onChange={(e) => setForm({ ...form, url: e.target.value })}
-              placeholder="https://example.com/feed"
+              placeholder={form.kind === "page" ? "https://ekantipur.com/news" : "https://example.com/feed"}
               className={inputClass}
             />
           </div>
@@ -179,6 +195,7 @@ export function SourcesPage() {
                   <td className="px-4 py-3">
                     <div className="font-medium text-gray-900">
                       {s.name}
+                      {s.kind === "page" && <span className="ml-2 text-xs font-normal text-gray-600">(वेब पेज)</span>}
                       {!s.isActive && <span className="ml-2 text-xs font-normal text-gray-600">(बन्द)</span>}
                     </div>
                     <div className="text-xs text-gray-500 truncate max-w-xs">{s.url}</div>

@@ -17,6 +17,7 @@ const objectId = z.string().refine(isObjectId, "अमान्य ID");
 const sourceInput = z.object({
   name: z.string().trim().min(1).max(100),
   url: z.string().trim().url().max(1000),
+  kind: z.enum(["rss", "page"]).optional(),
   categoryId: objectId.nullable().optional(),
   locationId: objectId.nullable().optional(),
   isActive: z.boolean().optional(),
@@ -53,7 +54,7 @@ adminSourcesRouter.post("/:id/test", requireRole("admin"), async (req, res) => {
   const source = await NewsSource.findById(req.params.id).lean();
   if (!source) throw notFound();
   try {
-    const items = await fetchFeed({ name: source.name, url: source.url }, 72);
+    const items = await fetchFeed({ name: source.name, url: source.url, kind: source.kind === "page" ? "page" : "rss" }, 72);
     res.json({ ok: true, count: items.length, sample: items.slice(0, 5).map((i) => i.title) });
   } catch (err) {
     res.json({ ok: false, error: (err as Error).message });
