@@ -200,4 +200,6 @@ export const SOURCES: Array<{ name: string; url: string }> = [
   { name: "बाह्रखरी", url: "https://baahrakhari.com/feed" },
   { name: "उज्यालो", url: "https://ujyaaloonline.com/feed" },
   { name: "बीबीसी नेपाली", url: "https://feeds.bbci.co.uk/nepali/rss.xml" },
+  // English world news; the AI writes the Nepali summary (अन्तर्राष्ट्रिय).
+  { name: "बीबीसी (विश्व)", url: "https://feeds.bbci.co.uk/news/world/rss.xml" },
 ];

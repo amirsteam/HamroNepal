@@ -78,7 +78,7 @@ Lint (`npm run lint`) is not clean: `react-hooks/set-state-in-effect` is used th
 5. Write priority locations first (`PRIORITY_DISTRICTS`, Kavre/Panauti), capped per topic.
 6. Extract the full page with Readability.
 7. AI writes a 150–300 word summary.
-8. Reject unsupported numbers.
+8. Reject unsupported numbers (हजार/लाख/करोड rewrites of source figures count as supported). Leftover English words and other-script letters are saved as `source.aiWarnings`, shown on the AI समीक्षा card and rechecked when an editor saves.
 9. Code adds the "स्रोत:" credit line.
 10. Pick a symbolic Pexels stock photo from the writer's English `imageQuery` (`src/services/stockPhoto.ts`, skips photos used in the last 14 days). The photo is saved with `imageCredit`, which the web and mobile apps show as a caption (Pexels requires the credit). Changing the image in the dashboard clears the credit.
 11. Save as `pending` under the system user "हाम्रो नेपाल AI डेस्क" (`isSystem`, cannot log in).

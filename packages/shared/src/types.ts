@@ -46,6 +46,8 @@ export interface ArticleSource {
   publishedAt?: string;
   aiModel?: string;
   aiConfidence?: number;
+  /** Things the editor should check in an AI draft, e.g. "अंग्रेजी शब्द: the". */
+  aiWarnings?: string[];
 }
 
 /** Who took a photo and where it came from (shown under the image). */

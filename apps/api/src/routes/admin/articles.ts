@@ -17,6 +17,8 @@ import { uniqueSlug } from "../../lib/slug";
 import { bsDateString } from "../../lib/bs";
 import { badRequest, escapeRegex, forbidden, intParam, isObjectId, notFound, toApi, toApiList } from "../../lib/http";
 import { isEditorOrAdmin, requireRole } from "../../middleware/auth";
+import { draftWarnings } from "../../ingest/text";
+import { withoutSourceCredit } from "../../ingest/steps";
 
 export const adminArticlesRouter = Router();
 
@@ -204,6 +206,12 @@ adminArticlesRouter.patch("/:id", async (req, res) => {
     fields.slug = await uniqueSlug(Article, input.slug || article.title, String(article._id));
   }
   article.set(fields);
+  // Re-check an AI draft after its text is edited, so fixed problems drop off
+  // the review card. ("Invented number" notes need the source, so they go.)
+  if (article.source?.aiWarnings?.length && (fields.title ?? fields.excerpt ?? fields.content) !== undefined) {
+    const text = `${article.title} ${article.excerpt ?? ""} ${toPlainText(withoutSourceCredit(article.content ?? ""))} ${article.tags.join(" ")}`;
+    article.set("source.aiWarnings", draftWarnings(text));
+  }
   await article.save();
   res.json(toApi(article.toObject()));
 });

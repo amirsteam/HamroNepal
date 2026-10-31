@@ -68,15 +68,53 @@ export function toAsciiDigits(text: string): string {
   return text.replace(/[०-९]/g, (d) => String(NEPALI_DIGITS.indexOf(d)));
 }
 
+/** हजार, लाख, करोड: "80,000" in an English source is often written "८० हजार". */
+const NEPALI_UNITS = [1_000, 100_000, 10_000_000];
+
 /** Numbers (2+ digits) in the output that never appear in the source text. */
 export function unsupportedNumbers(output: string, source: string): string[] {
   const sourceNumbers = new Set(toAsciiDigits(source).match(/\d+(?:[.,]\d+)*/g) ?? []);
   const normalized = new Set([...sourceNumbers].map((n) => n.replace(/,/g, "")));
+  for (const n of [...normalized]) {
+    const value = Number(n);
+    for (const unit of NEPALI_UNITS) {
+      const scaled = value / unit;
+      if (scaled >= 1 && Number.isInteger(scaled * 100)) normalized.add(String(scaled));
+    }
+  }
   const found = toAsciiDigits(output).match(/\d+(?:[.,]\d+)*/g) ?? [];
   return [...new Set(found)].filter((n) => {
     const plain = n.replace(/,/g, "");
     return plain.length >= 2 && !normalized.has(plain) && !sourceNumbers.has(n);
   });
+}
+
+/** Letters from other Indian scripts (Bengali … Sinhala), e.g. the Gurmukhi "ਾ" in "सफਾ". */
+const OTHER_INDIC = /[ঀ-෿]/;
+
+/**
+ * Words that should not be in a Nepali draft: English words (two or more
+ * lowercase letters, so acronyms such as BBC, AI or G20 pass) and words
+ * mixing in letters from other Indian scripts. Up to 10 of each.
+ */
+export function scriptIssues(text: string): { english: string[]; otherScript: string[] } {
+  const english = new Set<string>();
+  const otherScript = new Set<string>();
+  for (const word of text.normalize("NFC").split(/[^\p{L}\p{M}\p{N}]+/u)) {
+    if (OTHER_INDIC.test(word)) otherScript.add(word);
+    else if (/[a-z]{2}/.test(word)) english.add(word);
+  }
+  return { english: [...english].slice(0, 10), otherScript: [...otherScript].slice(0, 10) };
+}
+
+/** Notes for the editor on an AI draft (shown in AI समीक्षा). Empty when it looks clean. */
+export function draftWarnings(text: string, inventedNumbers: string[] = []): string[] {
+  const { english, otherScript } = scriptIssues(text);
+  const out: string[] = [];
+  if (inventedNumbers.length) out.push(`स्रोतमा नभएका अंक: ${inventedNumbers.join(", ")}`);
+  if (english.length) out.push(`अंग्रेजी शब्द: ${english.join(", ")}`);
+  if (otherScript.length) out.push(`अर्को लिपिका अक्षर: ${otherScript.join(", ")}`);
+  return out;
 }
 
 export function stripHtml(html: string): string {

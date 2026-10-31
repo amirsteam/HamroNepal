@@ -20,7 +20,7 @@ import { bsDateString } from "../lib/bs";
 import { fetchAll as defaultFetchAll, type FeedSource, type RawItem } from "./fetch";
 import { extractSourceText as defaultExtract, MIN_SOURCE_CHARS, type ExtractText } from "./extract";
 import { Gazetteer, type LocationEntry } from "./gazetteer";
-import { hashUrl, isNearDuplicate, titleTokens, unsupportedNumbers } from "./text";
+import { draftWarnings, hashUrl, isNearDuplicate, titleTokens, unsupportedNumbers } from "./text";
 import { classifyItems, writeArticle } from "./steps";
 import { findStockPhoto as defaultFindPhoto, type FindStockPhoto, type StockPhoto } from "../services/stockPhoto";
 
@@ -256,8 +256,12 @@ export async function runIngest(opts: IngestOptions = {}, deps: IngestDeps = {})
           locationName: location?.name,
         });
 
+        // Checked on the model's own words only: the "स्रोत:" credit link has
+        // digits and English in its URL that are not the model's.
+        const ownText = `${written.title} ${written.excerpt} ${written.bodyText}`;
+
         // Guard against invented figures: numbers must come from the source.
-        const invented = unsupportedNumbers(`${written.title} ${written.content}`, `${item.title} ${source.text}`);
+        const invented = unsupportedNumbers(ownText, `${item.title} ${source.text}`);
         let confidence = pick.confidence;
         if (invented.length > 2) {
           stats.skipped++;
@@ -265,6 +269,10 @@ export async function runIngest(opts: IngestOptions = {}, deps: IngestDeps = {})
           continue;
         }
         if (invented.length) confidence = Math.round(confidence * 50) / 100;
+
+        // Leftovers from translation (e.g. "रु the युक्रेन", "सफਾ") are flagged
+        // for the editor rather than dropped; the story itself is usually fine.
+        const warnings = draftWarnings(`${ownText} ${written.tags.join(" ")}`, invented);
 
         let photo: StockPhoto | null = null;
         if (written.imageQuery) {
@@ -278,6 +286,7 @@ export async function runIngest(opts: IngestOptions = {}, deps: IngestDeps = {})
 
         const label = `${topic.name}${location ? ` / ${location.name}` : ""}`;
         log(`  ✎ [${label}] ${written.title}${photo ? `  🖼 "${written.imageQuery}"` : ""}`);
+        for (const w of warnings) log(`      ⚠ ${w}`);
 
         if (dryRun) {
           stats.drafted++;
@@ -307,6 +316,7 @@ export async function runIngest(opts: IngestOptions = {}, deps: IngestDeps = {})
             publishedAt: item.publishedAt,
             aiModel: written.model,
             aiConfidence: confidence,
+            aiWarnings: warnings,
           },
         });
         stats.drafted++;

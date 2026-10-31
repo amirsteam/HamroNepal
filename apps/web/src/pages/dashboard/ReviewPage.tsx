@@ -12,6 +12,7 @@ import { getIngestRuns } from "@/services/sources.service";
 import { formatDualDate, toNepaliDigits } from "@/lib/bs-date";
 import { getArticleImageUrl } from "@/services/news.service";
 import { ImageCredit } from "@/components/news/ImageCredit";
+import { AIWarnings } from "@/components/dashboard/AIWarnings";
 import type { IngestRun } from "@/types";
 
 const PAGE_SIZE = 20;
@@ -155,6 +156,8 @@ export function ReviewPage() {
                     {a.source.title && <span> – “{a.source.title}”</span>}
                   </p>
                 )}
+
+                <AIWarnings warnings={a.source?.aiWarnings} className="mt-3" />
 
                 <div className="flex flex-wrap gap-2 mt-4">
                   <button

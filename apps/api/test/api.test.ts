@@ -123,6 +123,26 @@ describe("photo credits", () => {
   });
 });
 
+describe("AI draft warnings", () => {
+  it("rechecks the text when an editor saves, keeping only problems still there", async () => {
+    const editor = await loginAs("editor@test.np");
+    const created = await editor.post("/api/admin/articles").send(base());
+    await Article.updateOne(
+      { _id: created.body.$id },
+      { $set: { source: { type: "ai", aiWarnings: ["स्रोतमा नभएका अंक: 120", "अंग्रेजी शब्द: the, ombudsman"] } } }
+    );
+
+    // "the" fixed, "ombudsman" left in; the credit line's English is not counted.
+    await editor.patch(`/api/admin/articles/${created.body.$id}`).send({
+      content: '<p>युक्रेनका ombudsman ले भने।</p><p class="source-credit">स्रोत: <a href="https://x.test/a">BBC World</a></p>',
+    });
+    expect((await Article.findById(created.body.$id).lean())!.source?.aiWarnings).toEqual(["अंग्रेजी शब्द: ombudsman"]);
+
+    await editor.patch(`/api/admin/articles/${created.body.$id}`).send({ content: "<p>युक्रेनका लोकपालले भने।</p>" });
+    expect((await Article.findById(created.body.$id).lean())!.source?.aiWarnings).toEqual([]);
+  });
+});
+
 describe("content safety", () => {
   it("strips scripts and event handlers on save", async () => {
     const editor = await loginAs("editor@test.np");

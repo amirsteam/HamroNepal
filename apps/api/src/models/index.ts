@@ -60,6 +60,8 @@ const sourceSchema = new Schema(
     publishedAt: Date,
     aiModel: String,
     aiConfidence: Number,
+    /** Things the editor should check in an AI draft (Nepali text). */
+    aiWarnings: { type: [String], default: undefined },
   },
   { _id: false }
 );

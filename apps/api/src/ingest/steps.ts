@@ -61,11 +61,18 @@ export interface WriteInput {
 
 export interface WriteOutput extends WrittenArticle {
   model: string;
+  /** The model's own text (no HTML, no "स्रोत:" credit), for the quality checks. */
+  bodyText: string;
 }
 
 /** Credit line added by code (not the model) so attribution is always present. */
 export function sourceCredit(name: string, url: string): string {
   return `<p class="source-credit">स्रोत: <a href="${escapeXml(url)}" target="_blank" rel="noopener noreferrer nofollow">${escapeXml(name)}</a></p>`;
+}
+
+/** Article HTML without the credit line added by `sourceCredit`. */
+export function withoutSourceCredit(html: string): string {
+  return html.replace(/<p class="source-credit">[\s\S]*?<\/p>/g, "");
 }
 
 export async function writeArticle(generate: GenerateJSON, input: WriteInput): Promise<WriteOutput> {
@@ -76,10 +83,12 @@ export async function writeArticle(generate: GenerateJSON, input: WriteInput): P
     temperature: 0.3,
     maxTokens: 4096,
   });
+  const body = sanitizeArticleHtml(data.content);
   return {
     title: toPlainText(data.title),
     excerpt: toPlainText(data.excerpt),
-    content: sanitizeArticleHtml(data.content) + sourceCredit(input.sourceName, input.sourceUrl),
+    content: body + sourceCredit(input.sourceName, input.sourceUrl),
+    bodyText: toPlainText(body),
     tags: [...new Set(data.tags.map(toPlainText).filter(Boolean))].slice(0, 6),
     imageQuery: toPlainText(data.imageQuery ?? "").slice(0, 80),
     model,

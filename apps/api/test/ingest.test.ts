@@ -3,7 +3,7 @@ import { config } from "../src/config";
 import { findStockPhoto, type FindStockPhoto } from "../src/services/stockPhoto";
 import { Article, Category, IngestedItem, NewsSource } from "../src/models";
 import { Gazetteer } from "../src/ingest/gazetteer";
-import { hashUrl, isNearDuplicate, titleTokens, unsupportedNumbers } from "../src/ingest/text";
+import { hashUrl, isNearDuplicate, scriptIssues, titleTokens, unsupportedNumbers } from "../src/ingest/text";
 import { runIngest } from "../src/ingest/run";
 import type { GenerateJSON } from "../src/ai";
 import type { RawItem } from "../src/ingest/fetch";
@@ -24,6 +24,20 @@ describe("text helpers", () => {
   it("flags numbers that are not in the source", () => {
     expect(unsupportedNumbers("२५ जना घाइते, ३ को मृत्यु", "25 जना घाइते भएका छन्")).toEqual([]);
     expect(unsupportedNumbers("१२० जना घाइते", "२५ जना घाइते")).toEqual(["120"]);
+  });
+
+  it("accepts English figures rewritten with हजार / लाख / करोड", () => {
+    expect(unsupportedNumbers("८० हजार घर, २४ हजार मानिस, १५ लाख डलर", "80,000 homes; 24,000 people; $1,500,000")).toEqual([]);
+    expect(unsupportedNumbers("९० हजार घर", "80,000 homes")).toEqual(["90"]);
+  });
+
+  it("finds English words and other-script letters left in Nepali text", () => {
+    expect(scriptIssues("रु the युक्रेनमाथि, मानव अधिकार ombudsman, बाटो सफਾ गरी")).toEqual({
+      english: ["the", "ombudsman"],
+      otherScript: ["सफਾ"],
+    });
+    // Acronyms are normal in Nepali news.
+    expect(scriptIssues("BBC, AI र G20 बैठक")).toEqual({ english: [], otherScript: [] });
   });
 });
 
@@ -155,6 +169,25 @@ describe("runIngest (fake feeds + fake AI)", () => {
     expect(article!.imageCredit?.name).toBe("Test Photographer");
     expect(article!.imageCredit?.provider).toBe("Pexels");
     expect(article!.imageCredit?.symbolic).toBe(true);
+  });
+
+  it("saves translation leftovers as warnings, ignoring the credit link's URL", async () => {
+    const leaky: GenerateJSON = async (args) => {
+      const r = await fakeAI(args);
+      if (!args.prompt.includes("वर्गीकरण")) {
+        const d = r.data as { content: string };
+        d.content = d.content.replace("आगो", "the आगो");
+      }
+      return r;
+    };
+    await runIngest(
+      { maxDrafts: 5 },
+      // A source URL with digits and English must not count against the draft.
+      { ...deps, generate: leaky, extract: async (item: RawItem) => ({ text: item.text, url: "https://feed.test/news/article-2818" }) }
+    );
+    const article = await Article.findOne().lean();
+    expect(article!.source?.aiWarnings).toEqual(["अंग्रेजी शब्द: the"]);
+    expect(article!.source?.aiConfidence).toBe(0.9);
   });
 
   it("still saves the draft when the photo lookup fails", async () => {

@@ -24,6 +24,7 @@ import { canPublish } from "@/services/auth.service";
 import { useAuth } from "@/contexts/AuthContext";
 import type { Article, ArticleStatus, Category } from "@/types";
 import { AIAssistantModal } from "@/components/dashboard/AIAssistantModal";
+import { AIWarnings } from "@/components/dashboard/AIWarnings";
 import type { GeneratedArticle } from "@/services/ai.service";
 
 interface ArticleFormData {
@@ -262,6 +263,7 @@ export function ArticleEditorPage() {
           )}
         </div>
       )}
+      {source?.type === "ai" && <AIWarnings warnings={source.aiWarnings} className="mb-6" />}
 
       <form onSubmit={handleSubmit} className="space-y-6">
         {/* Main content */}
