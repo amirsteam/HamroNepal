@@ -6,7 +6,7 @@
       "framework": "express",
       "installCommand": "cd ../.. && npm ci",
       "buildCommand": "npm run build",
-      "entrypoint": "dist/vercel.js",
+      "entrypoint": "vercel-entry.mjs",
       "bindings": [
         {
           "type": "service",
