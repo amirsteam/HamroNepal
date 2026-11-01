@@ -64,3 +64,14 @@ jobs:
           AI_PRIMARY_MODEL: ${{ vars.AI_PRIMARY_MODEL || 'gemini-flash-lite-latest' }}
           AI_FALLBACK_MODEL: ${{ vars.AI_FALLBACK_MODEL || 'openai/gpt-oss-120b' }}
         run: npm run translate -w apps/api -- --limit 40
+      # Photos still on an outlet's site (a draft whose upload failed) get a
+      # Cloudinary copy, so the site can serve them resized. Same photo and credit.
+      - name: Copy outlet photos to Cloudinary
+        if: ${{ always() && !inputs.dry_run }}
+        env:
+          MONGODB_URI: ${{ secrets.MONGODB_URI }}
+          CLOUDINARY_URL: ${{ secrets.CLOUDINARY_URL }}
+          CLOUDINARY_CLOUD_NAME: ${{ secrets.CLOUDINARY_CLOUD_NAME }}
+          CLOUDINARY_API_KEY: ${{ secrets.CLOUDINARY_API_KEY }}
+          CLOUDINARY_API_SECRET: ${{ secrets.CLOUDINARY_API_SECRET }}
+        run: npm run images:backfill -w apps/api -- --rehost --limit 30
