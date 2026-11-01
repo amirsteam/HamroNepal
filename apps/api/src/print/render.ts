@@ -29,6 +29,12 @@ export interface IssueMeta {
   /** Start of the issue day, Nepal time. */
   issueDate: Date;
   pages: number;
+  /** Site colours (Dashboard → साइट सेटिङ); the defaults are the flag's. */
+  colors?: { primary: string; secondary: string; ink: string };
+  /** The flag beside the name (and in running heads). */
+  showFlag?: boolean;
+  /** Replaces the flag + name in the masthead when set. */
+  logoUrl?: string;
 }
 
 const NPT_OFFSET_MS = (5 * 60 + 45) * 60_000;
@@ -136,11 +142,15 @@ function frontPage(plan: IssuePlan, meta: IssueMeta, qr: Map<string, string>, si
   return `<section class="page front">
   <header class="masthead">
     <div class="brand">
-      <img class="flag" src="${FLAG_PNG_DATA_URI}" alt="">
+      ${meta.showFlag === false || meta.logoUrl ? "" : `<img class="flag" src="${FLAG_PNG_DATA_URI}" alt="">`}
       <div>
-        <h1><span class="r">${esc(meta.name.split(" ")[0] ?? meta.name)}</span> <span class="b">${esc(
+        ${
+          meta.logoUrl
+            ? `<h1 class="mast-logo"><img src="${esc(meta.logoUrl)}" alt="${esc(meta.name)}"></h1>`
+            : `<h1><span class="r">${esc(meta.name.split(" ")[0] ?? meta.name)}</span> <span class="b">${esc(
           meta.name.split(" ").slice(1).join(" ")
-        )}</span></h1>
+        )}</span></h1>`
+        }
         <p class="tagline">${esc(meta.tagline)}<span class="freq">${esc(meta.frequency)}</span></p>
       </div>
     </div>
@@ -214,7 +224,7 @@ function cells(page: InnerPage, qr: Map<string, string>, extra = "") {
 
 function editorialColumn(ed: PrintStory, meta: IssueMeta, qr: Map<string, string>) {
   return `<aside class="editorial">
-    <div class="ed-head"><img src="${FLAG_PNG_DATA_URI}" alt=""><span>${esc(meta.name)}</span></div>
+    <div class="ed-head">${meta.showFlag === false ? "" : `<img src="${FLAG_PNG_DATA_URI}" alt="">`}<span>${esc(meta.name)}</span></div>
     <h2 class="ed-label">सम्पादकीय</h2>
     <h3 data-fit-headline>${esc(ed.title)}</h3>
     <div class="cols-1 grow">${body(ed)}</div>
@@ -230,9 +240,9 @@ function innerPage(page: InnerPage, meta: IssueMeta, qr: Map<string, string>) {
   const head = `<header class="runhead">
     <span class="pno">${toNepaliDigits(page.number)}</span>
     <span class="rh-date">${esc(d.bs)} &nbsp;|&nbsp; ${esc(d.ad)}</span>
-    <span class="rh-name"><img src="${FLAG_PNG_DATA_URI}" alt="">${esc(meta.name)}</span>
+    <span class="rh-name">${meta.showFlag === false ? "" : `<img src="${FLAG_PNG_DATA_URI}" alt="">`}${esc(meta.name)}</span>
   </header>
-  <h2 class="section"><svg viewBox="0 0 14 17" aria-hidden="true"><path d="M1.2 1.2 L12.4 8.3 H6.2 L12.4 15.8 H1.2 Z" fill="#c8102e" stroke="#003893" stroke-width="1.4" stroke-linejoin="round"/></svg>${esc(page.section)}</h2>`;
+  <h2 class="section"><svg viewBox="0 0 14 17" aria-hidden="true"><path d="M1.2 1.2 L12.4 8.3 H6.2 L12.4 15.8 H1.2 Z" style="fill:var(--brand-primary);stroke:var(--brand-secondary)" stroke-width="1.4" stroke-linejoin="round"/></svg>${esc(page.section)}</h2>`;
 
   const content = page.editorial
     ? `<div class="with-editorial">
@@ -252,10 +262,10 @@ html { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 body { margin: 0; font-family: "Mukta", "Noto Sans Devanagari", sans-serif; color: #000; font-size: 9.6pt; }
 @media screen { body { background: #8a8f98; padding: 12mm 0; } .page { margin: 0 auto 12mm; box-shadow: 0 6px 30px rgba(0,0,0,.35); } .page::after { content: ""; position: absolute; inset: 3mm; outline: 0.4pt dashed rgba(200,16,46,.6); pointer-events: none; } }
 .page { width: 324mm; height: 489mm; padding: 14mm 15mm 15mm; background: #fff; display: flex; flex-direction: column; overflow: hidden; break-after: page; position: relative; }
-h1, h2, h3, h4 { font-family: "Anek Print", "Mukta", sans-serif; margin: 0; color: #10213f; line-height: 1.22; }
+h1, h2, h3, h4 { font-family: "Anek Print", "Mukta", sans-serif; margin: 0; color: var(--brand-ink); line-height: 1.22; }
 p { margin: 0; }
-.kicker { color: #c8102e; font-weight: 700; font-size: 9pt; margin-bottom: 1mm; }
-.standfirst { font-weight: 600; font-size: 12pt; line-height: 1.4; color: #10213f; margin: 1.5mm 0 2.5mm; }
+.kicker { color: var(--brand-primary); font-weight: 700; font-size: 9pt; margin-bottom: 1mm; }
+.standfirst { font-weight: 600; font-size: 12pt; line-height: 1.4; color: var(--brand-ink); margin: 1.5mm 0 2.5mm; }
 .grow { flex: 1; min-height: 0; }
 .body { height: 100%; overflow: hidden; text-align: justify; line-height: 1.5; }
 .body p { margin-bottom: 1.6mm; text-indent: 4mm; }
@@ -278,44 +288,45 @@ figcaption { font-size: 7pt; color: #555; margin-top: 0.8mm; }
 .masthead { display: flex; justify-content: space-between; align-items: center; gap: 8mm; padding-bottom: 3mm; }
 .brand { display: flex; align-items: center; gap: 6mm; }
 .brand .flag { height: 44mm; width: auto; }
+.mast-logo img { height: 40mm; width: auto; max-width: 190mm; object-fit: contain; display: block; }
 .brand h1 { font-size: 104pt; font-weight: 800; line-height: 1; letter-spacing: -0.5pt; }
-.brand .r { color: #c8102e; } .brand .b { color: #003893; }
+.brand .r { color: var(--brand-primary); } .brand .b { color: var(--brand-secondary); }
 .tagline { font-size: 15pt; color: #333; margin-top: 2mm; display: flex; align-items: center; gap: 5mm; }
-.freq { font-family: "Anek Print", sans-serif; font-weight: 700; font-size: 20pt; color: #fff; background: #003893; padding: 0.5mm 4mm 1mm; border-radius: 1.5mm; }
-.mast-box { width: 62mm; border: 0.8pt solid #c8102e; padding: 3mm; text-align: center; font-size: 9pt; line-height: 1.35; }
+.freq { font-family: "Anek Print", sans-serif; font-weight: 700; font-size: 20pt; color: #fff; background: var(--brand-secondary); padding: 0.5mm 4mm 1mm; border-radius: 1.5mm; }
+.mast-box { width: 62mm; border: 0.8pt solid var(--brand-primary); padding: 3mm; text-align: center; font-size: 9pt; line-height: 1.35; }
 .mast-box .reg { font-size: 8pt; color: #333; margin-bottom: 2mm; }
 .mast-qr svg { width: 20mm; height: 20mm; margin: 0 auto 1.5mm; display: block; }
 .mast-box .mail { border-top: 0.5pt solid #ddd; margin-top: 2mm; padding-top: 2mm; }
-.infobar { display: flex; justify-content: space-between; background: #c8102e; color: #fff; font-weight: 600; font-size: 10.5pt; padding: 1.6mm 4mm; border-bottom: 1.4mm solid #003893; margin-bottom: 4mm; }
+.infobar { display: flex; justify-content: space-between; background: var(--brand-primary); color: #fff; font-weight: 600; font-size: 10.5pt; padding: 1.6mm 4mm; border-bottom: 1.4mm solid var(--brand-secondary); margin-bottom: 4mm; }
 .front-grid { flex: 1; min-height: 0; display: grid; grid-template-columns: 1fr 74mm; grid-template-rows: auto 1fr; gap: 5mm 6mm; }
-.lead { grid-column: 1; grid-row: 1; border: 0.8pt solid #003893; padding: 4mm; }
+.lead { grid-column: 1; grid-row: 1; border: 0.8pt solid var(--brand-secondary); padding: 4mm; }
 .lead h2 { font-size: 40pt; font-weight: 800; max-height: 2.5em; overflow: hidden; }
 /* Photo and text side by side at a fixed height: short stories don't leave a tall empty column. */
 .lead-row { height: 104mm; display: grid; grid-template-columns: 58% 1fr; gap: 5mm; }
 .lead-row > .grow { display: flex; flex-direction: column; min-height: 0; }
-.rail { grid-column: 2; grid-row: 1 / span 2; background: #eef3fb; border-top: 1.4mm solid #003893; padding: 4mm; display: flex; flex-direction: column; gap: 4mm; min-height: 0; }
+.rail { grid-column: 2; grid-row: 1 / span 2; background: #eef3fb; border-top: 1.4mm solid var(--brand-secondary); padding: 4mm; display: flex; flex-direction: column; gap: 4mm; min-height: 0; }
 .rail .side { flex: 1 1 0; }
 .rail .side + .side { border-top: 0.5pt solid #b8c6e0; padding-top: 4mm; }
 .side h3 { font-size: 17pt; font-weight: 800; max-height: 3.7em; overflow: hidden; margin-bottom: 2mm; }
-.bottom { grid-column: 1; grid-row: 2; display: grid; grid-template-columns: repeat(3, 1fr); gap: 5mm; min-height: 0; border-top: 0.8pt solid #10213f; padding-top: 3mm; }
+.bottom { grid-column: 1; grid-row: 2; display: grid; grid-template-columns: repeat(3, 1fr); gap: 5mm; min-height: 0; border-top: 0.8pt solid var(--brand-ink); padding-top: 3mm; }
 .low h3, .cell h3 { font-size: 15.5pt; font-weight: 800; max-height: 2.6em; overflow: hidden; margin-bottom: 2mm; }
 /* Photos: the image fills, the caption sits below it (never over the text). */
 .photo { display: flex; flex-direction: column; }
 .photo img { flex: 1 1 0; min-height: 0; }
 .lead-photo, .inner-photo { height: 100%; margin: 0; }
 .low .photo, .cell .photo { height: 34mm; flex: none; }
-.index { margin-top: 4mm; border-top: 1.4mm solid #c8102e; padding-top: 2mm; display: flex; gap: 5mm; align-items: baseline; }
-.index h4 { font-size: 14pt; white-space: nowrap; color: #c8102e; }
+.index { margin-top: 4mm; border-top: 1.4mm solid var(--brand-primary); padding-top: 2mm; display: flex; gap: 5mm; align-items: baseline; }
+.index h4 { font-size: 14pt; white-space: nowrap; color: var(--brand-primary); }
 .index ul { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(${3}, 1fr); gap: 1mm 5mm; font-size: 9pt; }
 .index li { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
-.index .sec { color: #c8102e; font-weight: 700; }
+.index .sec { color: var(--brand-primary); font-weight: 700; }
 .empty { color: #666; font-size: 12pt; padding: 10mm; }
 
 /* ---- advertisements (labelled; kept whole, except full pages which fill the bleed) */
 .ad { margin: 0; position: relative; display: flex; flex-direction: column; min-height: 0; }
 .ad img { flex: 1 1 0; min-height: 0; width: 100%; object-fit: contain; }
 .ad-label { font-size: 7pt; color: #666; text-align: center; margin-bottom: 0.8mm; }
-.ad-half { flex: 1; border-top: 0.8pt solid #10213f; padding-top: 2mm; }
+.ad-half { flex: 1; border-top: 0.8pt solid var(--brand-ink); padding-top: 2mm; }
 .ad-strip { height: 52mm; flex: none; margin-top: 4mm; }
 .ad-box { border: 0.5pt solid #b8bcc4; padding: 1.5mm; }
 .adpage { padding: 0; }
@@ -325,10 +336,10 @@ figcaption { font-size: 7pt; color: #555; margin-top: 0.8mm; }
 
 /* ---- सम्पादकीय column (page 2) */
 .with-editorial { flex: 1; min-height: 0; display: grid; grid-template-columns: 80mm 1fr; gap: 6mm; }
-.editorial { display: flex; flex-direction: column; min-height: 0; overflow: hidden; background: #eef3fb; border-top: 1.4mm solid #c8102e; padding: 4mm; }
-.ed-head { display: flex; align-items: center; gap: 2mm; font-family: "Anek Print", sans-serif; font-weight: 800; font-size: 13pt; color: #003893; }
+.editorial { display: flex; flex-direction: column; min-height: 0; overflow: hidden; background: #eef3fb; border-top: 1.4mm solid var(--brand-primary); padding: 4mm; }
+.ed-head { display: flex; align-items: center; gap: 2mm; font-family: "Anek Print", sans-serif; font-weight: 800; font-size: 13pt; color: var(--brand-secondary); }
 .ed-head img { height: 8mm; }
-.ed-label { font-size: 22pt; font-weight: 800; color: #c8102e; margin: 2mm 0 2mm; border-bottom: 0.8pt solid #10213f; padding-bottom: 1mm; }
+.ed-label { font-size: 22pt; font-weight: 800; color: var(--brand-primary); margin: 2mm 0 2mm; border-bottom: 0.8pt solid var(--brand-ink); padding-bottom: 1mm; }
 .editorial h3 { font-size: 17pt; font-weight: 800; max-height: 3.7em; overflow: hidden; margin-bottom: 2mm; }
 .editorial .body { font-size: 10.2pt; }
 .ed-main { display: flex; flex-direction: column; min-height: 0; }
@@ -337,13 +348,13 @@ figcaption { font-size: 7pt; color: #555; margin-top: 0.8mm; }
 .cells-ed .cell:nth-child(n+4) { border-top: 0.5pt solid #b8bcc4; }
 
 /* ---- inner pages */
-.runhead { display: flex; align-items: center; justify-content: space-between; border-bottom: 0.8pt solid #10213f; padding-bottom: 2mm; font-size: 10pt; color: #333; }
-.pno { font-family: "Anek Print", sans-serif; font-weight: 800; font-size: 20pt; color: #fff; background: #c8102e; min-width: 12mm; text-align: center; border-radius: 1mm; padding: 0 2mm; }
-.rh-name { display: flex; align-items: center; gap: 2mm; font-family: "Anek Print", sans-serif; font-weight: 800; font-size: 16pt; color: #003893; }
+.runhead { display: flex; align-items: center; justify-content: space-between; border-bottom: 0.8pt solid var(--brand-ink); padding-bottom: 2mm; font-size: 10pt; color: #333; }
+.pno { font-family: "Anek Print", sans-serif; font-weight: 800; font-size: 20pt; color: #fff; background: var(--brand-primary); min-width: 12mm; text-align: center; border-radius: 1mm; padding: 0 2mm; }
+.rh-name { display: flex; align-items: center; gap: 2mm; font-family: "Anek Print", sans-serif; font-weight: 800; font-size: 16pt; color: var(--brand-secondary); }
 .rh-name img { height: 7mm; }
-h2.section { display: flex; align-items: center; gap: 3mm; font-size: 26pt; font-weight: 800; margin: 3mm 0 4mm; border-bottom: 1.4mm solid #c8102e; padding-bottom: 1.5mm; }
+h2.section { display: flex; align-items: center; gap: 3mm; font-size: 26pt; font-weight: 800; margin: 3mm 0 4mm; border-bottom: 1.4mm solid var(--brand-primary); padding-bottom: 1.5mm; }
 h2.section svg { width: 6mm; height: 7.3mm; }
-.inner-lead { flex: none; border-bottom: 0.8pt solid #10213f; padding-bottom: 4mm; margin-bottom: 5mm; }
+.inner-lead { flex: none; border-bottom: 0.8pt solid var(--brand-ink); padding-bottom: 4mm; margin-bottom: 5mm; }
 .inner-lead h2 { font-size: 32pt; font-weight: 800; max-height: 2.5em; overflow: hidden; margin-bottom: 3mm; }
 .inner-lead-row { height: 104mm; display: grid; grid-template-columns: 56% 1fr; gap: 6mm; }
 .inner-lead-left { display: flex; flex-direction: column; min-height: 0; }
@@ -447,6 +458,7 @@ export async function renderIssueHtml(plan: IssuePlan, meta: IssueMeta, opts: { 
   for (const s of plan.used) qr.set(s.id, await qrSvg(s.url));
   const siteQr = await qrSvg(meta.siteUrl);
   const title = `${meta.name} – अंक ${toNepaliDigits(meta.number)}`;
+  const colors = meta.colors ?? { primary: "#c8102e", secondary: "#003893", ink: "#10213f" };
 
   return `<!doctype html>
 <html lang="ne">
@@ -456,7 +468,8 @@ export async function renderIssueHtml(plan: IssuePlan, meta: IssueMeta, opts: { 
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Mukta:wght@400;600;700&display=block" rel="stylesheet">
-<style>${PRINT_FONT_FACES}${CSS}</style>
+<style>${PRINT_FONT_FACES}:root { --brand-primary: ${colors.primary}; --brand-secondary: ${colors.secondary}; --brand-ink: ${colors.ink}; }
+${CSS}</style>
 </head>
 <body>
 ${frontPage(plan, meta, qr, siteQr)}

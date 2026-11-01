@@ -21,6 +21,8 @@ import { seoRouter } from "./routes/seo";
 import { promotionsRouter } from "./routes/promotions";
 import { adminPromotionsRouter } from "./routes/admin/promotions";
 import { adminPrintRouter } from "./routes/admin/print";
+import { adminSettingsRouter } from "./routes/admin/settings";
+import { getSettings } from "./services/settings";
 
 export function createApp() {
   const app = express();
@@ -38,6 +40,11 @@ export function createApp() {
   app.use(loadUser);
 
   app.get("/api/health", (_req, res) => res.json({ ok: true }));
+  // The site's name, logo, colours and contact details (all public).
+  app.get("/api/settings", async (_req, res) => {
+    res.set("Cache-Control", "public, max-age=0, s-maxage=60, stale-while-revalidate=300");
+    res.json(await getSettings());
+  });
 
   app.use("/api/promotions", promotionsRouter);
   app.use("/api", publicRouter);
@@ -53,6 +60,7 @@ export function createApp() {
   admin.use("/ingest", requireRole("admin", "editor"), adminIngestRouter);
   admin.use("/promotions", requireRole("admin"), adminPromotionsRouter);
   admin.use("/print", requireRole("admin", "editor"), adminPrintRouter);
+  admin.use("/settings", requireRole("admin"), adminSettingsRouter);
   app.use("/api/admin", admin);
 
   app.use(seoRouter);

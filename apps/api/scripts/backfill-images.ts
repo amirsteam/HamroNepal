@@ -8,7 +8,7 @@
  * Default: a symbolic Pexels stock photo (one AI call for English search
  * words + one Pexels search per article; needs PEXELS_API_KEY).
  * --from-source: the outlet's own photo from the original article page,
- * linked from its server and credited to it. The photos are the outlets'
+ * uploaded to Cloudinary (linked if that fails) and credited to it. The photos are the outlets'
  * copyright: for demos or with their permission (see INGEST_SOURCE_IMAGES).
  */
 
@@ -20,6 +20,7 @@ import { imageQueryPrompt, imageQuerySchema } from "../src/ai/prompts";
 import { toPlainText } from "../src/lib/sanitize";
 import { findStockPhoto, isStockPhotoConfigured, type StockPhoto } from "../src/services/stockPhoto";
 import { imageLoads, readPage } from "../src/ingest/extract";
+import { storeRemoteImage } from "../src/services/imageStore";
 
 const args = process.argv.slice(2);
 const dryRun = args.includes("--dry-run");
@@ -51,16 +52,23 @@ async function stockPhoto(article: Doc, used: Set<string>): Promise<{ photo: Sto
   return { photo: query ? await findStockPhoto(query, used) : null, note: `"${query}"` };
 }
 
-async function sourcePhoto(article: Doc): Promise<{ photo: StockPhoto | null; note: string }> {
+async function sourcePhoto(article: Doc): Promise<{ photo: StockPhoto | null; note: string; publicId?: string }> {
   const url = article.source?.url;
   if (!url) return { photo: null, note: "no source link" };
   const page = await readPage(url);
   if (!page.imageUrl) return { photo: null, note: "no photo on the source page" };
   if (!(await imageLoads(page.imageUrl))) return { photo: null, note: `photo refused: ${page.imageUrl}` };
-  return {
-    photo: { url: page.imageUrl, alt: article.title, credit: { name: article.source?.name || new URL(url).hostname, url } },
-    note: article.source?.name ?? "source",
-  };
+  const credit = { name: article.source?.name || new URL(url).hostname, url };
+  // Our own copy on Cloudinary; the outlet's link only if the upload fails.
+  if (!dryRun) {
+    try {
+      const stored = await storeRemoteImage(page.imageUrl);
+      if (stored) return { photo: { url: stored.url, alt: article.title, credit }, note: `${credit.name}, uploaded`, publicId: stored.publicId };
+    } catch (err) {
+      return { photo: { url: page.imageUrl, alt: article.title, credit }, note: `${credit.name}, linked (upload failed: ${(err as Error).message})` };
+    }
+  }
+  return { photo: { url: page.imageUrl, alt: article.title, credit }, note: `${credit.name}, linked` };
 }
 
 await connectDB(config.mongoUri);
@@ -82,7 +90,7 @@ try {
   let added = 0;
   for (const article of articles) {
     try {
-      const { photo, note } = fromSource ? await sourcePhoto(article) : await stockPhoto(article, used);
+      const { photo, note, publicId } = fromSource ? await sourcePhoto(article) : { ...(await stockPhoto(article, used)), publicId: undefined };
       if (!photo) {
         console.log(`  – ${note}: ${article.title}`);
         continue;
@@ -91,7 +99,7 @@ try {
       added++;
       console.log(`  🖼 ${note} → ${article.title}`);
       if (!dryRun) {
-        article.set({ featuredImage: photo.url, imageCredit: photo.credit });
+        article.set({ featuredImage: photo.url, featuredImagePublicId: publicId, imageCredit: photo.credit });
         await article.save();
       }
     } catch (err) {

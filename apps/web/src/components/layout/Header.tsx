@@ -8,7 +8,9 @@
 import { useState, useEffect } from "react";
 import { Link, NavLink, useLocation } from "react-router-dom";
 import { AnimatePresence, m } from "motion/react";
-import { NepalFlag } from "@/components/ui/NepalFlag";
+import { SiteLogo } from "./SiteLogo";
+import { ContactBar, ContactLinks, SocialLinks } from "./SocialLinks";
+import { useSettings } from "@/lib/settings";
 import type { Category, Article } from "@/types";
 import {
   getCategories,
@@ -25,7 +27,9 @@ import { otherLanguagePath, useT } from "@/lib/i18n";
 function LanguageSwitch({ className = "", onClick }: { className?: string; onClick?: () => void }) {
   const { lang, t } = useT();
   const { pathname, search } = useLocation();
+  const { englishEdition } = useSettings();
   const other = lang === "en" ? "ne" : "en";
+  if (!englishEdition && lang === "ne") return null;
   return (
     <Link
       to={otherLanguagePath(pathname, search, other)}
@@ -119,11 +123,7 @@ export function Header() {
             {/* Logo */}
             <Link to={to("/")} className="absolute left-1/2 -translate-x-1/2" aria-label={t.homeLink}>
               {/* The English name is wider: one size smaller so it clears the language switch. */}
-              <span className={`flex items-center gap-1.5 font-display ${lang === "en" ? "text-xl" : "text-2xl"} font-extrabold tracking-tight`}>
-                <NepalFlag className="h-7 w-auto -mt-0.5" />
-                <span className="text-primary">{t.brand[0]}</span>
-                <span className="text-secondary ml-0.5">{t.brand[1]}</span>
-              </span>
+              <SiteLogo variant="mobile" />
             </Link>
 
             {/* Language and search */}
@@ -146,6 +146,8 @@ export function Header() {
 
         {/* Desktop Header */}
         <div className="hidden lg:block">
+          {/* Contact and social links (Dashboard → साइट सेटिङ) */}
+          <ContactBar />
           {/* Top Header Bar - Newspaper Style */}
           <div className="bg-gradient-to-r from-gray-50 to-white border-b border-gray-200">
             <div className="container mx-auto px-4">
@@ -161,11 +163,7 @@ export function Header() {
                 {/* CENTER: Logo */}
                 <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
                   <Link to={to("/")} className="block text-center group">
-                    <span className="flex items-center justify-center gap-3 font-display text-5xl xl:text-6xl font-extrabold tracking-tight">
-                      <NepalFlag animated className="h-14 xl:h-16 w-auto -mt-1" />
-                      <span className="text-primary transition-colors group-hover:text-primary/80">{t.brand[0]}</span>
-                      <span className="text-secondary transition-colors group-hover:text-secondary/80 ml-2">{t.brand[1]}</span>
-                    </span>
+                    <SiteLogo variant="desktop" />
                     <p className="text-sm text-gray-500 mt-1">{t.tagline}</p>
                   </Link>
                 </div>
@@ -445,8 +443,10 @@ export function Header() {
               </div>
             </nav>
 
-            {/* Footer */}
-            <div className="p-4 border-t border-gray-100 bg-gray-50">
+            {/* Footer: contact, social links, copyright */}
+            <div className="p-4 border-t border-gray-100 bg-gray-50 space-y-3">
+              <ContactLinks className="flex-col items-start gap-2 text-sm text-gray-700" linkClass="hover:text-primary" />
+              <SocialLinks className="gap-1 -ml-1.5" iconClass="w-5 h-5" linkClass="p-1.5 rounded text-gray-600 hover:text-primary hover:bg-gray-100" />
               <p className="text-xs text-gray-500 text-center">
                 {t.copyrightShort}
               </p>

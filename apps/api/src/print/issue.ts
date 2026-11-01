@@ -5,6 +5,7 @@
 
 import { Article, Category, PrintIssue, Promotion } from "../models";
 import { EDITORIAL_TOPIC } from "../seed/data";
+import { getSettings } from "../services/settings";
 import { runningNow } from "../routes/promotions";
 import { config } from "../config";
 import { toPlainText } from "../lib/sanitize";
@@ -110,13 +111,18 @@ export async function buildIssue(
   const volume = Math.max(1, Math.floor((issueDate.getTime() - first.getTime()) / (365.25 * DAY_MS)) + 1);
   const number = Math.max((lastIssue?.number ?? 0) + 1, config.print.issueOffset + 1);
 
+  // Masthead from Dashboard → साइट सेटिङ; PRINT_* env values only fill gaps.
+  const settings = await getSettings();
   const meta: IssueMeta = {
-    name: config.print.name,
-    tagline: config.print.tagline,
+    name: settings.name.ne || config.print.name,
+    tagline: settings.tagline.ne || config.print.tagline,
     frequency: config.print.frequency,
-    regNo: config.print.regNo || undefined,
-    price: config.print.price || undefined,
-    email: config.print.email || undefined,
+    regNo: settings.print.regNo || config.print.regNo || undefined,
+    price: settings.print.price || config.print.price || undefined,
+    email: settings.print.email || config.print.email || undefined,
+    colors: settings.colors,
+    showFlag: settings.showFlag,
+    logoUrl: settings.logoUrl || undefined,
     siteUrl: site,
     number,
     volume,

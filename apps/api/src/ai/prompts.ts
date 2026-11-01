@@ -144,6 +144,9 @@ JSON फर्म्याट:
 {"results": [{"i": 0, "topic": "slug", "isLocal": true, "location": "slug वा null", "newsworthy": true, "confidence": 0.8, "reason": "छोटो कारण"}]}`;
 }
 
+/** The default outlet name in the prompts; replaced by the site's own name (settings). */
+export const PROMPT_SITE_NAME = "हाम्रो नेपाल";
+
 export const WRITER_SYSTEM = `तपाईं हाम्रो नेपाल समाचार पोर्टलका सम्पादक हुनुहुन्छ। अरू सञ्चारमाध्यमको समाचार पढेर आफ्नै शब्दमा छोटो, तथ्यपरक नेपाली समाचार लेख्नुहुन्छ।
 कडा नियमहरू:
 - दिइएको स्रोत पाठमा भएका तथ्य मात्र प्रयोग गर्नुहोस्। नयाँ नाम, संख्या, मिति, उद्धरण वा विवरण कहिल्यै नथप्नुहोस्।
@@ -181,8 +184,10 @@ export function writePrompt(input: {
   sourceText: string;
   topicName: string;
   locationName?: string;
+  /** The outlet writing (site settings); default हाम्रो नेपाल. */
+  siteName?: string;
 }): string {
-  return `तलको स्रोत समाचारको आधारमा हाम्रो नेपालको लागि छोटो समाचार लेख्नुहोस्।
+  return `तलको स्रोत समाचारको आधारमा ${input.siteName ?? PROMPT_SITE_NAME}को लागि छोटो समाचार लेख्नुहोस्।
 
 श्रेणी: ${input.topicName}${input.locationName ? `\nस्थान: ${input.locationName}` : ""}
 स्रोत: ${input.sourceName}

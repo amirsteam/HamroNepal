@@ -7,3 +7,4 @@ export { ReviewPage } from "./ReviewPage";
 export { SourcesPage } from "./SourcesPage";
 export { PromotionsPage } from "./PromotionsPage";
 export { PrintPage } from "./PrintPage";
+export { SettingsPage } from "./SettingsPage";

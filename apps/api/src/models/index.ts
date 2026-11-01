@@ -266,3 +266,26 @@ const printIssueSchema = new Schema(
 );
 printIssueSchema.index({ number: -1 });
 export const PrintIssue = mongoose.model("PrintIssue", printIssueSchema);
+
+// ---------------------------------------------------------------- site settings (one document)
+const localizedSchema = new Schema({ ne: String, en: String }, { _id: false });
+const siteSettingsSchema = new Schema(
+  {
+    /** Always "site": there is one settings document. */
+    key: { type: String, default: "site", unique: true },
+    name: localizedSchema,
+    tagline: localizedSchema,
+    description: localizedSchema,
+    logoUrl: String,
+    faviconUrl: String,
+    ogImageUrl: String,
+    showFlag: Boolean,
+    colors: { primary: String, secondary: String, ink: String },
+    contact: { address: localizedSchema, phone: String, email: String },
+    social: { facebook: String, x: String, instagram: String, youtube: String, tiktok: String },
+    englishEdition: Boolean,
+    print: { regNo: String, price: String, email: String },
+  },
+  { timestamps: true }
+);
+export const SiteSettingsModel = mongoose.model("SiteSettings", siteSettingsSchema);

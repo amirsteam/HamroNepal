@@ -6,4 +6,7 @@ process.env.AI_MIN_INTERVAL_MS = "0";
 process.env.GEMINI_API_KEY = "";
 process.env.GROQ_API_KEY = "";
 process.env.CLOUDINARY_URL = "";
+process.env.CLOUDINARY_CLOUD_NAME = "";
+process.env.CLOUDINARY_API_KEY = "";
+process.env.CLOUDINARY_API_SECRET = "";
 process.env.RATE_LIMIT_LOGIN_PER_15_MIN = "1000";

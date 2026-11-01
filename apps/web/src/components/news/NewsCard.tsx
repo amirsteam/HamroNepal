@@ -8,7 +8,7 @@ import { Link } from "react-router-dom";
 import { m } from "motion/react";
 import type { Article } from "@/types";
 import { getRelativeTimeNepali } from "@/lib/bs-date";
-import { authorLabel, useT } from "@/lib/i18n";
+import { useT } from "@/lib/i18n";
 import { getArticleImageSrcSet, getArticleImageUrl } from "@/services/news.service";
 import { FadeImage } from "@/components/ui/FadeImage";
 
@@ -40,7 +40,7 @@ function When({ article, className = "" }: { article: Article; className?: strin
 }
 
 export function NewsCard({ article, variant = "default" }: NewsCardProps) {
-  const { lang, to } = useT();
+  const { to, author } = useT();
   const imageUrl = getArticleImageUrl(article.featuredImage || "", 400, 250);
   const href = to(`/news/${article.slug}`);
 
@@ -77,7 +77,7 @@ export function NewsCard({ article, variant = "default" }: NewsCardProps) {
             </h2>
             <p className="text-white/80 text-sm md:text-base mt-2 line-clamp-2 max-w-2xl">{article.excerpt}</p>
             <div className="flex items-center gap-3 mt-3 text-white/70 text-sm">
-              {article.authorName && <span>{authorLabel(article.authorName, lang)}</span>}
+              {article.authorName && <span>{author(article.authorName)}</span>}
               <When article={article} />
             </div>
           </m.div>

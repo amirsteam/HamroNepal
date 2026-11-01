@@ -24,6 +24,7 @@ const ReviewPage = dash("ReviewPage");
 const SourcesPage = dash("SourcesPage");
 const PromotionsPage = dash("PromotionsPage");
 const PrintPage = dash("PrintPage");
+const SettingsPage = dash("SettingsPage");
 
 function Loading() {
   return (
@@ -108,6 +109,14 @@ export const router = createBrowserRouter([
         element: (
           <ProtectedRoute allowedRoles={["admin", "editor"]}>
             {load(<PrintPage />)}
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: "settings",
+        element: (
+          <ProtectedRoute allowedRoles={["admin"]}>
+            {load(<SettingsPage />)}
           </ProtectedRoute>
         ),
       },

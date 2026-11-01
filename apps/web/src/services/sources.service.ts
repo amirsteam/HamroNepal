@@ -31,4 +31,8 @@ export interface IngestReport {
   drafts: Array<{ title: string; category: string; location?: string; sourceUrl: string; articleId?: string }>;
 }
 
+/** "अहिले समाचार ल्याउनुहोस्": the GitHub job (drafts in a few minutes) or a small run right away. */
+export type IngestStart = { mode: "github" } | { mode: "direct"; drafted: number; errors: string[] };
+export const startIngest = () => api.post<IngestStart>("/admin/ingest/start");
+
 export const runIngestNow = (dryRun: boolean) => api.post<IngestReport>("/admin/ingest/run", { dryRun });

@@ -70,6 +70,23 @@ export const config = {
     sourceImages: str("INGEST_SOURCE_IMAGES", "false") === "true",
   },
 
+  /**
+   * Starting the GitHub news job from the dashboard ("अहिले समाचार ल्याउनुहोस्").
+   * The token needs "Actions: read and write" on the repo. Vercel fills the
+   * repo name itself; elsewhere set GITHUB_REPO ("owner/name").
+   */
+  github: {
+    token: str("GITHUB_DISPATCH_TOKEN"),
+    repo: str(
+      "GITHUB_REPO",
+      process.env.VERCEL_GIT_REPO_OWNER && process.env.VERCEL_GIT_REPO_SLUG
+        ? `${process.env.VERCEL_GIT_REPO_OWNER}/${process.env.VERCEL_GIT_REPO_SLUG}`
+        : ""
+    ),
+    // Not GITHUB_REF: GitHub Actions sets that one itself (e.g. "refs/pull/3/merge").
+    ref: str("GITHUB_DISPATCH_REF", "main"),
+  },
+
   /** The weekly print edition (PDF for the press). */
   print: {
     name: str("PRINT_NAME", "हाम्रो नेपाल"),

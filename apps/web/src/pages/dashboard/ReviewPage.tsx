@@ -3,12 +3,12 @@
  * Nothing the AI writes is public until an editor approves it here.
  */
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import type { Article, Category } from "@/types";
 import { getArticlesAdmin, updateArticleStatus } from "@/services/admin.service";
 import { getCategories, getLocationCategories } from "@/services/categories.service";
-import { getIngestRuns } from "@/services/sources.service";
+import { getIngestRuns, startIngest } from "@/services/sources.service";
 import { formatDualDate, toNepaliDigits } from "@/lib/bs-date";
 import { getArticleImageUrl } from "@/services/news.service";
 import { ImageCredit } from "@/components/news/ImageCredit";
@@ -24,7 +24,13 @@ export function ReviewPage() {
   const [lastRun, setLastRun] = useState<IngestRun | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
+  // Publishing also makes the English version, which takes a few seconds.
+  const [publishing, setPublishing] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // "अहिले समाचार ल्याउनुहोस्": idle → starting → waiting (GitHub job running) → idle.
+  const [fetchState, setFetchState] = useState<"idle" | "starting" | "waiting">("idle");
+  const [fetchNote, setFetchNote] = useState<{ ok: boolean; text: string } | null>(null);
+  const waitingSince = useRef(0);
 
   const names = useMemo(() => new Map(categories.map((c) => [c.$id, c.name])), [categories]);
 
@@ -53,8 +59,53 @@ export function ReviewPage() {
     load();
   }, [load]);
 
+  async function fetchNow() {
+    setFetchState("starting");
+    setFetchNote(null);
+    try {
+      const res = await startIngest();
+      if (res.mode === "github") {
+        waitingSince.current = Date.now();
+        setFetchState("waiting");
+        setFetchNote({ ok: true, text: "समाचार संकलन सुरु भयो। करिब ३–५ मिनेटमा नयाँ मस्यौदा यहाँ आफैँ देखिन्छन्।" });
+        return;
+      }
+      setFetchNote(
+        res.drafted
+          ? { ok: true, text: `${toNepaliDigits(res.drafted)} नयाँ मस्यौदा थपिए।` }
+          : { ok: false, text: res.errors[0] ? `नयाँ मस्यौदा बनेनन्: ${res.errors[0]}` : "अहिले नयाँ समाचार भेटिएन।" }
+      );
+      await load();
+      setFetchState("idle");
+    } catch (err) {
+      setFetchNote({ ok: false, text: err instanceof Error ? err.message : "संकलन सुरु गर्न सकिएन।" });
+      setFetchState("idle");
+    }
+  }
+
+  // While the GitHub job runs, check every 30 s; reload the list when it finishes.
+  useEffect(() => {
+    if (fetchState !== "waiting") return;
+    const timer = setInterval(async () => {
+      const runs = await getIngestRuns().catch(() => [] as IngestRun[]);
+      const done = runs.find((r) => !r.dryRun && r.finishedAt && new Date(r.startedAt).getTime() > waitingSince.current - 60_000);
+      const tooLong = Date.now() - waitingSince.current > 15 * 60_000;
+      if (!done && !tooLong) return;
+      clearInterval(timer);
+      setFetchState("idle");
+      setFetchNote(
+        done
+          ? { ok: true, text: `संकलन सकियो: ${toNepaliDigits(done.stats.drafted)} नयाँ मस्यौदा।` }
+          : { ok: false, text: "संकलन अझै सकिएको छैन। केही बेरपछि पेज ताजा गर्नुहोस्।" }
+      );
+      load();
+    }, 30_000);
+    return () => clearInterval(timer);
+  }, [fetchState, load]);
+
   async function decide(article: Article, status: "published" | "archived") {
     setBusy(article.$id);
+    if (status === "published") setPublishing(article.$id);
     try {
       await updateArticleStatus(article.$id, status);
       setArticles((prev) => prev.filter((a) => a.$id !== article.$id));
@@ -63,6 +114,7 @@ export function ReviewPage() {
       alert(err instanceof Error ? err.message : "परिवर्तन गर्न सकिएन।");
     } finally {
       setBusy(null);
+      setPublishing(null);
     }
   }
 
@@ -91,8 +143,31 @@ export function ReviewPage() {
               {toNepaliDigits(lastRun.stats.drafted)} नयाँ मस्यौदा
             </div>
           )}
+          <button
+            type="button"
+            onClick={fetchNow}
+            disabled={fetchState !== "idle"}
+            className="mt-2 inline-flex items-center gap-2 px-4 py-2 bg-primary text-white text-sm font-medium rounded-lg hover:bg-primary-dark disabled:opacity-60 disabled:cursor-wait"
+          >
+            <svg
+              className={`w-4 h-4 ${fetchState !== "idle" ? "animate-spin motion-reduce:animate-none" : ""}`}
+              fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" aria-hidden="true"
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+            {fetchState === "starting" ? "सुरु हुँदैछ…" : fetchState === "waiting" ? "संकलन हुँदैछ…" : "अहिले समाचार ल्याउनुहोस्"}
+          </button>
         </div>
       </div>
+
+      {fetchNote && (
+        <div
+          role="status"
+          className={`p-3 rounded-lg text-sm border ${fetchNote.ok ? "bg-green-50 border-green-200 text-green-800" : "bg-amber-50 border-amber-200 text-amber-800"}`}
+        >
+          {fetchNote.text}
+        </div>
+      )}
 
       {error && <div className="p-4 bg-red-50 border border-red-200 rounded-lg text-red-600">{error}</div>}
 
@@ -165,7 +240,7 @@ export function ReviewPage() {
                     disabled={busy === a.$id}
                     className="px-4 py-2 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700 disabled:opacity-50"
                   >
-                    ✓ स्वीकृत र प्रकाशित
+                    {publishing === a.$id ? "प्रकाशित र अनुवाद हुँदैछ…" : "✓ स्वीकृत र प्रकाशित"}
                   </button>
                   <Link
                     to={`/dashboard/articles/${a.$id}`}
