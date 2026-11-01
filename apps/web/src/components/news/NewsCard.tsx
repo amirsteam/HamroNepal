@@ -9,7 +9,7 @@ import { m } from "motion/react";
 import type { Article } from "@/types";
 import { getRelativeTimeNepali } from "@/lib/bs-date";
 import { authorLabel, useT } from "@/lib/i18n";
-import { getArticleImageUrl } from "@/services/news.service";
+import { getArticleImageSrcSet, getArticleImageUrl } from "@/services/news.service";
 import { FadeImage } from "@/components/ui/FadeImage";
 
 interface NewsCardProps {
@@ -57,6 +57,8 @@ export function NewsCard({ article, variant = "default" }: NewsCardProps) {
           >
             <FadeImage
               src={getArticleImageUrl(article.featuredImage || "", 1000, 560)}
+              srcSet={getArticleImageSrcSet(article.featuredImage || "", [480, 768, 1000, 1400], 0.56)}
+              sizes="(min-width: 1024px) 66vw, 100vw"
               alt={article.title}
               className="w-full h-full object-cover transition-transform duration-700 ease-out group-hover:scale-[1.03] motion-reduce:transition-none"
               fetchPriority="high"
@@ -134,6 +136,8 @@ export function NewsCard({ article, variant = "default" }: NewsCardProps) {
         <div className="aspect-video overflow-hidden">
           <FadeImage
             src={imageUrl}
+            srcSet={getArticleImageSrcSet(article.featuredImage || "", [320, 400, 640, 800], 0.5625)}
+            sizes="(min-width: 1024px) 25vw, (min-width: 768px) 50vw, 100vw"
             alt=""
             className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105 motion-reduce:transition-none"
             loading="lazy"

@@ -4,6 +4,15 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+    <!-- Fonts: connect early and load in parallel with the app (a CSS @import would wait for the CSS first). -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Anek+Devanagari:wdth,wght@75..125,400..800&family=Mukta:wght@400;500;600;700&display=swap"
+    />
+    <link rel="alternate" type="application/rss+xml" title="हाम्रो नेपाल" href="%SITE_URL%/rss.xml" />
     <meta name="theme-color" content="#DC2626" />
     
     <!-- SEO Meta Tags -->
@@ -36,6 +45,36 @@
     <meta name="twitter:description" content="राजनीति, अर्थतन्त्र, खेलकुद, मनोरञ्जन र विविध समाचारहरू।" />
     <meta name="twitter:image" content="%SITE_URL%/og-image.png" />
     
+    <!-- Who publishes the site, and its search (Google's sitelinks search box). -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "NewsMediaOrganization",
+            "@id": "%SITE_URL%/#organization",
+            "name": "हाम्रो नेपाल",
+            "alternateName": "Hamro Nepal",
+            "url": "%SITE_URL%/",
+            "logo": { "@type": "ImageObject", "url": "%SITE_URL%/og-image.png" }
+          },
+          {
+            "@type": "WebSite",
+            "@id": "%SITE_URL%/#website",
+            "url": "%SITE_URL%/",
+            "name": "हाम्रो नेपाल",
+            "inLanguage": ["ne", "en"],
+            "publisher": { "@id": "%SITE_URL%/#organization" },
+            "potentialAction": {
+              "@type": "SearchAction",
+              "target": "%SITE_URL%/search?q={search_term_string}",
+              "query-input": "required name=search_term_string"
+            }
+          }
+        ]
+      }
+    </script>
+
     <title>हाम्रो नेपाल - नेपालको विश्वसनीय समाचार पोर्टल</title>
   </head>
   <body>

@@ -21,6 +21,7 @@ import {
   getRelatedArticles,
   incrementViewCount,
   getArticleImageUrl,
+  getArticleImageSrcSet,
 } from "@/services/news.service";
 import { getCategoryById } from "@/services/categories.service";
 import { NewsCard } from "@/components/news/NewsCard";
@@ -32,6 +33,7 @@ import { SectionTitle } from "@/components/ui/SectionTitle";
 import { formatDualDate } from "@/lib/bs-date";
 import { STRINGS, authorLabel, useT } from "@/lib/i18n";
 import { useDocumentTitle } from "@/lib/useDocumentTitle";
+import { setCanonical } from "@/lib/seo";
 
 export function NewsDetailPage() {
   const { slug } = useParams<{ slug: string }>();
@@ -85,6 +87,13 @@ export function NewsDetailPage() {
 
   useDocumentTitle(article?.title);
 
+  // On the English site, a story not translated yet comes back in Nepali.
+  const untranslated = lang === "en" && article?.lang === "ne";
+  // Its English address shows the Nepali text, so the Nepali page is the one to index.
+  useEffect(() => {
+    if (untranslated && article) setCanonical(`/news/${encodeURIComponent(article.slug)}`);
+  }, [untranslated, article]);
+
   if (error) {
     return (
       <div className="container mx-auto px-4 py-8">
@@ -96,8 +105,6 @@ export function NewsDetailPage() {
   const dates = article?.publishedAt
     ? formatDualDate(article.publishedAt, lang)
     : null;
-  // On the English site, a story not translated yet comes back in Nepali.
-  const untranslated = lang === "en" && article?.lang === "ne";
 
   return (
     <div className="container mx-auto px-4 py-6">
@@ -207,6 +214,10 @@ export function NewsDetailPage() {
                   <figure className="px-6">
                     <img
                       src={getArticleImageUrl(article.featuredImage, 800, 450)}
+                      srcSet={getArticleImageSrcSet(article.featuredImage, [480, 800, 1200], 0.5625)}
+                      sizes="(min-width: 1024px) 760px, 100vw"
+                      fetchPriority="high"
+                      decoding="async"
                       alt={article.title}
                       width={800}
                       height={450}

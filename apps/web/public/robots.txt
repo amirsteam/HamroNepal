@@ -1,6 +1,0 @@
-User-agent: *
-Allow: /
-Disallow: /dashboard
-
-Sitemap: /sitemap.xml
-Sitemap: /news-sitemap.xml

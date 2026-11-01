@@ -25,7 +25,10 @@ export function FadeImage({ className = "", onLoad, onError, ...props }: ImgHTML
       }}
       onError={(e: SyntheticEvent<HTMLImageElement>) => {
         const img = e.currentTarget;
-        if (!img.src.endsWith(PLACEHOLDER)) img.src = PLACEHOLDER;
+        if (!img.src.endsWith(PLACEHOLDER)) {
+          img.removeAttribute("srcset"); // or the browser keeps picking from it
+          img.src = PLACEHOLDER;
+        }
         onError?.(e);
       }}
       className={`bg-gray-100 transition-opacity duration-500 motion-reduce:transition-none ${
