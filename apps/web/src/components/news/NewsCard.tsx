@@ -99,9 +99,10 @@ export function NewsCard({ article, variant = "default" }: NewsCardProps) {
         </Link>
         <div className="flex-1 min-w-0 py-0.5">
           <Link to={href}>
-            <h3 className="text-ink font-semibold text-[1.05rem] line-clamp-2 transition-colors group-hover:text-primary">{article.title}</h3>
+            <h3 className="text-ink font-semibold text-[1.05rem] leading-[1.45] line-clamp-2 transition-colors group-hover:text-primary">{article.title}</h3>
           </Link>
-          <p className="text-gray-600 text-sm mt-1 line-clamp-2 hidden md:block">{article.excerpt}</p>
+          {/* max-md:hidden, not "hidden md:block": display:block would cancel line-clamp. */}
+          <p className="text-gray-600 text-sm mt-1 line-clamp-2 max-md:hidden">{article.excerpt}</p>
           <When article={article} className="block text-gray-500 text-xs mt-1.5" />
         </div>
       </article>

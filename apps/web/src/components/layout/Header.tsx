@@ -5,7 +5,7 @@
  * Mobile-first design with hamburger menu and slide-out navigation.
  */
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useLayoutEffect, useRef } from "react";
 import { Link, NavLink, useLocation } from "react-router-dom";
 import { AnimatePresence, m } from "motion/react";
 import { SiteLogo } from "./SiteLogo";
@@ -96,6 +96,22 @@ export function Header() {
     };
   }, [mobileMenuOpen]);
 
+  // Desktop: the contact strip and the logo row scroll away with the page and
+  // the menu bar stays pinned. The sticky header sits that many pixels above the
+  // top of the screen (measured, so it follows the logo size and an empty
+  // contact strip). On phones the desktop part is hidden, so this is 0.
+  const topPartRef = useRef<HTMLDivElement>(null);
+  const [topPartHeight, setTopPartHeight] = useState(0);
+  useLayoutEffect(() => {
+    const el = topPartRef.current;
+    if (!el) return;
+    const measure = () => setTopPartHeight(el.offsetHeight);
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
   // Get current dates
   const now = new Date();
   const bsDate = getCurrentBSDate();
@@ -105,7 +121,7 @@ export function Header() {
 
   return (
     <>
-      <header className="sticky top-0 z-50 bg-white shadow-md">
+      <header className="sticky top-0 z-50 bg-white shadow-md" style={topPartHeight ? { top: -topPartHeight } : undefined}>
         {/* Mobile Header */}
         <div className="lg:hidden">
           {/* Top bar with hamburger, logo, and search */}
@@ -146,6 +162,8 @@ export function Header() {
 
         {/* Desktop Header */}
         <div className="hidden lg:block">
+          {/* Scrolls away on scroll; only the menu bar below stays pinned. */}
+          <div ref={topPartRef}>
           {/* Contact and social links (Dashboard → साइट सेटिङ) */}
           <ContactBar />
           {/* Top Header Bar - Newspaper Style */}
@@ -174,6 +192,7 @@ export function Header() {
                 </div>
               </div>
             </div>
+          </div>
           </div>
 
           {/* Desktop Navigation */}

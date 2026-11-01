@@ -191,7 +191,8 @@ export function HomePage() {
                 )}
 
                 {/* Side articles */}
-                <div className="lg:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* One column (two side by side squeezed the text into a narrow strip). */}
+                <div className="lg:col-span-2 grid grid-cols-1 gap-4 lg:gap-0 lg:divide-y lg:divide-gray-100 lg:[&>*]:py-3 lg:[&>*:first-child]:pt-0">
                   {articles.slice(1, 5).map((article) => (
                     <NewsCard
                       key={article.$id}
