@@ -5,8 +5,10 @@
  * Mobile-first design with hamburger menu and slide-out navigation.
  */
 
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { Link, NavLink } from "react-router-dom";
+import { AnimatePresence, m } from "motion/react";
+import { NepalFlag } from "@/components/ui/NepalFlag";
 import type { Category, Article } from "@/types";
 import {
   getCategories,
@@ -15,45 +17,12 @@ import {
   type LocationNode,
 } from "@/services/categories.service";
 import { getBreakingNews } from "@/services/news.service";
-import { getWeather, getFallbackWeather, type WeatherData } from "@/services/weather.service";
+import { WeatherCompact, WeatherFull, useWeather } from "./WeatherWidget";
 import {
   getCurrentBSDate,
   formatBSDate,
   BS_WEEKDAYS,
-  toNepaliDigits,
 } from "@/lib/bs-date";
-
-// Weather icon component
-function WeatherIcon({ condition, className = "w-6 h-6" }: { condition: WeatherData["condition"]; className?: string }) {
-  const icons: Record<WeatherData["condition"], React.ReactNode> = {
-    sunny: (
-      <svg className={`${className} text-yellow-500`} fill="currentColor" viewBox="0 0 24 24">
-        <path d="M12 2.25a.75.75 0 01.75.75v2.25a.75.75 0 01-1.5 0V3a.75.75 0 01.75-.75zM7.5 12a4.5 4.5 0 119 0 4.5 4.5 0 01-9 0zM18.894 6.166a.75.75 0 00-1.06-1.06l-1.591 1.59a.75.75 0 101.06 1.061l1.591-1.59zM21.75 12a.75.75 0 01-.75.75h-2.25a.75.75 0 010-1.5H21a.75.75 0 01.75.75zM17.834 18.894a.75.75 0 001.06-1.06l-1.59-1.591a.75.75 0 10-1.061 1.06l1.59 1.591zM12 18a.75.75 0 01.75.75V21a.75.75 0 01-1.5 0v-2.25A.75.75 0 0112 18zM7.758 17.303a.75.75 0 00-1.061-1.06l-1.591 1.59a.75.75 0 001.06 1.061l1.591-1.59zM6 12a.75.75 0 01-.75.75H3a.75.75 0 010-1.5h2.25A.75.75 0 016 12zM6.697 7.757a.75.75 0 001.06-1.06l-1.59-1.591a.75.75 0 00-1.061 1.06l1.59 1.591z" />
-      </svg>
-    ),
-    cloudy: (
-      <svg className={`${className} text-gray-400`} fill="currentColor" viewBox="0 0 24 24">
-        <path fillRule="evenodd" d="M4.5 9.75a6 6 0 0111.573-2.226 3.75 3.75 0 014.133 4.303A4.5 4.5 0 0118 20.25H6.75a5.25 5.25 0 01-2.23-10.004 6.072 6.072 0 01-.02-.496z" clipRule="evenodd" />
-      </svg>
-    ),
-    rainy: (
-      <svg className={`${className} text-blue-500`} fill="currentColor" viewBox="0 0 24 24">
-        <path fillRule="evenodd" d="M4.5 9.75a6 6 0 0111.573-2.226 3.75 3.75 0 014.133 4.303A4.5 4.5 0 0118 20.25H6.75a5.25 5.25 0 01-2.23-10.004 6.072 6.072 0 01-.02-.496zM9 13.5a.75.75 0 00-.75.75v2.25a.75.75 0 001.5 0v-2.25A.75.75 0 009 13.5zm3.75.75a.75.75 0 011.5 0v2.25a.75.75 0 01-1.5 0v-2.25zm4.5-.75a.75.75 0 00-.75.75v2.25a.75.75 0 001.5 0v-2.25a.75.75 0 00-.75-.75z" clipRule="evenodd" />
-      </svg>
-    ),
-    snowy: (
-      <svg className={`${className} text-cyan-400`} fill="currentColor" viewBox="0 0 24 24">
-        <path d="M12 2l1.09 3.41L16.5 4.5l-.91 3.41L19 9l-3.41 1.09.91 3.41-3.41-.91L12 16l-1.09-3.41L7.5 13.5l.91-3.41L5 9l3.41-1.09-.91-3.41 3.41.91L12 2z" />
-      </svg>
-    ),
-    foggy: (
-      <svg className={`${className} text-gray-300`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeWidth="2" d="M4 8h16M4 12h16M4 16h12" />
-      </svg>
-    ),
-  };
-  return icons[condition] || icons.sunny;
-}
 
 // Hamburger icon component
 function HamburgerIcon({ isOpen }: { isOpen: boolean }) {
@@ -72,23 +41,19 @@ export function Header() {
   const [breakingNews, setBreakingNews] = useState<Article[]>([]);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
-  const [weather, setWeather] = useState<WeatherData>(getFallbackWeather());
+  const weather = useWeather();
 
   useEffect(() => {
     async function loadData() {
       try {
-        const [cats, breaking, weatherData, locations] = await Promise.all([
+        const [cats, breaking, locations] = await Promise.all([
           getCategories(),
           getBreakingNews(5),
-          getWeather(),
           getLocationCategories().catch(() => [] as Category[]),
         ]);
         setCategories(cats);
         setProvinces(buildLocationTree(locations.filter((l) => l.showInMenu !== false)));
         setBreakingNews(breaking);
-        if (weatherData) {
-          setWeather(weatherData);
-        }
       } catch (error) {
         console.error("Failed to load header data:", error);
       } finally {
@@ -98,15 +63,15 @@ export function Header() {
     loadData();
   }, []);
 
-  // Close mobile menu when clicking outside
+  // While the mobile menu is open: no page scroll behind it, and Escape closes it.
   useEffect(() => {
-    if (mobileMenuOpen) {
-      document.body.style.overflow = "hidden";
-    } else {
-      document.body.style.overflow = "";
-    }
+    if (!mobileMenuOpen) return;
+    document.body.style.overflow = "hidden";
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setMobileMenuOpen(false);
+    window.addEventListener("keydown", onKey);
     return () => {
       document.body.style.overflow = "";
+      window.removeEventListener("keydown", onKey);
     };
   }, [mobileMenuOpen]);
 
@@ -140,7 +105,8 @@ export function Header() {
 
             {/* Logo */}
             <Link to="/" className="absolute left-1/2 -translate-x-1/2" aria-label="हाम्रो नेपाल गृहपृष्ठ">
-              <span className="block text-2xl font-black tracking-tight">
+              <span className="flex items-center gap-1.5 font-display text-2xl font-extrabold tracking-tight">
+                <NepalFlag className="h-7 w-auto -mt-0.5" />
                 <span className="text-primary">हाम्रो</span>
                 <span className="text-secondary ml-0.5">नेपाल</span>
               </span>
@@ -157,12 +123,7 @@ export function Header() {
           {/* Date and Weather bar */}
           <div className="flex items-center justify-between px-4 py-1.5 bg-gray-50 text-xs text-gray-600">
             <span className="font-medium">{bsWeekday}, {bsDateFormatted}</span>
-            <div className="flex items-center gap-1">
-              <WeatherIcon condition={weather.condition} className="w-4 h-4" />
-              <span className="font-semibold">{toNepaliDigits(weather.temp)}°C</span>
-              <span className="text-gray-400">|</span>
-              <span>{weather.location}</span>
-            </div>
+            <WeatherCompact state={weather} />
           </div>
         </div>
 
@@ -183,25 +144,18 @@ export function Header() {
                 {/* CENTER: Logo */}
                 <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
                   <Link to="/" className="block text-center group">
-                    <span className="block text-5xl xl:text-6xl font-black tracking-tight">
+                    <span className="flex items-center justify-center gap-3 font-display text-5xl xl:text-6xl font-extrabold tracking-tight">
+                      <NepalFlag animated className="h-14 xl:h-16 w-auto -mt-1" />
                       <span className="text-primary transition-colors group-hover:text-primary/80">हाम्रो</span>
                       <span className="text-secondary transition-colors group-hover:text-secondary/80 ml-2">नेपाल</span>
                     </span>
-                    <p className="text-xs text-gray-500 tracking-[0.2em] uppercase mt-0.5">
-                      Nepali News Portal
-                    </p>
+                    <p className="text-sm text-gray-500 mt-1">तपाईंको ठाउँको, देशभरको समाचार</p>
                   </Link>
                 </div>
 
                 {/* RIGHT: Weather Section */}
                 <div className="flex-1 text-right">
-                  <div className="inline-flex items-center gap-3">
-                    <WeatherIcon condition={weather.condition} className="w-10 h-10" />
-                    <div className="text-right">
-                      <p className="text-2xl font-bold text-gray-800">{toNepaliDigits(weather.temp)}°C</p>
-                      <p className="text-sm text-gray-500">{weather.location}</p>
-                    </div>
-                  </div>
+                  <WeatherFull state={weather} />
                 </div>
               </div>
             </div>
@@ -215,8 +169,8 @@ export function Header() {
                   <NavLink
                     to="/"
                     className={({ isActive }) =>
-                      `px-5 py-3 font-medium transition-colors ${
-                        isActive ? "bg-primary" : "hover:bg-secondary-dark"
+                      `relative px-5 py-3 font-medium transition-colors after:absolute after:inset-x-3 after:bottom-0 after:h-[3px] after:rounded-t after:bg-primary after:origin-left after:transition-transform after:duration-300 motion-reduce:after:transition-none hover:bg-secondary-dark hover:after:scale-x-100 ${
+                        isActive ? "bg-secondary-dark after:scale-x-100" : "after:scale-x-0"
                       }`
                     }
                   >
@@ -228,8 +182,8 @@ export function Header() {
                         key={category.$id}
                         to={`/category/${category.slug}`}
                         className={({ isActive }) =>
-                          `px-4 py-3 font-medium transition-colors ${
-                            isActive ? "bg-primary" : "hover:bg-secondary-dark"
+                          `relative px-4 py-3 font-medium transition-colors after:absolute after:inset-x-3 after:bottom-0 after:h-[3px] after:rounded-t after:bg-primary after:origin-left after:transition-transform after:duration-300 motion-reduce:after:transition-none hover:bg-secondary-dark hover:after:scale-x-100 ${
+                            isActive ? "bg-secondary-dark after:scale-x-100" : "after:scale-x-0"
                           }`
                         }
                       >
@@ -248,7 +202,7 @@ export function Header() {
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                         </svg>
                       </button>
-                      <div className="absolute left-0 right-0 top-full z-50 hidden group-hover:block group-focus-within:block bg-white text-gray-800 shadow-2xl rounded-b-lg p-6">
+                      <div className="absolute left-0 right-0 top-full z-50 invisible opacity-0 -translate-y-1 group-hover:visible group-hover:opacity-100 group-hover:translate-y-0 group-focus-within:visible group-focus-within:opacity-100 group-focus-within:translate-y-0 transition duration-200 ease-out motion-reduce:transition-none bg-white text-gray-800 shadow-2xl rounded-b-lg p-6">
                         <div className="grid grid-cols-4 xl:grid-cols-7 gap-6">
                           {provinces.map((province) => (
                             <div key={province.$id}>
@@ -264,13 +218,13 @@ export function Header() {
                                     <Link to={`/category/${district.slug}`} className="hover:text-primary">
                                       {district.name}
                                     </Link>
-                                    {district.children.map((m) => (
+                                    {district.children.map((muni) => (
                                       <Link
-                                        key={m.$id}
-                                        to={`/category/${m.slug}`}
+                                        key={muni.$id}
+                                        to={`/category/${muni.slug}`}
                                         className="block pl-3 text-gray-500 hover:text-primary"
                                       >
-                                        ↳ {m.name}
+                                        ↳ {muni.name}
                                       </Link>
                                     ))}
                                   </li>
@@ -295,12 +249,16 @@ export function Header() {
 
         {/* Breaking News Ticker */}
         {breakingNews.length > 0 && (
-          <div className="bg-primary text-white overflow-hidden">
+          <div className="ticker bg-primary text-white overflow-hidden">
             <div className="container mx-auto px-4 flex items-center">
-              <span className="bg-red-700 px-3 py-1.5 font-bold whitespace-nowrap text-xs sm:text-sm shrink-0">
+              <span className="flex items-center gap-2 bg-primary-dark px-3 py-1.5 font-bold whitespace-nowrap text-xs sm:text-sm shrink-0">
+                <span className="relative flex w-2 h-2" aria-hidden="true">
+                  <span className="absolute inline-flex w-full h-full rounded-full bg-white opacity-75 motion-safe:animate-ping" />
+                  <span className="relative inline-flex w-2 h-2 rounded-full bg-white" />
+                </span>
                 ब्रेकिङ
               </span>
-              <div className="overflow-hidden flex-1">
+              <div className="ticker-track overflow-hidden flex-1">
                 <div className="animate-ticker flex whitespace-nowrap py-1.5">
                   {[...breakingNews, ...breakingNews].map((news, index) => (
                     <Link
@@ -320,16 +278,32 @@ export function Header() {
       </header>
 
       {/* Mobile Slide-out Menu */}
+      <AnimatePresence>
       {mobileMenuOpen && (
         <>
           {/* Backdrop */}
-          <div
+          <m.div
+            key="menu-backdrop"
             className="fixed inset-0 bg-black/50 z-40 lg:hidden"
             onClick={() => setMobileMenuOpen(false)}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
           />
 
           {/* Slide-out Panel */}
-          <div className="fixed top-0 left-0 h-full w-72 bg-white z-50 lg:hidden shadow-2xl transform transition-transform duration-300 overflow-y-auto">
+          <m.div
+            key="menu-panel"
+            role="dialog"
+            aria-modal="true"
+            aria-label="मेनु"
+            className="fixed top-0 left-0 h-full w-72 bg-white z-50 lg:hidden shadow-2xl overflow-y-auto"
+            initial={{ x: "-100%" }}
+            animate={{ x: 0 }}
+            exit={{ x: "-100%" }}
+            transition={{ type: "tween", duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
+          >
             {/* Menu Header */}
             <div className="flex items-center justify-between p-4 border-b border-gray-100 bg-secondary text-white">
               <h2 className="text-lg font-bold">मेनु</h2>
@@ -413,14 +387,14 @@ export function Header() {
                             >
                               {district.name}
                             </Link>
-                            {district.children.map((m) => (
+                            {district.children.map((muni) => (
                               <Link
-                                key={m.$id}
-                                to={`/category/${m.slug}`}
+                                key={muni.$id}
+                                to={`/category/${muni.slug}`}
                                 onClick={() => setMobileMenuOpen(false)}
                                 className="block pl-12 pr-4 py-2 text-sm text-gray-500 hover:bg-gray-50"
                               >
-                                ↳ {m.name}
+                                ↳ {muni.name}
                               </Link>
                             ))}
                           </div>
@@ -451,9 +425,10 @@ export function Header() {
                 © हाम्रो नेपाल न्युज पोर्टल
               </p>
             </div>
-          </div>
+          </m.div>
         </>
       )}
+      </AnimatePresence>
     </>
   );
 }

@@ -29,6 +29,8 @@ export const User = mongoose.model("User", userSchema);
 const categorySchema = new Schema(
   {
     name: { type: String, required: true, trim: true },
+    /** English name for the English site (falls back to `name`). */
+    nameEn: { type: String, trim: true },
     slug: { type: String, required: true, unique: true, trim: true },
     description: String,
     icon: String,
@@ -62,6 +64,23 @@ const sourceSchema = new Schema(
     aiConfidence: Number,
     /** Things the editor should check in an AI draft (Nepali text). */
     aiWarnings: { type: [String], default: undefined },
+  },
+  { _id: false }
+);
+
+/** The English version of an article (AI-translated, editors may correct it). */
+const translationSchema = new Schema(
+  {
+    title: String,
+    excerpt: String,
+    content: String,
+    /** Hash of the Nepali title + excerpt + content it was made from (detects edits). */
+    sourceHash: String,
+    translatedAt: Date,
+    /** AI model, or "editor" once a person has edited it. */
+    model: String,
+    /** A person edited the English: never overwritten by the AI. */
+    edited: { type: Boolean, default: false },
   },
   { _id: false }
 );
@@ -103,6 +122,7 @@ const articleSchema = new Schema(
     publishedAtBS: String,
     createdAtBS: String,
     source: { type: sourceSchema, default: () => ({ type: "manual" }) },
+    en: { type: translationSchema, default: undefined },
   },
   { timestamps: true }
 );
@@ -191,8 +211,18 @@ ingestRunSchema.index({ startedAt: -1 });
 export const IngestRun = mongoose.model("IngestRun", ingestRunSchema);
 
 // ---------------------------------------------------------------- promotions (advertisements)
-/** Where an advertisement can appear on the website. */
-export const PROMO_PLACEMENTS = ["header", "home", "sidebar", "article", "popup"] as const;
+/** Where an advertisement can appear: on the website, or in the print edition ("print-*"). */
+export const PROMO_PLACEMENTS = [
+  "header",
+  "home",
+  "sidebar",
+  "article",
+  "popup",
+  "print-full",
+  "print-half",
+  "print-box",
+  "print-strip",
+] as const;
 
 const promotionSchema = new Schema(
   {
@@ -215,3 +245,24 @@ const promotionSchema = new Schema(
 );
 promotionSchema.index({ placement: 1, isActive: 1 });
 export const Promotion = mongoose.model("Promotion", promotionSchema);
+
+// ---------------------------------------------------------------- print edition
+const printIssueSchema = new Schema(
+  {
+    /** अंक (issue number) and वर्ष (volume) as printed. */
+    number: { type: Number, required: true },
+    volume: { type: Number, required: true },
+    /** The issue date (Nepal time, start of day). */
+    issueDate: { type: Date, required: true },
+    issueDateBS: String,
+    pages: Number,
+    pdfUrl: String,
+    pdfPublicId: String,
+    sizeBytes: Number,
+    articleIds: { type: [ObjectId], default: [] },
+    trigger: { type: String, enum: ["cron", "manual", "cli"], default: "cli" },
+  },
+  { timestamps: true }
+);
+printIssueSchema.index({ number: -1 });
+export const PrintIssue = mongoose.model("PrintIssue", printIssueSchema);

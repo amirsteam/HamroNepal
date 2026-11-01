@@ -12,6 +12,7 @@ import {
   createPromotion,
   deletePromotion,
   getPromotionsAdmin,
+  isPrintPlacement,
   placementLabel,
   promotionImageUrl,
   updatePromotion,
@@ -256,17 +257,32 @@ export function PromotionsPage() {
               onChange={(e) => setForm({ ...form, placement: e.target.value as PromoPlacement })}
               className={inputClass}
             >
-              {PLACEMENTS.map((p) => (
-                <option key={p.value} value={p.value}>
-                  {p.label}
-                </option>
-              ))}
+              <optgroup label="वेबसाइट">
+                {PLACEMENTS.filter((p) => !p.print).map((p) => (
+                  <option key={p.value} value={p.value}>
+                    {p.label}
+                  </option>
+                ))}
+              </optgroup>
+              <optgroup label="छापा (प्रिन्ट संस्करण)">
+                {PLACEMENTS.filter((p) => p.print).map((p) => (
+                  <option key={p.value} value={p.value}>
+                    {p.label}
+                  </option>
+                ))}
+              </optgroup>
             </select>
           </div>
+          {size.print && (
+            <p className="md:col-span-2 text-sm text-gray-700 bg-blue-50 border border-blue-200 rounded-lg p-3">
+              छापाका विज्ञापन यो हप्ताको प्रिन्ट संस्करणमा मात्र जान्छन् (मितिभित्र पर्ने अंकमा)। आकार {size.size}, ३०० DPI को JPG
+              वा PNG (अधिकतम १० MB) पठाउनुहोस्। रङ स्वतः CMYK मा बदलिन्छ।
+            </p>
+          )}
           <ImageField
             id="promo-image"
             label="ब्यानर तस्बिर"
-            hint={`${size.size} px`}
+            hint={size.size}
             required
             value={form.imageUrl}
             onChange={(url) => setForm((f) => ({ ...f, imageUrl: url }))}
@@ -274,7 +290,7 @@ export function PromotionsPage() {
           <ImageField
             id="promo-mobile-image"
             label="मोबाइलको लागि (ऐच्छिक)"
-            hint={size.mobileSize ? `${size.mobileSize} px` : "आवश्यक छैन"}
+            hint={size.mobileSize ?? "आवश्यक छैन"}
             value={form.mobileImageUrl}
             onChange={(url) => setForm((f) => ({ ...f, mobileImageUrl: url }))}
           />
@@ -387,9 +403,13 @@ export function PromotionsPage() {
                   <p className="text-xs text-gray-600 mt-1">
                     {p.startsAt ? formatDualDate(p.startsAt).bs : "जहिलेदेखि पनि"} – {p.endsAt ? formatDualDate(p.endsAt).bs : "अनिश्चित"}
                   </p>
-                  <p className="text-sm text-gray-700 mt-1">
-                    देखियो {toNepaliDigits(views)} पटक · क्लिक {toNepaliDigits(clicks)} · क्लिक दर {toNepaliDigits(ctr)}%
-                  </p>
+                  {isPrintPlacement(p.placement) ? (
+                    <p className="text-sm text-gray-700 mt-1">प्रिन्ट संस्करणमा छापिन्छ</p>
+                  ) : (
+                    <p className="text-sm text-gray-700 mt-1">
+                      देखियो {toNepaliDigits(views)} पटक · क्लिक {toNepaliDigits(clicks)} · क्लिक दर {toNepaliDigits(ctr)}%
+                    </p>
+                  )}
                 </div>
                 <div className="flex sm:flex-col gap-2 shrink-0">
                   <button onClick={() => startEdit(p)} className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm hover:bg-gray-50">

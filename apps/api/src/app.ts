@@ -19,6 +19,7 @@ import { adminIngestRouter, adminSourcesRouter } from "./routes/admin/sources";
 import { seoRouter } from "./routes/seo";
 import { promotionsRouter } from "./routes/promotions";
 import { adminPromotionsRouter } from "./routes/admin/promotions";
+import { adminPrintRouter } from "./routes/admin/print";
 
 export function createApp() {
   const app = express();
@@ -49,6 +50,7 @@ export function createApp() {
   admin.use("/sources", requireRole("admin", "editor"), adminSourcesRouter);
   admin.use("/ingest", requireRole("admin", "editor"), adminIngestRouter);
   admin.use("/promotions", requireRole("admin"), adminPromotionsRouter);
+  admin.use("/print", requireRole("admin", "editor"), adminPrintRouter);
   app.use("/api/admin", admin);
 
   app.use(seoRouter);

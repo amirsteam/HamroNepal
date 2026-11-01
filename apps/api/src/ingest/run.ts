@@ -16,6 +16,7 @@ import { config } from "../config";
 import { Article, Category, IngestRun, IngestedItem, NewsSource, User } from "../models";
 import { generateJSON as defaultGenerate, type GenerateJSON } from "../ai";
 import { uniqueSlug } from "../lib/slug";
+import { EDITORIAL_TOPIC } from "../seed/data";
 import { bsDateString } from "../lib/bs";
 import { fetchAll as defaultFetchAll, type FeedSource, type RawItem } from "./fetch";
 import {
@@ -107,7 +108,8 @@ export async function runIngest(opts: IngestOptions = {}, deps: IngestDeps = {})
   try {
     // ---------------------------------------------------------- 1. load setup
     const [topics, locations, sources] = await Promise.all([
-      Category.find({ type: "topic", isActive: true }).lean(),
+      // Editorials are written by editors, never by the pipeline.
+      Category.find({ type: "topic", isActive: true, slug: { $ne: EDITORIAL_TOPIC } }).lean(),
       Category.find({ type: "location", isActive: true }).lean(),
       NewsSource.find({ isActive: true }).lean(),
     ]);

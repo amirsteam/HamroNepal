@@ -34,6 +34,28 @@ export const BS_WEEKDAYS = [
   "शनिबार",
 ] as const;
 
+/** BS month names in English (romanised) */
+export const BS_MONTHS_EN = [
+  "Baishakh",
+  "Jestha",
+  "Ashadh",
+  "Shrawan",
+  "Bhadra",
+  "Ashwin",
+  "Kartik",
+  "Mangsir",
+  "Poush",
+  "Magh",
+  "Falgun",
+  "Chaitra",
+] as const;
+
+/** Weekday names in English (Sunday first) */
+export const WEEKDAYS_EN = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"] as const;
+
+/** AD month names in English (short) */
+export const AD_MONTHS_EN = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"] as const;
+
 /** AD month names in Nepali */
 export const AD_MONTHS_NEPALI = [
   "जनवरी",

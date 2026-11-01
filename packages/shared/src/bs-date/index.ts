@@ -13,6 +13,9 @@ export {
   BS_MONTHS,
   BS_WEEKDAYS,
   AD_MONTHS_NEPALI,
+  BS_MONTHS_EN,
+  WEEKDAYS_EN,
+  AD_MONTHS_EN,
   NEPALI_DIGITS,
   BS_CALENDAR_DATA,
 } from "./constants";
@@ -30,9 +33,12 @@ export {
 } from "./core";
 
 // Formatting functions
+export type { DateLang } from "./format";
 export {
   formatBSDate,
   formatADDateNepali,
+  formatADDate,
+  localDigits,
   formatDualDate,
   formatBSWithAD,
   formatArticleDate,

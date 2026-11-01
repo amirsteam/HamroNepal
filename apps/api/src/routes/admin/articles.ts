@@ -15,7 +15,10 @@ import { Article, Category } from "../../models";
 import { sanitizeArticleHtml, toPlainText } from "../../lib/sanitize";
 import { uniqueSlug } from "../../lib/slug";
 import { bsDateString } from "../../lib/bs";
-import { badRequest, escapeRegex, forbidden, intParam, isObjectId, notFound, toApi, toApiList } from "../../lib/http";
+import { HttpError, badRequest, escapeRegex, forbidden, intParam, isObjectId, notFound, toApi, toApiList } from "../../lib/http";
+import { sourceHash } from "../../ai/translate";
+import { isAIConfigured } from "../../ai";
+import { translateAndSave } from "../../services/translations";
 import { isEditorOrAdmin, requireRole } from "../../middleware/auth";
 import { draftWarnings } from "../../ingest/text";
 import { withoutSourceCredit } from "../../ingest/steps";
@@ -38,6 +41,15 @@ const articleInput = z.object({
   status: statusEnum.optional(),
   isFeatured: z.boolean().optional(),
   isBreaking: z.boolean().optional(),
+  /** English version typed or corrected by a person; null removes it. */
+  en: z
+    .object({
+      title: z.string().trim().max(300),
+      excerpt: z.string().max(1000).optional(),
+      content: z.string().max(200_000).optional(),
+    })
+    .nullable()
+    .optional(),
 });
 const articlePatch = articleInput.partial();
 type ArticleInput = z.infer<typeof articlePatch>;
@@ -101,6 +113,33 @@ async function buildUpdate(
   return update;
 }
 
+type ArticleLike = { title: string; excerpt?: string | null; content?: string | null; en?: { sourceHash?: string | null } | null };
+
+/** For the dashboard: is the English older than the current Nepali? (the hash itself stays private) */
+function withTranslationState<T extends ArticleLike>(doc: T) {
+  if (!doc.en) return doc;
+  const { sourceHash: made, ...en } = doc.en as { sourceHash?: string | null } & Record<string, unknown>;
+  return { ...doc, en: { ...en, outdated: !!made && made !== sourceHash(doc) } };
+}
+
+/** Apply a person's English version (or remove it with null). */
+function applyEnglish(article: InstanceType<typeof Article>, en: z.infer<typeof articleInput>["en"]) {
+  if (en === undefined) return;
+  if (en === null || !en.title) {
+    article.set("en", undefined);
+    return;
+  }
+  article.set("en", {
+    title: toPlainText(en.title),
+    excerpt: toPlainText(en.excerpt ?? ""),
+    content: sanitizeArticleHtml(en.content ?? ""),
+    sourceHash: sourceHash(article),
+    translatedAt: new Date(),
+    model: "editor",
+    edited: true,
+  });
+}
+
 function canEdit(req: Request, article: { authorId: unknown; status: string }) {
   if (isEditorOrAdmin(req.user)) return true;
   return String(article.authorId) === req.user!.id && article.status !== "published";
@@ -127,7 +166,7 @@ adminArticlesRouter.get("/", async (req, res) => {
   }
 
   const [documents, total] = await Promise.all([
-    Article.find(filter).select("-content").sort({ createdAt: -1 }).skip(offset).limit(limit).lean(),
+    Article.find(filter).select("-content -en.content -en.sourceHash").sort({ createdAt: -1 }).skip(offset).limit(limit).lean(),
     Article.countDocuments(filter),
   ]);
   res.json({ documents: toApiList(documents), total });
@@ -174,7 +213,7 @@ adminArticlesRouter.get("/:id", async (req, res) => {
   const article = await Article.findById(req.params.id).lean();
   if (!article) throw notFound("समाचार भेटिएन।");
   if (!isEditorOrAdmin(req.user) && String(article.authorId) !== req.user!.id) throw forbidden();
-  res.json(toApi(article));
+  res.json(toApi(withTranslationState(article)));
 });
 
 // POST /admin/articles
@@ -190,7 +229,11 @@ adminArticlesRouter.post("/", async (req, res) => {
     createdAtBS: bsDateString(),
     source: { type: "manual" },
   });
-  res.status(201).json(toApi(article.toObject()));
+  if (input.en) {
+    applyEnglish(article, input.en);
+    await article.save();
+  }
+  res.status(201).json(toApi(withTranslationState(article.toObject())));
 });
 
 // PATCH /admin/articles/:id
@@ -212,8 +255,19 @@ adminArticlesRouter.patch("/:id", async (req, res) => {
     const text = `${article.title} ${article.excerpt ?? ""} ${toPlainText(withoutSourceCredit(article.content ?? ""))} ${article.tags.join(" ")}`;
     article.set("source.aiWarnings", draftWarnings(text));
   }
+  applyEnglish(article, input.en);
   await article.save();
-  res.json(toApi(article.toObject()));
+  res.json(toApi(withTranslationState(article.toObject())));
+});
+
+// POST /admin/articles/:id/translate – make the English version now (editors and admins).
+adminArticlesRouter.post("/:id/translate", requireRole("admin", "editor"), async (req, res) => {
+  if (!isObjectId(req.params.id)) throw notFound();
+  const article = await Article.findById(req.params.id);
+  if (!article) throw notFound("समाचार भेटिएन।");
+  if (!isAIConfigured()) throw new HttpError(503, "AI सेवा कन्फिगर गरिएको छैन।");
+  await translateAndSave(article);
+  res.json(toApi(withTranslationState(article.toObject())));
 });
 
 // DELETE /admin/articles/:id (admin only)

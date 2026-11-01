@@ -28,6 +28,7 @@ import { ArticleDetailSkeleton, SidebarSkeleton } from "@/components/ui";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { ImageCredit } from "@/components/news/ImageCredit";
 import { PromoSlot } from "@/components/promo";
+import { SectionTitle } from "@/components/ui/SectionTitle";
 import { formatDualDate, toNepaliDigits } from "@/lib/bs-date";
 
 export function NewsDetailPage() {
@@ -75,10 +76,9 @@ export function NewsDetailPage() {
     }
   }
 
+  // Scrolling to the top on a new article is done by <ScrollRestoration /> in Layout.
   useEffect(() => {
     loadArticle();
-    // Scroll to top on article change
-    window.scrollTo(0, 0);
   }, [slug]);
 
   if (error) {
@@ -102,7 +102,7 @@ export function NewsDetailPage() {
             <ArticleDetailSkeleton />
           ) : (
             article && (
-              <div className="bg-white rounded-lg shadow-sm overflow-hidden">
+              <div className="bg-white rounded-xl ring-1 ring-gray-200/80 overflow-hidden">
                 {/* Article Header */}
                 <div className="p-6 pb-0">
                   {/* Category Badge */}
@@ -203,7 +203,7 @@ export function NewsDetailPage() {
 
                 {/* Excerpt */}
                 <div className="px-6 py-4">
-                  <p className="text-lg text-gray-700 font-medium border-l-4 border-primary pl-4 italic">
+                  <p className="text-lg md:text-xl leading-relaxed text-ink font-medium border-l-4 border-primary pl-4">
                     {article.excerpt}
                   </p>
                 </div>
@@ -316,10 +316,8 @@ export function NewsDetailPage() {
           <PromoSlot placement="sidebar" className="mb-6" />
 
           {/* Related Articles */}
-          <div className="bg-white rounded-lg p-4 shadow-sm sticky top-24">
-            <h2 className="text-lg font-bold text-gray-900 mb-4 pb-2 border-b border-primary">
-              सम्बन्धित समाचार
-            </h2>
+          <div className="bg-white rounded-xl p-4 ring-1 ring-gray-200/80 sticky top-24">
+            <SectionTitle title="सम्बन्धित समाचार" size="small" />
 
             {isLoading ? (
               <SidebarSkeleton />

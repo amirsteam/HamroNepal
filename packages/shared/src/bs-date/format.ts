@@ -4,9 +4,15 @@
  * Format BS dates in various Nepali formats.
  */
 
-import { BS_MONTHS, BS_WEEKDAYS, AD_MONTHS_NEPALI } from "./constants";
+import { BS_MONTHS, BS_WEEKDAYS, AD_MONTHS_NEPALI, BS_MONTHS_EN, WEEKDAYS_EN, AD_MONTHS_EN } from "./constants";
 import { toNepaliDigits, adToBS } from "./core";
 import type { BSDate, DualDate, BSDateFormat } from "./types";
+
+/** Display language: Nepali (default) or English. */
+export type DateLang = "ne" | "en";
+
+/** A number in the language's digits (१२ or 12). */
+export const localDigits = (n: number | string, lang: DateLang = "ne") => (lang === "en" ? String(n) : toNepaliDigits(n));
 
 /**
  * Format BS date as Nepali string.
@@ -26,9 +32,16 @@ import type { BSDate, DualDate, BSDateFormat } from "./types";
  */
 export function formatBSDate(
   bsDate: BSDate,
-  format: BSDateFormat = "full"
+  format: BSDateFormat = "full",
+  lang: DateLang = "ne"
 ): string {
   const { year, month, day } = bsDate;
+  if (lang === "en") {
+    const m = BS_MONTHS_EN[month - 1] ?? "";
+    if (format === "short") return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+    if (format === "long") return `${m} ${day}, ${year}`;
+    return `${day} ${m} ${year}`;
+  }
   const monthName = BS_MONTHS[month - 1] ?? "";
 
   switch (format) {
@@ -66,8 +79,14 @@ export function formatADDateNepali(adDate: Date): string {
 /**
  * Get weekday name in Nepali for a date.
  */
-export function getWeekdayNepali(date: Date): string {
-  return BS_WEEKDAYS[date.getDay()];
+export function getWeekdayNepali(date: Date, lang: DateLang = "ne"): string {
+  return (lang === "en" ? WEEKDAYS_EN : BS_WEEKDAYS)[date.getDay()];
+}
+
+/** AD date, e.g. "1 Nov 2026" in English. */
+export function formatADDate(adDate: Date, lang: DateLang = "ne"): string {
+  if (lang !== "en") return formatADDateNepali(adDate);
+  return `${adDate.getDate()} ${AD_MONTHS_EN[adDate.getMonth()]} ${adDate.getFullYear()}`;
 }
 
 /**
@@ -77,7 +96,8 @@ export function getWeekdayNepali(date: Date): string {
  * getRelativeTimeNepali("2025-12-29T10:00:00Z")
  * // "२ घण्टा अघि" (if current time is 12:00)
  */
-export function getRelativeTimeNepali(dateString: string | Date): string {
+export function getRelativeTimeNepali(dateString: string | Date, lang: DateLang = "ne"): string {
+  if (lang === "en") return getRelativeTimeEnglish(dateString);
   const date = new Date(dateString);
   const now = new Date();
   const diffMs = now.getTime() - date.getTime();
@@ -108,6 +128,26 @@ export function getRelativeTimeNepali(dateString: string | Date): string {
   return formatBSDate(adToBS(date));
 }
 
+function getRelativeTimeEnglish(dateString: string | Date): string {
+  const date = new Date(dateString);
+  const diffMs = Date.now() - date.getTime();
+  if (diffMs < 0) return formatBSDate(adToBS(date), "full", "en");
+  const mins = Math.floor(diffMs / 60_000);
+  const hours = Math.floor(mins / 60);
+  const days = Math.floor(hours / 24);
+  const weeks = Math.floor(days / 7);
+  const months = Math.floor(days / 30);
+  const ago = (n: number, unit: string) => `${n} ${unit}${n === 1 ? "" : "s"} ago`;
+  if (mins < 1) return "just now";
+  if (mins < 60) return ago(mins, "minute");
+  if (hours < 24) return ago(hours, "hour");
+  if (days === 1) return "yesterday";
+  if (days < 7) return ago(days, "day");
+  if (weeks < 4) return ago(weeks, "week");
+  if (months < 12) return ago(Math.max(1, months), "month");
+  return formatBSDate(adToBS(date), "full", "en");
+}
+
 /**
  * Format date with both BS and AD in Nepali.
  * This is the main function for displaying dual dates.
@@ -122,16 +162,16 @@ export function getRelativeTimeNepali(dateString: string | Date): string {
  * //   relative: "३ दिन अघि"
  * // }
  */
-export function formatDualDate(dateString: string | Date): DualDate {
+export function formatDualDate(dateString: string | Date, lang: DateLang = "ne"): DualDate {
   const adDate = new Date(dateString);
   const bsDate = adToBS(adDate);
 
   return {
-    bs: formatBSDate(bsDate, "full"),
-    ad: formatADDateNepali(adDate),
-    bsShort: formatBSDate(bsDate, "short"),
-    weekday: getWeekdayNepali(adDate),
-    relative: getRelativeTimeNepali(dateString),
+    bs: formatBSDate(bsDate, "full", lang) + (lang === "en" ? " BS" : ""),
+    ad: formatADDate(adDate, lang),
+    bsShort: formatBSDate(bsDate, "short", lang),
+    weekday: getWeekdayNepali(adDate, lang),
+    relative: getRelativeTimeNepali(dateString, lang),
   };
 }
 

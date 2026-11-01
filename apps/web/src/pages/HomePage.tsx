@@ -5,7 +5,6 @@
  */
 
 import { useState, useEffect } from "react";
-import { Link } from "react-router-dom";
 import type { Article, Category } from "@/types";
 import { getHomeData } from "@/services/news.service";
 import { NewsCard } from "@/components/news/NewsCard";
@@ -18,6 +17,7 @@ import {
 import { ErrorState } from "@/components/ui/ErrorState";
 import { useDocumentTitle } from "@/lib/useDocumentTitle";
 import { PromoSlot } from "@/components/promo";
+import { SectionTitle } from "@/components/ui/SectionTitle";
 
 interface HomeData {
   featured: Article[];
@@ -113,10 +113,8 @@ export function HomePage() {
 
               {/* Side list (hidden when there is nothing else to show) */}
               {data.side.length > 0 && (
-              <div className="bg-white rounded-lg p-4 shadow-sm">
-                <h2 className="text-lg font-bold text-gray-900 mb-4 pb-2 border-b border-primary">
-                  मुख्य समाचार
-                </h2>
+              <div className="bg-white rounded-xl p-4 ring-1 ring-gray-200/80">
+                <SectionTitle title="मुख्य समाचार" size="small" />
                 <div className="space-y-0">
                   {data.side.map((article) => (
                     <NewsCard
@@ -135,17 +133,7 @@ export function HomePage() {
 
       {/* Latest News Section */}
       <section className="mb-10">
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-2xl font-bold text-gray-900 relative">
-            <span className="border-b-4 border-primary pb-2">ताजा समाचार</span>
-          </h2>
-          <Link
-            to="/category/all"
-            className="text-primary hover:underline font-medium"
-          >
-            सबै हेर्नुहोस् →
-          </Link>
-        </div>
+        <SectionTitle title="ताजा समाचार" to="/category/all" linkLabel="सबै हेर्नुहोस्" />
 
         {isLoading ? (
           <NewsGridSkeleton count={6} />
@@ -162,14 +150,7 @@ export function HomePage() {
       {!isLoading &&
         data?.local.map(({ category, articles }) => (
           <section key={category.$id} className="mb-10">
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-2xl font-bold text-gray-900 relative">
-                <span className="border-b-4 border-secondary pb-2">स्थानीय: {category.name}</span>
-              </h2>
-              <Link to={`/category/${category.slug}`} className="text-primary hover:underline font-medium">
-                थप हेर्नुहोस् →
-              </Link>
-            </div>
+            <SectionTitle title={`स्थानीय: ${category.name}`} to={`/category/${category.slug}`} />
             <NewsGrid articles={articles.slice(0, 4)} columns={4} />
           </section>
         ))}
@@ -182,19 +163,7 @@ export function HomePage() {
 
           return (
             <section key={category.$id} className="mb-10">
-              <div className="flex items-center justify-between mb-6">
-                <h2 className="text-2xl font-bold text-gray-900 relative">
-                  <span className="border-b-4 border-primary pb-2">
-                    {category.name}
-                  </span>
-                </h2>
-                <Link
-                  to={`/category/${category.slug}`}
-                  className="text-primary hover:underline font-medium"
-                >
-                  थप हेर्नुहोस् →
-                </Link>
-              </div>
+              <SectionTitle title={category.name} to={`/category/${category.slug}`} />
 
               <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
                 {/* Main article */}
@@ -225,13 +194,7 @@ export function HomePage() {
       {/* More Latest News */}
       {!isLoading && data?.latest && data.latest.length > 6 && (
         <section className="mb-10">
-          <div className="flex items-center justify-between mb-6">
-            <h2 className="text-2xl font-bold text-gray-900 relative">
-              <span className="border-b-4 border-primary pb-2">
-                अन्य समाचार
-              </span>
-            </h2>
-          </div>
+          <SectionTitle title="अन्य समाचार" />
           <NewsGrid articles={data.latest.slice(6)} columns={4} />
         </section>
       )}

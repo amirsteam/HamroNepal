@@ -28,6 +28,8 @@ export default defineConfig({
       "/sitemap.xml": API,
       "/news-sitemap.xml": API,
       "/rss.xml": API,
+      // Print-edition QR links (/n/<article id>); a plain "/n" would also catch /news.
+      "^/n/[0-9a-f]{24}$": API,
     },
   },
 });

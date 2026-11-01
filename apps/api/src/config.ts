@@ -70,11 +70,38 @@ export const config = {
     sourceImages: str("INGEST_SOURCE_IMAGES", "false") === "true",
   },
 
+  /** The weekly print edition (PDF for the press). */
+  print: {
+    name: str("PRINT_NAME", "हाम्रो नेपाल"),
+    tagline: str("PRINT_TAGLINE", "तपाईंको ठाउँको, देशभरको समाचार"),
+    frequency: str("PRINT_FREQUENCY", "साप्ताहिक"),
+    /** Registration line shown in the masthead, e.g. "जि.प्र.का. द. नं. …". */
+    regNo: str("PRINT_REG_NO"),
+    /** Cover price in rupees. */
+    price: str("PRINT_PRICE", "५"),
+    /** Shown in the masthead box for readers' letters (hidden if empty). */
+    email: str("PRINT_EMAIL"),
+    pages: num("PRINT_PAGES", 6),
+    /** Stories from this many days before the issue date. */
+    days: num("PRINT_DAYS", 7),
+    /** First issue's date (YYYY-MM-DD); "वर्ष" counts from it. */
+    firstIssueDate: str("PRINT_FIRST_ISSUE_DATE"),
+    /** Added to the issue number, to continue an existing paper's numbering. */
+    issueOffset: num("PRINT_ISSUE_OFFSET", 0),
+    /** Chrome/Edge to print with; found automatically when empty. */
+    chromePath: str("CHROME_PATH"),
+    /** Ghostscript (CMYK conversion); found automatically when empty. */
+    gsPath: str("GS_PATH"),
+    /** CMYK profile for photos from the press (e.g. a newsprint .icc); Ghostscript's default when empty. */
+    iccProfile: str("PRINT_ICC_PROFILE"),
+  },
+
   weather: {
     apiKey: str("OPENWEATHER_API_KEY"),
     lat: num("WEATHER_LAT", 27.5846),
     lon: num("WEATHER_LON", 85.5147),
     label: str("WEATHER_LABEL", "पनौती"),
+    labelEn: str("WEATHER_LABEL_EN", "Panauti"),
   },
 
   rateLimits: {

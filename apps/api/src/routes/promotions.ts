@@ -33,7 +33,11 @@ const countLimiter = rateLimit({
 
 // GET /api/promotions – everything running now (the page picks by placement).
 promotionsRouter.get("/", async (_req, res) => {
-  const docs = await Promotion.find(runningNow()).select("-views -clicks").sort({ createdAt: -1 }).lean();
+  // Print-edition ads never appear on the website.
+  const docs = await Promotion.find({ ...runningNow(), placement: { $not: /^print-/ } })
+    .select("-views -clicks")
+    .sort({ createdAt: -1 })
+    .lean();
   res.set("Cache-Control", "public, max-age=0, s-maxage=60, stale-while-revalidate=300");
   res.json(toApiList(docs));
 });

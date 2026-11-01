@@ -5,6 +5,7 @@
 import { Link } from "react-router-dom";
 import { toNepaliDigits } from "@/lib/bs-date";
 import { SITE_CONTACT } from "@/lib/site";
+import { NepalFlag } from "@/components/ui/NepalFlag";
 
 const SOCIAL_ICONS: Record<keyof typeof SITE_CONTACT.social, { label: string; path: string }> = {
   facebook: { label: "Facebook", path: "M18.77 7.46H14.5v-1.9c0-.9.6-1.1 1-1.1h3V.5h-4.33C10.24.5 9.5 3.44 9.5 5.32v2.15h-3v4h3v12h5v-12h3.85l.42-4z" },
@@ -25,7 +26,13 @@ export function Footer() {
         <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
           {/* About */}
           <div>
-            <h2 className="text-xl font-bold mb-4">हाम्रो नेपाल</h2>
+            <h2 className="flex items-center gap-2.5 text-xl font-bold mb-4">
+              {/* White tile: the flag's blue border would vanish on the blue footer. */}
+              <span className="inline-flex rounded-md bg-white p-1">
+                <NepalFlag className="h-7 w-auto" />
+              </span>
+              हाम्रो नेपाल
+            </h2>
             <p className="text-gray-300 text-sm leading-relaxed">
               नेपालको विश्वसनीय समाचार पोर्टल। राजनीति, अर्थतन्त्र, खेलकुद,
               मनोरञ्जन र अन्य विविध समाचारहरू।

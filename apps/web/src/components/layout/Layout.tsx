@@ -2,7 +2,7 @@
  * Main Layout Component
  */
 
-import { Outlet } from "react-router-dom";
+import { Outlet, ScrollRestoration } from "react-router-dom";
 import { Header } from "./Header";
 import { Footer } from "./Footer";
 import { PromoPopup, PromoProvider, PromoSlot } from "@/components/promo";
@@ -19,6 +19,8 @@ export function Layout() {
         <Footer />
       </div>
       <PromoPopup />
+      {/* New pages open at the top; Back returns to where the reader was. */}
+      <ScrollRestoration />
     </PromoProvider>
   );
 }

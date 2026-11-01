@@ -17,7 +17,9 @@ const webUrl = z
   .url()
   .refine((u) => /^https?:\/\//i.test(u), "http वा https लिङ्क मात्र।");
 
-const date = z.union([z.coerce.date(), z.null()]).optional();
+// null (an empty date box) must stay null: coercing it would give 1 Jan 1970,
+// which hides the ad as long expired. So match null before coercing.
+const date = z.union([z.null(), z.coerce.date()]).optional();
 
 const promotionInput = z.object({
   title: z.string().trim().min(1).max(120),

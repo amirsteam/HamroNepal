@@ -5,7 +5,7 @@
  * assistant. Publishing rules are enforced by the API.
  */
 
-import { Fragment, useEffect, useState } from "react";
+import { Fragment, Suspense, lazy, useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import {
   createArticle,
@@ -25,6 +25,8 @@ import { useAuth } from "@/contexts/AuthContext";
 import type { Article, ArticleStatus, Category } from "@/types";
 import { AIAssistantModal } from "@/components/dashboard/AIAssistantModal";
 import { AIWarnings } from "@/components/dashboard/AIWarnings";
+// The editor is large and only editors need it: load it with this page.
+const RichTextEditor = lazy(() => import("@/components/dashboard/RichTextEditor").then((m) => ({ default: m.RichTextEditor })));
 import type { GeneratedArticle } from "@/services/ai.service";
 
 interface ArticleFormData {
@@ -348,22 +350,19 @@ export function ArticleEditorPage() {
           </div>
 
           <div>
-            <label htmlFor="content" className="block text-sm font-medium text-gray-700 mb-1">
+            <p id="content-label" className="block text-sm font-medium text-gray-700 mb-1">
               सामग्री <span className="text-red-500">*</span>
-            </label>
-            <textarea
-              id="content"
-              name="content"
-              value={formData.content}
-              onChange={handleChange}
-              required
-              rows={15}
-              className={`${inputClass} resize-y font-mono text-sm`}
-              placeholder="समाचारको विस्तृत सामग्री लेख्नुहोस्..."
-            />
-            <p className="text-xs text-gray-500 mt-1">
-              HTML ट्याग प्रयोग गर्न सकिन्छ (स्क्रिप्ट जस्ता असुरक्षित ट्याग सेभ गर्दा हटाइन्छन्)।
             </p>
+            <Suspense fallback={<div className="h-96 rounded-lg border border-gray-300 bg-gray-50 animate-pulse" aria-label="सम्पादक लोड हुँदै" />}>
+              <RichTextEditor
+                id="content"
+                labelledBy="content-label"
+                value={formData.content}
+                onChange={(html) => setFormData((prev) => ({ ...prev, content: html }))}
+                onUploadImage={uploadImage}
+                placeholder="समाचारको विस्तृत सामग्री लेख्नुहोस्…"
+              />
+            </Suspense>
           </div>
         </div>
 

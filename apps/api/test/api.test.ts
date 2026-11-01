@@ -162,6 +162,16 @@ describe("advertisements", () => {
     expect((await admin.post("/api/admin/promotions").send(banner())).status).toBe(201);
   });
 
+  it("keeps empty dates empty, so an ad without dates runs", async () => {
+    const admin = await loginAs("admin@test.np");
+    const created = await admin.post("/api/admin/promotions").send(banner({ startsAt: null, endsAt: null }));
+    expect(created.body.startsAt).toBeNull();
+    expect(created.body.endsAt).toBeNull();
+    const edited = await admin.patch(`/api/admin/promotions/${created.body.$id}`).send({ startsAt: null, endsAt: null });
+    expect(edited.body.endsAt).toBeNull();
+    expect((await request(app).get("/api/promotions")).body).toHaveLength(1);
+  });
+
   it("shows only running ads, without their counts", async () => {
     const admin = await loginAs("admin@test.np");
     const day = 864e5;
@@ -173,6 +183,14 @@ describe("advertisements", () => {
     const res = await request(app).get("/api/promotions");
     expect(res.body.map((p: { title: string }) => p.title)).toEqual(["चलिरहेको"]);
     expect(res.body[0].clicks).toBeUndefined();
+  });
+
+  it("keeps print-edition ads off the website", async () => {
+    const admin = await loginAs("admin@test.np");
+    expect((await admin.post("/api/admin/promotions").send(banner({ placement: "print-half", title: "छापा" }))).status).toBe(201);
+    await admin.post("/api/admin/promotions").send(banner({ title: "वेब" }));
+    const res = await request(app).get("/api/promotions");
+    expect(res.body.map((p: { title: string }) => p.title)).toEqual(["वेब"]);
   });
 
   it("counts views and clicks, and sends clicks to the advertiser", async () => {

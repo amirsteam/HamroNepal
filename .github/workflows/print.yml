@@ -1,0 +1,64 @@
+name: Print edition
+
+# Every Friday evening: build the weekly press PDF (318 × 483 mm + 3 mm bleed, CMYK, 6 pages)
+# from the week's published news, store it on Cloudinary and list it in
+# Dashboard → प्रिन्ट संस्करण. The PDF is also kept here as a downloadable file.
+on:
+  schedule:
+    - cron: "15 12 * * 5" # Friday 18:00 Nepal time
+  workflow_dispatch:
+    inputs:
+      date:
+        description: "Issue date (YYYY-MM-DD, Nepal). Empty = today."
+        default: ""
+      dry_run:
+        description: "Dry run (make the PDF here only; don't save the issue)"
+        type: boolean
+        default: false
+
+concurrency:
+  group: print
+  cancel-in-progress: false
+
+jobs:
+  print:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      # Ghostscript converts the PDF to CMYK for the press.
+      - name: Install Ghostscript
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq ghostscript
+      # GitHub's Ubuntu machines come with Google Chrome; puppeteer-core finds it.
+      - name: Make the print edition
+        env:
+          MONGODB_URI: ${{ secrets.MONGODB_URI }}
+          CLOUDINARY_URL: ${{ secrets.CLOUDINARY_URL }}
+          CLOUDINARY_CLOUD_NAME: ${{ secrets.CLOUDINARY_CLOUD_NAME }}
+          CLOUDINARY_API_KEY: ${{ secrets.CLOUDINARY_API_KEY }}
+          CLOUDINARY_API_SECRET: ${{ secrets.CLOUDINARY_API_SECRET }}
+          # The live site: QR codes in the paper point here.
+          PUBLIC_SITE_URL: ${{ vars.PUBLIC_SITE_URL }}
+          PRINT_REG_NO: ${{ vars.PRINT_REG_NO }}
+          PRINT_PRICE: ${{ vars.PRINT_PRICE }}
+          PRINT_EMAIL: ${{ vars.PRINT_EMAIL }}
+          PRINT_FIRST_ISSUE_DATE: ${{ vars.PRINT_FIRST_ISSUE_DATE }}
+          PRINT_ISSUE_OFFSET: ${{ vars.PRINT_ISSUE_OFFSET }}
+        run: >
+          npm run print:issue -w apps/api --
+          --trigger cron
+          ${{ inputs.date && format('--date {0}', inputs.date) || '' }}
+          ${{ !inputs.dry_run && '--save' || '' }}
+      - name: Keep the PDF
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: print-edition
+          path: apps/api/print/*.pdf
+          if-no-files-found: ignore
+          retention-days: 90

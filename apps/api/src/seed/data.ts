@@ -169,17 +169,22 @@ export const MUNICIPALITIES: Array<{
 /** The home town / district that gets priority in ingestion and the home page. */
 export const PRIORITY_DISTRICTS = ["kavrepalanchok"];
 
-export const TOPICS: Array<{ slug: string; name: string }> = [
-  { slug: "rajniti", name: "राजनीति" },
-  { slug: "arthatantra", name: "अर्थतन्त्र" },
-  { slug: "samaj", name: "समाज" },
-  { slug: "khelkud", name: "खेलकुद" },
-  { slug: "manoranjan", name: "मनोरञ्जन" },
-  { slug: "swasthya", name: "स्वास्थ्य" },
-  { slug: "shiksha", name: "शिक्षा" },
-  { slug: "prabidhi", name: "प्रविधि" },
-  { slug: "antarrashtriya", name: "अन्तर्राष्ट्रिय" },
+export const TOPICS: Array<{ slug: string; name: string; nameEn: string }> = [
+  { slug: "rajniti", name: "राजनीति", nameEn: "Politics" },
+  { slug: "arthatantra", name: "अर्थतन्त्र", nameEn: "Economy" },
+  { slug: "samaj", name: "समाज", nameEn: "Society" },
+  { slug: "khelkud", name: "खेलकुद", nameEn: "Sports" },
+  { slug: "manoranjan", name: "मनोरञ्जन", nameEn: "Entertainment" },
+  { slug: "swasthya", name: "स्वास्थ्य", nameEn: "Health" },
+  { slug: "shiksha", name: "शिक्षा", nameEn: "Education" },
+  { slug: "prabidhi", name: "प्रविधि", nameEn: "Technology" },
+  { slug: "antarrashtriya", name: "अन्तर्राष्ट्रिय", nameEn: "International" },
+  // Written by editors only (never by the AI pipeline); page 2 of the print edition.
+  { slug: "sampadakiya", name: "सम्पादकीय", nameEn: "Editorial" },
 ];
+
+/** The editorial topic: editors write it, the AI pipeline never uses it. */
+export const EDITORIAL_TOPIC = "sampadakiya";
 
 /**
  * Feeds checked to be online (Oct 2026). The seed re-checks before enabling.

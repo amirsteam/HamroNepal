@@ -4,7 +4,7 @@
  */
 
 import { useEffect, useRef } from "react";
-import type { PromoPlacement, Promotion } from "@/types";
+import type { Promotion, WebPromoPlacement } from "@/types";
 import { promotionClickUrl, promotionImageUrl, trackPromotionView } from "@/services/promotions.service";
 import { usePromotion } from "./PromoProvider";
 
@@ -59,7 +59,7 @@ export function PromoSlot({
   nth = 0,
   className = "",
 }: {
-  placement: Exclude<PromoPlacement, "popup">;
+  placement: Exclude<WebPromoPlacement, "popup">;
   nth?: number;
   className?: string;
 }) {

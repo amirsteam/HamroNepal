@@ -18,6 +18,8 @@ export interface BaseDocument {
 
 export interface Category extends BaseDocument {
   name: string;
+  /** English name (dashboard); the public API already returns it as `name` on the English site. */
+  nameEn?: string;
   slug: string;
   description?: string;
   icon?: string;
@@ -82,6 +84,24 @@ export interface Article extends BaseDocument {
   publishedAtBS?: string;
   createdAtBS: string;
   source?: ArticleSource;
+  /** English version (dashboard only; the public API returns it in place on the English site). */
+  en?: ArticleTranslation;
+  /** Language of title/excerpt/content as returned by the public API. */
+  lang?: Lang;
+}
+
+export type Lang = "ne" | "en";
+
+export interface ArticleTranslation {
+  title?: string;
+  excerpt?: string;
+  content?: string;
+  translatedAt?: string;
+  /** AI model, or "editor" after a person edited it. */
+  model?: string;
+  edited?: boolean;
+  /** The Nepali has changed since this was made (set by the API). */
+  outdated?: boolean;
 }
 
 /** A dashboard user (admin, editor or reporter). */
@@ -119,10 +139,18 @@ export interface HomeData {
 
 export interface WeatherData {
   temp: number;
-  condition: "sunny" | "cloudy" | "rainy" | "snowy" | "foggy";
+  /** "sunny" means a clear sky (a moon is shown at night, see isDay). */
+  condition: "sunny" | "partly-cloudy" | "cloudy" | "rainy" | "stormy" | "snowy" | "foggy";
+  /** Daytime at the place (from the provider), for sun vs moon icons. */
+  isDay?: boolean;
+  /** The condition in Nepali, e.g. "आंशिक बादल". */
+  summary?: string;
+  /** The provider's own wording (English). */
   description: string;
   icon: string;
   location: string;
+  /** Which WEATHER_CITIES entry this is ("" for the configured default place). */
+  city?: string;
   humidity: number;
   feelsLike: number;
 }
@@ -164,7 +192,10 @@ export interface ApiErrorBody {
 }
 
 /** Where an advertisement appears on the website. */
-export type PromoPlacement = "header" | "home" | "sidebar" | "article" | "popup";
+export type WebPromoPlacement = "header" | "home" | "sidebar" | "article" | "popup";
+/** Print-edition ad slots: full page, half page, a story box, the front-page strip. */
+export type PrintPromoPlacement = "print-full" | "print-half" | "print-box" | "print-strip";
+export type PromoPlacement = WebPromoPlacement | PrintPromoPlacement;
 
 /** An advertisement (banner) managed in the dashboard. */
 export interface Promotion extends BaseDocument {
@@ -179,4 +210,17 @@ export interface Promotion extends BaseDocument {
   /** Dashboard only. */
   views?: number;
   clicks?: number;
+}
+
+/** A generated print edition (PDF for the press). */
+export interface PrintIssue extends BaseDocument {
+  number: number;
+  volume: number;
+  issueDate: string;
+  issueDateBS?: string;
+  pages?: number;
+  pdfUrl?: string;
+  sizeBytes?: number;
+  articleIds: string[];
+  trigger: "cron" | "manual" | "cli";
 }

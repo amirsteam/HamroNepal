@@ -18,6 +18,8 @@ import { ErrorState } from "@/components/ui/ErrorState";
 import { toNepaliDigits } from "@/lib/bs-date";
 import { useDocumentTitle } from "@/lib/useDocumentTitle";
 import { PromoSlot } from "@/components/promo";
+import { Pennant } from "@/components/ui/Pennant";
+import { SectionTitle } from "@/components/ui/SectionTitle";
 
 /** "/category/all" lists every published article. */
 const ALL_NEWS: Category = {
@@ -133,8 +135,9 @@ export function CategoryPage() {
         {/* Main Content */}
         <div className="lg:col-span-3">
           {/* Category Header */}
-          <div className="bg-white rounded-lg p-6 mb-6 shadow-sm">
-            <h1 className="text-3xl font-bold text-gray-900 border-b-4 border-primary pb-2 inline-block">
+          <div className="bg-white rounded-xl p-6 mb-6 ring-1 ring-gray-200/80 border-t-4 border-primary">
+            <h1 className="flex items-center gap-3 text-3xl md:text-4xl font-bold text-ink">
+              <Pennant className="w-4 h-5" />
               {isLoading ? "लोड हुँदैछ..." : category?.name}
             </h1>
             {category?.description && (
@@ -205,10 +208,8 @@ export function CategoryPage() {
           <PromoSlot placement="sidebar" className="mb-6" />
 
           {/* Categories List */}
-          <div className="bg-white rounded-lg p-4 shadow-sm sticky top-24">
-            <h2 className="text-lg font-bold text-gray-900 mb-4 pb-2 border-b border-primary">
-              श्रेणीहरू
-            </h2>
+          <div className="bg-white rounded-xl p-4 ring-1 ring-gray-200/80 sticky top-24">
+            <SectionTitle title="श्रेणीहरू" size="small" />
 
             {isLoading ? (
               <SidebarSkeleton />

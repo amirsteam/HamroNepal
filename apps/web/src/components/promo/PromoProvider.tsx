@@ -4,7 +4,7 @@
  */
 
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
-import type { PromoPlacement, Promotion } from "@/types";
+import type { Promotion, WebPromoPlacement } from "@/types";
 import { getPromotions } from "@/services/promotions.service";
 
 const PromoContext = createContext<Promotion[]>([]);
@@ -26,7 +26,7 @@ const rotation = Math.floor(Math.random() * 1000);
  * The ad for a placement. `nth` picks a different ad for a second slot of the
  * same placement on one page (e.g. two home-page banners).
  */
-export function usePromotion(placement: PromoPlacement, nth = 0): Promotion | undefined {
+export function usePromotion(placement: WebPromoPlacement, nth = 0): Promotion | undefined {
   const list = useContext(PromoContext).filter((p) => p.placement === placement);
   if (!list.length || nth >= list.length) return undefined;
   return list[(rotation + nth) % list.length];

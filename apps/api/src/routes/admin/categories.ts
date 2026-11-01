@@ -11,6 +11,7 @@ const objectId = z.string().refine(isObjectId, "अमान्य ID");
 
 const categoryInput = z.object({
   name: z.string().trim().min(1).max(100),
+  nameEn: z.string().trim().max(100).optional(),
   slug: z.string().trim().max(100).optional(),
   description: z.string().max(500).optional(),
   icon: z.string().max(50).optional(),

@@ -17,6 +17,7 @@ const verify = !process.argv.includes("--skip-verify");
 async function upsertLocation(doc: {
   slug: string;
   name: string;
+  nameEn?: string;
   level: "province" | "district" | "municipality";
   parentId: unknown;
   aliases: string[];
@@ -28,7 +29,13 @@ async function upsertLocation(doc: {
   return Category.findOneAndUpdate(
     { slug: doc.slug },
     {
-      $set: { type: "location", level: doc.level, parentId: doc.parentId, aliases: doc.aliases },
+      $set: {
+        type: "location",
+        level: doc.level,
+        parentId: doc.parentId,
+        aliases: doc.aliases,
+        ...(doc.nameEn ? { nameEn: doc.nameEn } : {}),
+      },
       $setOnInsert: {
         name: doc.name,
         sortOrder: doc.sortOrder,
@@ -44,11 +51,19 @@ async function upsertLocation(doc: {
 await connectDB();
 
 // ---------------------------------------------------------------- topics
-if ((await Category.countDocuments({ type: "topic" })) === 0) {
-  await Category.insertMany(TOPICS.map((t, i) => ({ ...t, type: "topic", sortOrder: i })));
-  console.log(`Added ${TOPICS.length} topic categories.`);
+// Add missing topics by slug; existing ones (renamed or reordered in the
+// dashboard) are left as they are.
+const existingTopics = new Set((await Category.find({ type: "topic" }).select("slug").lean()).map((c) => c.slug));
+const newTopics = TOPICS.map((t, i) => ({ ...t, type: "topic", sortOrder: i })).filter((t) => !existingTopics.has(t.slug));
+if (newTopics.length) {
+  await Category.insertMany(newTopics);
+  console.log(`Added topic categories: ${newTopics.map((t) => t.name).join(", ")}.`);
 } else {
   console.log("Topic categories already exist – left unchanged.");
+}
+// English names for topics that have none yet (renamed ones keep theirs).
+for (const t of TOPICS) {
+  await Category.updateOne({ type: "topic", slug: t.slug, nameEn: { $in: [null, ""] } }, { $set: { nameEn: t.nameEn } });
 }
 
 // ---------------------------------------------------------------- locations
@@ -57,6 +72,7 @@ for (const [pi, p] of PROVINCES.entries()) {
   const province = await upsertLocation({
     slug: p.slug,
     name: p.name,
+    nameEn: p.en,
     level: "province",
     parentId: null,
     aliases: [...new Set([p.name, p.en, ...p.aliases])],
@@ -67,6 +83,7 @@ for (const [pi, p] of PROVINCES.entries()) {
     await upsertLocation({
       slug,
       name,
+      nameEn: en,
       level: "district",
       parentId: province!._id,
       aliases: [...new Set([name, en, ...aliases])],
@@ -82,6 +99,8 @@ for (const [mi, m] of MUNICIPALITIES.entries()) {
   await upsertLocation({
     slug: m.slug,
     name: m.name,
+    // The English spelling is among the aliases (e.g. "Panauti").
+    nameEn: m.aliases.find((a) => /^[A-Za-z]/.test(a)),
     level: "municipality",
     parentId: district._id,
     aliases: [...new Set([m.name, ...m.aliases])],

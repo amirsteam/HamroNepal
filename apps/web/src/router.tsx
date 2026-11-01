@@ -16,6 +16,7 @@ import {
   ReviewPage,
   SourcesPage,
   PromotionsPage,
+  PrintPage,
 } from "@/pages/dashboard";
 
 export const router = createBrowserRouter([
@@ -99,6 +100,14 @@ export const router = createBrowserRouter([
         element: (
           <ProtectedRoute allowedRoles={["admin", "editor"]}>
             <SourcesPage />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: "print",
+        element: (
+          <ProtectedRoute allowedRoles={["admin", "editor"]}>
+            <PrintPage />
           </ProtectedRoute>
         ),
       },

@@ -5,7 +5,7 @@
  */
 
 import { useState } from "react";
-import { Outlet, NavLink, useNavigate, useLocation } from "react-router-dom";
+import { Outlet, NavLink, useNavigate, useLocation, ScrollRestoration } from "react-router-dom";
 import { useDocumentTitle } from "@/lib/useDocumentTitle";
 import { useAuth } from "@/contexts/AuthContext";
 import { canManageCategories, isAdmin } from "@/services/auth.service";
@@ -127,6 +127,24 @@ export function DashboardLayout() {
             strokeLinejoin="round"
             strokeWidth={2}
             d="M6 5c7.18 0 13 5.82 13 13M6 11a7 7 0 017 7m-6 0a1 1 0 11-2 0 1 1 0 012 0z"
+          />
+        </svg>
+      ),
+    });
+  }
+
+  // The weekly print edition (editors and admins).
+  if (canManageCategories(author)) {
+    navItems.push({
+      to: "/dashboard/print",
+      label: "प्रिन्ट संस्करण",
+      icon: (
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={2}
+            d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2m-4-3H9M7 16h6M7 8h6v4H7V8z"
           />
         </svg>
       ),
@@ -313,6 +331,8 @@ export function DashboardLayout() {
           <Outlet />
         </main>
       </div>
+      {/* New pages open at the top; Back returns to where the editor was. */}
+      <ScrollRestoration />
     </div>
   );
 }

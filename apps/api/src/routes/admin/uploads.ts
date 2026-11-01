@@ -1,26 +1,19 @@
 import { Router } from "express";
 import multer from "multer";
-import { v2 as cloudinary, type UploadApiResponse } from "cloudinary";
-import { config } from "../../config";
+import type { UploadApiResponse } from "cloudinary";
 import { HttpError, badRequest } from "../../lib/http";
+import { cloudinary, cloudinaryReady } from "../../lib/cloudinary";
 
 export const adminUploadsRouter = Router();
 
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 5 * 1024 * 1024, files: 1 },
+  // 10 MB: full-page print ads at 300 dpi (Cloudinary's free-plan image limit).
+  limits: { fileSize: 10 * 1024 * 1024, files: 1 },
   fileFilter: (_req, file, cb) => {
     cb(null, /^image\/(jpeg|png|webp|gif|avif)$/.test(file.mimetype));
   },
 });
-
-const { url, cloudName, apiKey, apiSecret } = config.cloudinary;
-const hasKeys = Boolean(cloudName && apiKey && apiSecret);
-// The SDK reads CLOUDINARY_URL by itself; the separate values are set here.
-if (hasKeys) {
-  cloudinary.config({ cloud_name: cloudName, api_key: apiKey, api_secret: apiSecret, secure: true });
-}
-const cloudinaryReady = hasKeys || Boolean(url);
 
 // POST /admin/uploads (multipart field "file") → { url, publicId }
 adminUploadsRouter.post("/", upload.single("file"), async (req, res) => {

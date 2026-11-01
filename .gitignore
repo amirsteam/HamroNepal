@@ -72,3 +72,6 @@ web-build/
 
 # Debug data exports (may contain personal data)
 *_debug.json
+
+# Generated print editions (npm run print:issue)
+apps/api/print/

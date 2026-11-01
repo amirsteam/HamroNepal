@@ -26,6 +26,7 @@ npm run ingest -w apps/api -- --dry-run --max 2  # AI pipeline, nothing saved
 npm run ingest -w apps/api -- --max 5            # saves pending drafts
 npm run images:backfill -w apps/api -- --dry-run # stock photos for older AI drafts (needs PEXELS_API_KEY)
 npm run images:backfill -w apps/api -- --from-source --limit 50  # or link each outlet's own photo (demo only)
+npm run print:issue -w apps/api -- --html        # weekly press PDF into apps/api/print/ (needs Chrome/Edge); --save to publish
 
 # mobile
 cd apps/mobile && npm install && npx expo start   # EXPO_PUBLIC_API_URL in apps/mobile/.env
@@ -92,11 +93,46 @@ How it runs and is tested:
 - **Drafts without images:** this happens when the hourly job runs with `INGEST_SOURCE_IMAGES=false` (repo variable) and no `PEXELS_API_KEY` secret. To repeat the photo fix, run `npm run images:backfill -w apps/api -- --from-source --limit 50` from a regular PC. It links each outlet's own photo, so it's for the demo only.
 - **Sites that block GitHub's servers:** eKantipur and Ukera return 403 to the hourly job but work from a regular PC.
 
+### Print edition (`apps/api/src/print`)
+
+A weekly press PDF: 318 × 483 mm trim plus 3 mm bleed, CMYK, and 6 pages, matching the paper's existing weekly.
+
+- **Pipeline:** `issue.ts` loads the week's **published** articles and dedupes near-identical titles. `plan.ts` (pure, tested) places them; `render.ts` builds one HTML document; `generate.ts` prints it with an installed Chrome/Edge through `puppeteer-core` (no browser download; `CHROME_PATH` overrides).
+- **Page plan:**
+  - Front page: 1 lead, 3 side and 3 bottom stories, and a "भित्री पृष्ठमा" index.
+  - Pages 2–6 are राष्ट्रिय, स्थानीय (Kavre first), अर्थ…, अन्तर्राष्ट्रिय and खेलकुद…, each with a lead and six stories.
+  - Short sections are topped up; a section with none of its own stories is labelled "विविध".
+- **Text fitting:** a script in the page (`FIT_SCRIPT`) shrinks long headlines and cuts each story to its box, ending it with "…". Every story has a QR code to `/n/<id>`, which redirects to `/news/<slug>`.
+- **Fonts:** headlines use static subset Anek Devanagari instances embedded as data URIs (`printFonts.ts`, OFL). Chrome embeds variable fonts as Type 3, which presses dislike. Body text is Mukta from Google Fonts. The flag is embedded too (`flagImage.ts`).
+- **Photos (PDF mode only):** the PDF step fetches photos itself (CORS allowed), and the page re-encodes them as JPEG at about 200 ppi. Outlets' WebP files would otherwise be stored losslessly: about 17 MB instead of 3 MB.
+- **Editorial (सम्पादकीय):** an editor-written article in the `sampadakiya` topic (`EDITORIAL_TOPIC`). The pipeline never uses this topic, and the seed adds missing topics. The week's latest editorial takes a full-height column on page 2, which then holds a lead and 4 stories.
+- **Print ads** are Promotions with `print-*` placements; the public `/api/promotions` excludes them. Ads whose dates cover the issue day are placed:
+  - `print-full`: a whole inner page from the back, never page 2, filling the bleed.
+  - `print-half`: the lower half of a page.
+  - `print-box`: a story box, at most 2 per page, spread from the back.
+  - `print-strip`: below the front page's bottom row.
+
+  Ads that don't fit are reported in `plan.unplacedAds`. Images are fetched at 300 dpi for their slot.
+- **Press step (`press.ts`):**
+  1. pdf-lib rewrites Chrome's `rg`/`RG` vector colours to CMYK. Neutrals go on K only, with near-black as 100% K so small text stays sharp; brand colours get fixed inks; other colours are capped at 240% total ink.
+  2. Ghostscript converts the photos (`PRINT_ICC_PROFILE` optional; it must be found or set as `GS_PATH`).
+  3. pdf-lib sets an exact 318 × 483 mm TrimBox centred in the bleed.
+
+  The page CSS is 324 × 489 mm; the screen preview shows the trim as a dashed line. `--rgb` skips this step.
+- **Running it:**
+  - `npm run print:issue -w apps/api` writes `apps/api/print/*.pdf`; this folder is gitignored.
+  - `--save` uploads the PDF to Cloudinary (raw) and records a `PrintIssue`, which advances the अंक number. It refuses to run while `PUBLIC_SITE_URL` is localhost.
+  - `.github/workflows/print.yml` runs it every Friday at 18:00 NPT.
+  - Dashboard → प्रिन्ट संस्करण lists issues and opens `/api/admin/print/preview`, which is the same HTML without PDF mode. Vercel has no browser, so it never makes PDFs itself.
+- **Settings:** `PRINT_*` env vars (registration no., price, email, pages, first issue date, issue offset).
+
 ### Web (`apps/web`)
 
 - **Data access:** components never call `fetch`. Data goes through `src/services/*`, which use `src/lib/api.ts` (`credentials: "include"`, throws `ApiError`).
 - **Auth state:** `AuthContext` exposes `user` and `author`, which are the same object from `/auth/me`.
+- **Article body editor:** `components/dashboard/RichTextEditor.tsx` (Tiptap 3) is lazy-loaded by the article form, so readers never download it. It offers only what `sanitizeArticleHtml` keeps; code marks/blocks are off. Links must be http(s)/mailto, and images upload to Cloudinary and ask for alt text. There is also an HTML view. If you allow a new tag in the editor, add it to the sanitizer allowlist too.
 - **Menus:** `Header.tsx` builds the topic links and the स्थानीय (province → district) menu from `/api/categories`.
+- **Weather:** `WeatherWidget.tsx` shows `/api/weather?city=<slug>` for a city from `WEATHER_CITIES` (shared `weather.ts`). The default is Panauti (`WEATHER_*` env); readers can pick another city or "मेरो स्थान", and the choice is saved in localStorage. For "मेरो स्थान", only the nearest listed city is sent; the reader's coordinates stay in the browser. Clicking it opens the official DHM forecast (`OFFICIAL_WEATHER_URL`). The API caches each city for 15 minutes and serves only listed cities.
 - **Advertisements:** banner ads are the `Promotion` model, managed by admins in `/dashboard/promotions` (विज्ञापन). They're called "promotions" in code and URLs so ad blockers don't hide slots by name.
   - **Placements:** `header` (under the header, every page), `home` (two home slots, `nth` 0/1), `sidebar` (article + category pages), `article` (after the story text) and `popup` (once per browser session).
   - **Data:** `PromoProvider` (in `Layout`) loads the running ads once from `GET /api/promotions`, and `<PromoSlot placement>` shows one, labelled "विज्ञापन". Clicks go through `/api/promotions/:id/click`, which counts the click and redirects; views are counted once a banner is half on screen.
@@ -111,5 +147,10 @@ How it runs and is tested:
 ## Conventions
 
 - TypeScript only, functional React components, mobile-first UI. All UI text is in Nepali, and every screen handles its loading and error states (from `.github/copilot-instructions.md` and `.github/AGENTS.MD`).
+- **Design tokens** live in the `@theme` block of `apps/web/src/index.css`, not `:root`. Tailwind v4 only generates utilities (`text-primary`, `hover:bg-secondary-dark`, `bg-primary/10`) for `@theme` colours. Colours come from the Nepali flag: crimson `primary`, blue `secondary`, navy `ink` for headlines.
+- **Type:** headings use Anek Devanagari (semi-condensed); body text uses Mukta. Headings get no colour from the base styles, so they can inherit white on dark bars; add `text-ink` where needed. Don't use italics, because Devanagari has no true italic.
+- **The pennant** (`components/ui/Pennant.tsx`, inside `SectionTitle`) is the site's mark. Use `SectionTitle` for section headings.
+- **The flag:** `NepalFlag` sits beside the logo and the footer name. `public/brand/nepal-flag.webp` is the waving version (about 100 KB), shown on desktop only. `nepal-flag-still.png` is shown on phones and with reduced motion. Both were made from the original 1 MB GIF with Pillow (128/112 px tall); don't link the GIF itself.
+- **Motion:** use `m` from `motion/react` inside `LazyMotion` (features load lazily), not `motion.*`. `MotionConfig reducedMotion="user"` respects reduced motion; add `motion-reduce:` to CSS transitions too. Keep page-load motion to the top story; other motion should answer a reader's action.
 - Use the shared helpers for BS dates (`formatBSDate`, `formatDualDate`, `toNepaliDigits`). Don't copy BS-date code into an app.
 - The BS calendar table for 2080/2081 is known to be off by a day.
