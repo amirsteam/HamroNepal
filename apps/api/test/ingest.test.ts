@@ -213,6 +213,44 @@ describe("runIngest (fake feeds + fake AI)", () => {
     expect(photoQueries).toEqual([]); // no Pexels call needed
   });
 
+  it("uploads the outlet's photo with the article (our own copy)", async () => {
+    const stored: string[] = [];
+    await runIngest(
+      { maxDrafts: 5, sourceImages: true },
+      {
+        ...deps,
+        extract: async (item: RawItem) => ({ text: item.text, url: item.url, imageUrl: "https://cdn.feed.test/fire.jpg" }),
+        checkImage: async () => true,
+        storeImage: async (url) => {
+          stored.push(url);
+          return { url: "https://res.cloudinary.com/demo/image/upload/hamronepal/articles/fire.jpg", publicId: "hamronepal/articles/fire" };
+        },
+      }
+    );
+    const article = await Article.findOne().lean();
+    expect(stored).toEqual(["https://cdn.feed.test/fire.jpg"]);
+    expect(article!.featuredImage).toBe("https://res.cloudinary.com/demo/image/upload/hamronepal/articles/fire.jpg");
+    expect(article!.featuredImagePublicId).toBe("hamronepal/articles/fire");
+    expect(article!.imageCredit?.name).toBe("परीक्षण खबर"); // still credited to the outlet
+  });
+
+  it("links the outlet's photo when the upload fails", async () => {
+    await runIngest(
+      { maxDrafts: 5, sourceImages: true },
+      {
+        ...deps,
+        extract: async (item: RawItem) => ({ text: item.text, url: item.url, imageUrl: "https://cdn.feed.test/fire.jpg" }),
+        checkImage: async () => true,
+        storeImage: async () => {
+          throw new Error("Cloudinary down");
+        },
+      }
+    );
+    const article = await Article.findOne().lean();
+    expect(article!.featuredImage).toBe("https://cdn.feed.test/fire.jpg");
+    expect(article!.featuredImagePublicId).toBeUndefined();
+  });
+
   it("falls back to a stock photo when the outlet refuses its image", async () => {
     const blocked = {
       ...deps,

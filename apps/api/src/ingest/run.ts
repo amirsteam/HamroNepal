@@ -30,6 +30,7 @@ import { Gazetteer, type LocationEntry } from "./gazetteer";
 import { draftWarnings, hashUrl, isNearDuplicate, titleTokens, unsupportedNumbers } from "./text";
 import { classifyItems, writeArticle } from "./steps";
 import { findStockPhoto as defaultFindPhoto, type FindStockPhoto, type StockPhoto } from "../services/stockPhoto";
+import { storeRemoteImage, type StoreImage } from "../services/imageStore";
 
 export const AI_DESK_EMAIL = "ai-desk@hamronepal.local";
 export const AI_DESK_NAME = "हाम्रो नेपाल AI डेस्क";
@@ -49,6 +50,8 @@ export interface IngestDeps {
   generate?: GenerateJSON;
   findPhoto?: FindStockPhoto;
   checkImage?: CheckImage;
+  /** Upload a photo to our image storage (Cloudinary). */
+  storeImage?: StoreImage;
 }
 
 export interface IngestReport {
@@ -83,6 +86,7 @@ export async function runIngest(opts: IngestOptions = {}, deps: IngestDeps = {})
   const generate = deps.generate ?? defaultGenerate;
   const findPhoto = deps.findPhoto ?? defaultFindPhoto;
   const checkImage = deps.checkImage ?? defaultCheckImage;
+  const storeImage = deps.storeImage ?? storeRemoteImage;
 
   const stats: IngestRunStats = { fetched: 0, duplicates: 0, skipped: 0, classified: 0, drafted: 0, failed: 0 };
   const errorLog: string[] = [];
@@ -305,8 +309,9 @@ export async function runIngest(opts: IngestOptions = {}, deps: IngestDeps = {})
         const warnings = draftWarnings(`${ownText} ${written.tags.join(" ")}`, invented);
 
         let photo: StockPhoto | null = null;
-        // The outlet's own photo, linked from its server and credited to it,
-        // if the outlet serves it to other sites.
+        let photoPublicId: string | undefined;
+        // The outlet's own photo, credited to it, if the outlet serves it to
+        // other sites. Uploaded with the article below (our own copy).
         const candidate = sourceImages ? (source.imageUrl ?? item.imageUrl) : undefined;
         const sourceImage = candidate && (await checkImage(candidate)) ? candidate : undefined;
         if (candidate && !sourceImage) log(`  (source photo blocked, using stock photo: ${candidate})`);
@@ -332,12 +337,27 @@ export async function runIngest(opts: IngestOptions = {}, deps: IngestDeps = {})
           continue;
         }
 
+        // Keep our own copy of the outlet's photo, so the article doesn't
+        // depend on their server. If that fails, keep the link as before.
+        if (sourceImage && photo) {
+          try {
+            const stored = await storeImage(sourceImage);
+            if (stored) {
+              photo = { ...photo, url: stored.url };
+              photoPublicId = stored.publicId;
+            }
+          } catch (err) {
+            log(`      (photo upload failed, linking instead: ${(err as Error).message})`);
+          }
+        }
+
         const article = await Article.create({
           title: written.title,
           slug: await uniqueSlug(Article, written.title),
           excerpt: written.excerpt,
           content: written.content,
           featuredImage: photo?.url ?? (topic.defaultImage || undefined),
+          featuredImagePublicId: photoPublicId,
           imageCredit: photo?.credit,
           categoryId: topic._id,
           locationIds: location ? gazetteer.withAncestors(location.id) : [],

@@ -1,0 +1,2699 @@
+From 144028c2e75215278151b6de77a875acd9200ca6 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sun, 1 Nov 2026 06:03:33 +0000
+Subject: [PATCH] English edition on the web: /en routes, language switch,
+ English dashboard fields
+
+The API, translator and hourly job already serve English (?lang=en); this
+adds the website side.
+
+- Reader pages under /en (home, story, section, search, 404) with English
+  text from lib/i18n.ts; the language comes from the URL.
+- Header link to the same page in the other language; <html lang> follows.
+- Public services pass ?lang=en only on the English site, so Nepali
+  requests stay as they were.
+- An untranslated story on the English site shows the Nepali with a note.
+- English dates, digits, weather city names, ads label and photo credits.
+- Article editor: English title/summary/story, translation status and
+  "translate now"; English is sent only when a person changed it, so
+  machine translations keep updating.
+- Categories: English name field. Article list: EN badge.
+- CLAUDE.md: English edition section.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01Xort4sGQiveBkXPKQVyxNV
+---
+ CLAUDE.md                                     |  19 +-
+ apps/web/src/components/layout/Footer.tsx     |  86 ++----
+ apps/web/src/components/layout/Header.tsx     | 144 +++++----
+ apps/web/src/components/layout/Layout.tsx     |   8 +
+ .../src/components/layout/WeatherWidget.tsx   |  60 ++--
+ apps/web/src/components/news/ImageCredit.tsx  |   6 +-
+ apps/web/src/components/news/NewsCard.tsx     |  33 +-
+ apps/web/src/components/news/NewsGrid.tsx     |   4 +-
+ apps/web/src/components/promo/PromoPopup.tsx  |   8 +-
+ apps/web/src/components/promo/PromoSlot.tsx   |   7 +-
+ apps/web/src/components/ui/ErrorState.tsx     |  15 +-
+ apps/web/src/components/ui/SectionTitle.tsx   |   6 +-
+ apps/web/src/lib/i18n.ts                      | 285 ++++++++++++++++++
+ apps/web/src/lib/site.ts                      |   2 +
+ apps/web/src/lib/useDocumentTitle.ts          |   9 +-
+ apps/web/src/pages/CategoryPage.tsx           |  43 +--
+ apps/web/src/pages/HomePage.tsx               |  35 ++-
+ apps/web/src/pages/NewsDetailPage.tsx         |  59 ++--
+ apps/web/src/pages/NotFoundPage.tsx           |  14 +-
+ apps/web/src/pages/SearchPage.tsx             |  28 +-
+ .../src/pages/dashboard/ArticleEditorPage.tsx | 171 ++++++++++-
+ .../src/pages/dashboard/ArticlesListPage.tsx  |   8 +
+ .../src/pages/dashboard/CategoriesPage.tsx    |  32 ++
+ apps/web/src/router.tsx                       |  41 +--
+ apps/web/src/services/admin.service.ts        |  11 +
+ apps/web/src/services/categories.service.ts   |  17 +-
+ .../src/services/categoriesAdmin.service.ts   |   2 +
+ apps/web/src/services/news.service.ts         |  44 +--
+ apps/web/src/services/weather.service.ts      |   9 +-
+ 29 files changed, 898 insertions(+), 308 deletions(-)
+ create mode 100644 apps/web/src/lib/i18n.ts
+
+diff --git a/CLAUDE.md b/CLAUDE.md
+index 5064015..073c2ed 100644
+--- a/CLAUDE.md
++++ b/CLAUDE.md
+@@ -2,7 +2,7 @@
+ 
+ This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+ 
+-HamroNepal (हाम्रो नेपाल) is a Nepali news portal: a public site and `/dashboard` (web), an Expo app (mobile), one Express + MongoDB API, and an hourly AI pipeline that turns RSS news into **pending** drafts for editors. All UI text is Nepali. Dates are shown in both Bikram Sambat and AD.
++HamroNepal (हाम्रो नेपाल) is a Nepali news portal: a public site and `/dashboard` (web), an Expo app (mobile), one Express + MongoDB API, and an hourly AI pipeline that turns RSS news into **pending** drafts for editors. The site is Nepali, with an English edition under `/en` (AI-translated stories). Dates are shown in both Bikram Sambat and AD.
+ 
+ ## Commands
+ 
+@@ -26,6 +26,7 @@ npm run ingest -w apps/api -- --dry-run --max 2  # AI pipeline, nothing saved
+ npm run ingest -w apps/api -- --max 5            # saves pending drafts
+ npm run images:backfill -w apps/api -- --dry-run # stock photos for older AI drafts (needs PEXELS_API_KEY)
+ npm run images:backfill -w apps/api -- --from-source --limit 50  # or link each outlet's own photo (demo only)
++npm run translate -w apps/api -- --dry-run      # English versions of published stories (the hourly job runs it after ingest)
+ npm run print:issue -w apps/api -- --html        # weekly press PDF into apps/api/print/ (needs Chrome/Edge); --save to publish
+ 
+ # mobile
+@@ -93,6 +94,18 @@ How it runs and is tested:
+ - **Drafts without images:** this happens when the hourly job runs with `INGEST_SOURCE_IMAGES=false` (repo variable) and no `PEXELS_API_KEY` secret. To repeat the photo fix, run `npm run images:backfill -w apps/api -- --from-source --limit 50` from a regular PC. It links each outlet's own photo, so it's for the demo only.
+ - **Sites that block GitHub's servers:** eKantipur and Ukera return 403 to the hourly job but work from a regular PC.
+ 
++### English edition (`/en`)
++
++The same site in English at `/en`, `/en/news/<slug>`, `/en/category/<slug>`, `/en/search`. Stories are machine-translated; the dashboard stays Nepali.
++
++- **Storage:** `Article.en` holds `title/excerpt/content`, the `sourceHash` of the Nepali it was made from, `model` and `edited`. `Category.nameEn` holds English names (the seed fills topics and places).
++- **Translating:** `ai/translate.ts` translates faithfully and carries the "स्रोत:" credit over as "Source:". `services/translations.ts` (`npm run translate`, the last step of the hourly workflow) redoes stories that have no English, or whose Nepali changed since (hash differs). English a person edited (`edited: true`) is never replaced.
++- **Public API:** `?lang=en` swaps in the English title/excerpt/content and category names, and adds `lang` to each article. On the English site, lists hold only translated stories; a single untranslated story comes back in Nepali with `lang: "ne"`. English search matches `en.title`/`en.excerpt`.
++- **SEO:** `/en/news/:slug` gets English meta tags. Every article page links both languages with hreflang. An untranslated story's English page is canonical to the Nepali one. The sitemap lists translated stories under `/en`.
++- **Web:** `lib/i18n.ts` reads the language from the URL (`useT()` gives `lang`, the strings `t`, `to(path)` for local links and `num()` for digits). The router mounts the same pages under `/` and `/en`. Services take a `lang` argument and add `?lang=en` only for English, so Nepali URLs and caches are unchanged. Put new reader-facing text in both tables in `i18n.ts`, link with `to()`, and pass `lang` to services and to the shared date helpers. The header has a link to the same page in the other language. The Nepali tags are hidden on the English site.
++- **Dashboard:** the article editor has an "अंग्रेजी संस्करण" section with the English fields, the translation status and "AI ले अहिले अनुवाद गर्नुहोस्" (`POST /admin/articles/:id/translate`, which translates the saved Nepali). The form sends `en` only when someone changed it, because sending it marks the English as edited by a person. The categories form has the English name.
++- **Mobile:** the app is Nepali only.
++
+ ### Print edition (`apps/api/src/print`)
+ 
+ A weekly press PDF: 318 × 483 mm trim plus 3 mm bleed, CMYK, and 6 pages, matching the paper's existing weekly.
+@@ -141,12 +154,12 @@ A weekly press PDF: 318 × 483 mm trim plus 3 mm bleed, CMYK, and 6 pages, match
+ 
+ ### Deployment
+ 
+-- **Vercel** (`vercel.json`): the static `apps/web/dist` plus one function, `api/index.mjs`. Rewrites send `/api/*`, `/news/:slug`, the sitemaps and RSS to the function; everything else goes to the SPA.
++- **Vercel** (`vercel.json`): the static `apps/web/dist` plus one function, `api/index.mjs`. Rewrites send `/api/*`, `/news/:slug`, `/en/news/:slug`, `/n/:id`, the sitemaps and RSS to the function; everything else goes to the SPA.
+ - **Database and images:** MongoDB Atlas and Cloudinary. Cloudinary is set either with `CLOUDINARY_URL` or with the three separate `CLOUDINARY_*` values.
+ 
+ ## Conventions
+ 
+-- TypeScript only, functional React components, mobile-first UI. All UI text is in Nepali, and every screen handles its loading and error states (from `.github/copilot-instructions.md` and `.github/AGENTS.MD`).
++- TypeScript only, functional React components, mobile-first UI. All UI text is in Nepali (reader pages also in English, via `lib/i18n.ts`), and every screen handles its loading and error states (from `.github/copilot-instructions.md` and `.github/AGENTS.MD`).
+ - **Design tokens** live in the `@theme` block of `apps/web/src/index.css`, not `:root`. Tailwind v4 only generates utilities (`text-primary`, `hover:bg-secondary-dark`, `bg-primary/10`) for `@theme` colours. Colours come from the Nepali flag: crimson `primary`, blue `secondary`, navy `ink` for headlines.
+ - **Type:** headings use Anek Devanagari (semi-condensed); body text uses Mukta. Headings get no colour from the base styles, so they can inherit white on dark bars; add `text-ink` where needed. Don't use italics, because Devanagari has no true italic.
+ - **The pennant** (`components/ui/Pennant.tsx`, inside `SectionTitle`) is the site's mark. Use `SectionTitle` for section headings.
+diff --git a/apps/web/src/components/layout/Footer.tsx b/apps/web/src/components/layout/Footer.tsx
+index 94ef7ba..ab64418 100644
+--- a/apps/web/src/components/layout/Footer.tsx
++++ b/apps/web/src/components/layout/Footer.tsx
+@@ -3,7 +3,7 @@
+  */
+ 
+ import { Link } from "react-router-dom";
+-import { toNepaliDigits } from "@/lib/bs-date";
++import { useT } from "@/lib/i18n";
+ import { SITE_CONTACT } from "@/lib/site";
+ import { NepalFlag } from "@/components/ui/NepalFlag";
+ 
+@@ -15,7 +15,9 @@ const SOCIAL_ICONS: Record<keyof typeof SITE_CONTACT.social, { label: string; pa
+ };
+ 
+ export function Footer() {
+-  const currentYear = toNepaliDigits(new Date().getFullYear());
++  const { lang, t, to, num } = useT();
++  const currentYear = num(new Date().getFullYear());
++  const address = lang === "en" ? SITE_CONTACT.addressEn : SITE_CONTACT.address;
+   const socials = (Object.keys(SITE_CONTACT.social) as Array<keyof typeof SITE_CONTACT.social>).filter(
+     (k) => SITE_CONTACT.social[k]
+   );
+@@ -31,36 +33,33 @@ export function Footer() {
+               <span className="inline-flex rounded-md bg-white p-1">
+                 <NepalFlag className="h-7 w-auto" />
+               </span>
+-              हाम्रो नेपाल
++              {t.siteName}
+             </h2>
+-            <p className="text-gray-300 text-sm leading-relaxed">
+-              नेपालको विश्वसनीय समाचार पोर्टल। राजनीति, अर्थतन्त्र, खेलकुद,
+-              मनोरञ्जन र अन्य विविध समाचारहरू।
+-            </p>
++            <p className="text-gray-300 text-sm leading-relaxed">{t.about}</p>
+           </div>
+ 
+           {/* Quick Links */}
+           <div>
+-            <h2 className="text-lg font-semibold mb-4">द्रुत लिङ्कहरू</h2>
++            <h2 className="text-lg font-semibold mb-4">{t.quickLinks}</h2>
+             <ul className="space-y-2 text-sm">
+               <li>
+-                <Link to="/" className="text-gray-300 hover:text-white">
+-                  गृहपृष्ठ
++                <Link to={to("/")} className="text-gray-300 hover:text-white">
++                  {t.home}
+                 </Link>
+               </li>
+               <li>
+-                <Link to="/category/all" className="text-gray-300 hover:text-white">
+-                  सबै समाचार
++                <Link to={to("/category/all")} className="text-gray-300 hover:text-white">
++                  {t.allNews}
+                 </Link>
+               </li>
+               <li>
+-                <Link to="/search" className="text-gray-300 hover:text-white">
+-                  खोज्नुहोस्
++                <Link to={to("/search")} className="text-gray-300 hover:text-white">
++                  {t.search}
+                 </Link>
+               </li>
+               <li>
+                 <a href="/rss.xml" className="text-gray-300 hover:text-white">
+-                  RSS फिड
++                  {t.rssFeed}
+                 </a>
+               </li>
+             </ul>
+@@ -68,56 +67,31 @@ export function Footer() {
+ 
+           {/* Categories */}
+           <div>
+-            <h2 className="text-lg font-semibold mb-4">समाचार श्रेणीहरू</h2>
++            <h2 className="text-lg font-semibold mb-4">{t.newsCategories}</h2>
+             <ul className="space-y-2 text-sm">
+-              <li>
+-                <Link
+-                  to="/category/rajniti"
+-                  className="text-gray-300 hover:text-white"
+-                >
+-                  राजनीति
+-                </Link>
+-              </li>
+-              <li>
+-                <Link
+-                  to="/category/arthatantra"
+-                  className="text-gray-300 hover:text-white"
+-                >
+-                  अर्थतन्त्र
+-                </Link>
+-              </li>
+-              <li>
+-                <Link
+-                  to="/category/khelkud"
+-                  className="text-gray-300 hover:text-white"
+-                >
+-                  खेलकुद
+-                </Link>
+-              </li>
+-              <li>
+-                <Link
+-                  to="/category/manoranjan"
+-                  className="text-gray-300 hover:text-white"
+-                >
+-                  मनोरञ्जन
+-                </Link>
+-              </li>
++              {t.footerTopics.map(([slug, name]) => (
++                <li key={slug}>
++                  <Link to={to(`/category/${slug}`)} className="text-gray-300 hover:text-white">
++                    {name}
++                  </Link>
++                </li>
++              ))}
+             </ul>
+           </div>
+ 
+           {/* Contact (only details that are filled in lib/site.ts) */}
+           <div>
+-            <h2 className="text-lg font-semibold mb-4">सम्पर्क</h2>
++            <h2 className="text-lg font-semibold mb-4">{t.contact}</h2>
+             <ul className="space-y-2 text-sm text-gray-300">
+-              {SITE_CONTACT.address && <li>{SITE_CONTACT.address}</li>}
++              {address && <li>{address}</li>}
+               {SITE_CONTACT.phone && (
+                 <li>
+-                  फोन: <a href={`tel:${SITE_CONTACT.phone.replace(/[^+\d]/g, "")}`} className="hover:text-white">{SITE_CONTACT.phone}</a>
++                  {t.phone}: <a href={`tel:${SITE_CONTACT.phone.replace(/[^+\d]/g, "")}`} className="hover:text-white">{SITE_CONTACT.phone}</a>
+                 </li>
+               )}
+               {SITE_CONTACT.email && (
+                 <li>
+-                  इमेल: <a href={`mailto:${SITE_CONTACT.email}`} className="hover:text-white">{SITE_CONTACT.email}</a>
++                  {t.email}: <a href={`mailto:${SITE_CONTACT.email}`} className="hover:text-white">{SITE_CONTACT.email}</a>
+                 </li>
+               )}
+             </ul>
+@@ -145,13 +119,13 @@ export function Footer() {
+ 
+         {/* Copyright */}
+         <div className="border-t border-gray-600 mt-8 pt-6 text-center text-sm text-gray-300">
+-          <p>© {currentYear} हाम्रो नेपाल। सर्वाधिकार सुरक्षित।</p>
++          <p>{t.rights(currentYear)}</p>
+           <p className="mt-1 text-xs">
+-            केही प्रतीकात्मक तस्बिरहरू{" "}
++            {t.pexelsBefore}{" "}
+             <a href="https://www.pexels.com" target="_blank" rel="noopener noreferrer" className="underline hover:text-white">
+               Pexels
+-            </a>{" "}
+-            बाट।
++            </a>
++            {lang === "en" ? t.pexelsAfter : ` ${t.pexelsAfter}`}
+           </p>
+         </div>
+       </div>
+diff --git a/apps/web/src/components/layout/Header.tsx b/apps/web/src/components/layout/Header.tsx
+index 4596114..8a5b1de 100644
+--- a/apps/web/src/components/layout/Header.tsx
++++ b/apps/web/src/components/layout/Header.tsx
+@@ -6,7 +6,7 @@
+  */
+ 
+ import { useState, useEffect } from "react";
+-import { Link, NavLink } from "react-router-dom";
++import { Link, NavLink, useLocation } from "react-router-dom";
+ import { AnimatePresence, m } from "motion/react";
+ import { NepalFlag } from "@/components/ui/NepalFlag";
+ import type { Category, Article } from "@/types";
+@@ -18,11 +18,27 @@ import {
+ } from "@/services/categories.service";
+ import { getBreakingNews } from "@/services/news.service";
+ import { WeatherCompact, WeatherFull, useWeather } from "./WeatherWidget";
+-import {
+-  getCurrentBSDate,
+-  formatBSDate,
+-  BS_WEEKDAYS,
+-} from "@/lib/bs-date";
++import { getCurrentBSDate, formatBSDate, formatADDate, getWeekdayNepali } from "@/lib/bs-date";
++import { otherLanguagePath, useT } from "@/lib/i18n";
++
++/** "English" on the Nepali site, "नेपाली" on the English one: the same page in the other language. */
++function LanguageSwitch({ className = "", onClick }: { className?: string; onClick?: () => void }) {
++  const { lang, t } = useT();
++  const { pathname, search } = useLocation();
++  const other = lang === "en" ? "ne" : "en";
++  return (
++    <Link
++      to={otherLanguagePath(pathname, search, other)}
++      lang={other}
++      hrefLang={other}
++      title={t.switchTitle}
++      onClick={onClick}
++      className={className}
++    >
++      {t.switchLabel}
++    </Link>
++  );
++}
+ 
+ // Hamburger icon component
+ function HamburgerIcon({ isOpen }: { isOpen: boolean }) {
+@@ -42,14 +58,15 @@ export function Header() {
+   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+   const [isLoading, setIsLoading] = useState(true);
+   const weather = useWeather();
++  const { lang, t, to } = useT();
+ 
+   useEffect(() => {
+     async function loadData() {
+       try {
+         const [cats, breaking, locations] = await Promise.all([
+-          getCategories(),
+-          getBreakingNews(5),
+-          getLocationCategories().catch(() => [] as Category[]),
++          getCategories(lang),
++          getBreakingNews(5, lang),
++          getLocationCategories(lang).catch(() => [] as Category[]),
+         ]);
+         setCategories(cats);
+         setProvinces(buildLocationTree(locations.filter((l) => l.showInMenu !== false)));
+@@ -61,7 +78,7 @@ export function Header() {
+       }
+     }
+     loadData();
+-  }, []);
++  }, [lang]);
+ 
+   // While the mobile menu is open: no page scroll behind it, and Escape closes it.
+   useEffect(() => {
+@@ -78,13 +95,9 @@ export function Header() {
+   // Get current dates
+   const now = new Date();
+   const bsDate = getCurrentBSDate();
+-  const bsDateFormatted = formatBSDate(bsDate);
+-  const bsWeekday = BS_WEEKDAYS[now.getDay()];
+-  const adDateFormatted = now.toLocaleDateString("en-US", {
+-    month: "short",
+-    day: "numeric",
+-    year: "numeric",
+-  });
++  const bsDateFormatted = formatBSDate(bsDate, "full", lang) + (lang === "en" ? " BS" : "");
++  const bsWeekday = getWeekdayNepali(now, lang);
++  const adDateFormatted = formatADDate(now, "en");
+ 
+   return (
+     <>
+@@ -97,27 +110,31 @@ export function Header() {
+             <button
+               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+               className="p-2 -ml-2 text-gray-700 hover:text-primary transition-colors"
+-              aria-label={mobileMenuOpen ? "मेनु बन्द गर्नुहोस्" : "मेनु खोल्नुहोस्"}
++              aria-label={mobileMenuOpen ? t.closeMenu : t.openMenu}
+               aria-expanded={mobileMenuOpen}
+             >
+               <HamburgerIcon isOpen={mobileMenuOpen} />
+             </button>
+ 
+             {/* Logo */}
+-            <Link to="/" className="absolute left-1/2 -translate-x-1/2" aria-label="हाम्रो नेपाल गृहपृष्ठ">
+-              <span className="flex items-center gap-1.5 font-display text-2xl font-extrabold tracking-tight">
++            <Link to={to("/")} className="absolute left-1/2 -translate-x-1/2" aria-label={t.homeLink}>
++              {/* The English name is wider: one size smaller so it clears the language switch. */}
++              <span className={`flex items-center gap-1.5 font-display ${lang === "en" ? "text-xl" : "text-2xl"} font-extrabold tracking-tight`}>
+                 <NepalFlag className="h-7 w-auto -mt-0.5" />
+-                <span className="text-primary">हाम्रो</span>
+-                <span className="text-secondary ml-0.5">नेपाल</span>
++                <span className="text-primary">{t.brand[0]}</span>
++                <span className="text-secondary ml-0.5">{t.brand[1]}</span>
+               </span>
+             </Link>
+ 
+-            {/* Search Icon */}
+-            <Link to="/search" className="p-2 -mr-2 text-gray-700 hover:text-primary transition-colors" aria-label="खोज्नुहोस्">
++            {/* Language and search */}
++            <div className="flex items-center gap-1 -mr-2">
++            <LanguageSwitch className="px-1.5 py-1 text-xs font-semibold text-secondary border border-secondary/30 rounded hover:bg-secondary hover:text-white transition-colors" />
++            <Link to={to("/search")} className="p-2 text-gray-700 hover:text-primary transition-colors" aria-label={t.search}>
+               <svg aria-hidden="true" className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+               </svg>
+             </Link>
++            </div>
+           </div>
+ 
+           {/* Date and Weather bar */}
+@@ -143,13 +160,13 @@ export function Header() {
+ 
+                 {/* CENTER: Logo */}
+                 <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
+-                  <Link to="/" className="block text-center group">
++                  <Link to={to("/")} className="block text-center group">
+                     <span className="flex items-center justify-center gap-3 font-display text-5xl xl:text-6xl font-extrabold tracking-tight">
+                       <NepalFlag animated className="h-14 xl:h-16 w-auto -mt-1" />
+-                      <span className="text-primary transition-colors group-hover:text-primary/80">हाम्रो</span>
+-                      <span className="text-secondary transition-colors group-hover:text-secondary/80 ml-2">नेपाल</span>
++                      <span className="text-primary transition-colors group-hover:text-primary/80">{t.brand[0]}</span>
++                      <span className="text-secondary transition-colors group-hover:text-secondary/80 ml-2">{t.brand[1]}</span>
+                     </span>
+-                    <p className="text-sm text-gray-500 mt-1">तपाईंको ठाउँको, देशभरको समाचार</p>
++                    <p className="text-sm text-gray-500 mt-1">{t.tagline}</p>
+                   </Link>
+                 </div>
+ 
+@@ -162,25 +179,26 @@ export function Header() {
+           </div>
+ 
+           {/* Desktop Navigation */}
+-          <nav className="bg-secondary text-white" aria-label="मुख्य मेनु">
++          <nav className="bg-secondary text-white" aria-label={t.mainMenu}>
+             <div className="container mx-auto px-4">
+               <div className="relative flex items-center justify-between">
+                 <div className="flex items-center">
+                   <NavLink
+-                    to="/"
++                    to={to("/")}
++                    end
+                     className={({ isActive }) =>
+                       `relative px-5 py-3 font-medium transition-colors after:absolute after:inset-x-3 after:bottom-0 after:h-[3px] after:rounded-t after:bg-primary after:origin-left after:transition-transform after:duration-300 motion-reduce:after:transition-none hover:bg-secondary-dark hover:after:scale-x-100 ${
+                         isActive ? "bg-secondary-dark after:scale-x-100" : "after:scale-x-0"
+                       }`
+                     }
+                   >
+-                    गृहपृष्ठ
++                    {t.home}
+                   </NavLink>
+                   {!isLoading &&
+                     categories.slice(0, 7).map((category) => (
+                       <NavLink
+                         key={category.$id}
+-                        to={`/category/${category.slug}`}
++                        to={to(`/category/${category.slug}`)}
+                         className={({ isActive }) =>
+                           `relative px-4 py-3 font-medium transition-colors after:absolute after:inset-x-3 after:bottom-0 after:h-[3px] after:rounded-t after:bg-primary after:origin-left after:transition-transform after:duration-300 motion-reduce:after:transition-none hover:bg-secondary-dark hover:after:scale-x-100 ${
+                             isActive ? "bg-secondary-dark after:scale-x-100" : "after:scale-x-0"
+@@ -197,7 +215,7 @@ export function Header() {
+                         className="px-4 py-3 font-medium transition-colors hover:bg-secondary-dark flex items-center gap-1"
+                         aria-haspopup="true"
+                       >
+-                        स्थानीय
++                        {t.local}
+                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                         </svg>
+@@ -207,7 +225,7 @@ export function Header() {
+                           {provinces.map((province) => (
+                             <div key={province.$id}>
+                               <Link
+-                                to={`/category/${province.slug}`}
++                                to={to(`/category/${province.slug}`)}
+                                 className="block font-bold text-secondary hover:text-primary mb-2 pb-1 border-b"
+                               >
+                                 {province.name}
+@@ -215,13 +233,13 @@ export function Header() {
+                               <ul className="space-y-1 text-sm">
+                                 {province.children.map((district) => (
+                                   <li key={district.$id}>
+-                                    <Link to={`/category/${district.slug}`} className="hover:text-primary">
++                                    <Link to={to(`/category/${district.slug}`)} className="hover:text-primary">
+                                       {district.name}
+                                     </Link>
+                                     {district.children.map((muni) => (
+                                       <Link
+                                         key={muni.$id}
+-                                        to={`/category/${muni.slug}`}
++                                        to={to(`/category/${muni.slug}`)}
+                                         className="block pl-3 text-gray-500 hover:text-primary"
+                                       >
+                                         ↳ {muni.name}
+@@ -237,11 +255,14 @@ export function Header() {
+                     </div>
+                   )}
+                 </div>
+-                <Link to="/search" className="p-3 hover:bg-secondary-dark transition-colors" aria-label="खोज्नुहोस्">
+-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+-                  </svg>
+-                </Link>
++                <div className="flex items-center">
++                  <LanguageSwitch className="px-4 py-3 font-semibold hover:bg-secondary-dark transition-colors" />
++                  <Link to={to("/search")} className="p-3 hover:bg-secondary-dark transition-colors" aria-label={t.search}>
++                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
++                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
++                    </svg>
++                  </Link>
++                </div>
+               </div>
+             </div>
+           </nav>
+@@ -256,14 +277,14 @@ export function Header() {
+                   <span className="absolute inline-flex w-full h-full rounded-full bg-white opacity-75 motion-safe:animate-ping" />
+                   <span className="relative inline-flex w-2 h-2 rounded-full bg-white" />
+                 </span>
+-                ब्रेकिङ
++                {t.breaking}
+               </span>
+               <div className="ticker-track overflow-hidden flex-1">
+                 <div className="animate-ticker flex whitespace-nowrap py-1.5">
+                   {[...breakingNews, ...breakingNews].map((news, index) => (
+                     <Link
+                       key={`${news.$id}-${index}`}
+-                      to={`/news/${news.slug}`}
++                      to={to(`/news/${news.slug}`)}
+                       className="mx-6 hover:underline text-xs sm:text-sm"
+                     >
+                       {news.title}
+@@ -297,7 +318,7 @@ export function Header() {
+             key="menu-panel"
+             role="dialog"
+             aria-modal="true"
+-            aria-label="मेनु"
++            aria-label={t.menu}
+             className="fixed top-0 left-0 h-full w-72 bg-white z-50 lg:hidden shadow-2xl overflow-y-auto"
+             initial={{ x: "-100%" }}
+             animate={{ x: 0 }}
+@@ -306,11 +327,11 @@ export function Header() {
+           >
+             {/* Menu Header */}
+             <div className="flex items-center justify-between p-4 border-b border-gray-100 bg-secondary text-white">
+-              <h2 className="text-lg font-bold">मेनु</h2>
++              <h2 className="text-lg font-bold">{t.menu}</h2>
+               <button
+                 onClick={() => setMobileMenuOpen(false)}
+                 className="p-2 hover:bg-secondary-dark rounded-lg transition-colors"
+-                aria-label="मेनु बन्द गर्नुहोस्"
++                aria-label={t.closeMenu}
+               >
+                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+@@ -319,9 +340,10 @@ export function Header() {
+             </div>
+ 
+             {/* Menu Items */}
+-            <nav className="py-2" aria-label="मोबाइल मेनु">
++            <nav className="py-2" aria-label={t.mobileMenu}>
+               <NavLink
+-                to="/"
++                to={to("/")}
++                end
+                 onClick={() => setMobileMenuOpen(false)}
+                 className={({ isActive }) =>
+                   `flex items-center gap-3 px-4 py-3 text-gray-800 font-medium transition-colors ${
+@@ -332,17 +354,17 @@ export function Header() {
+                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+                 </svg>
+-                गृहपृष्ठ
++                {t.home}
+               </NavLink>
+ 
+               <div className="px-4 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+-                श्रेणीहरू
++                {t.categories}
+               </div>
+ 
+               {categories.map((category) => (
+                 <NavLink
+                   key={category.$id}
+-                  to={`/category/${category.slug}`}
++                  to={to(`/category/${category.slug}`)}
+                   onClick={() => setMobileMenuOpen(false)}
+                   className={({ isActive }) =>
+                     `flex items-center gap-3 px-4 py-3 text-gray-700 font-medium transition-colors ${
+@@ -360,7 +382,7 @@ export function Header() {
+               {provinces.length > 0 && (
+                 <>
+                   <div className="px-4 pt-4 pb-2 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+-                    स्थानीय समाचार
++                    {t.localNews}
+                   </div>
+                   {provinces.map((province) => (
+                     <details key={province.$id} className="group">
+@@ -372,16 +394,16 @@ export function Header() {
+                       </summary>
+                       <div className="pb-2">
+                         <Link
+-                          to={`/category/${province.slug}`}
++                          to={to(`/category/${province.slug}`)}
+                           onClick={() => setMobileMenuOpen(false)}
+                           className="block pl-8 pr-4 py-2 text-sm text-secondary font-medium hover:bg-gray-50"
+                         >
+-                          सबै {province.name}
++                          {t.allOf(province.name)}
+                         </Link>
+                         {province.children.map((district) => (
+                           <div key={district.$id}>
+                             <Link
+-                              to={`/category/${district.slug}`}
++                              to={to(`/category/${district.slug}`)}
+                               onClick={() => setMobileMenuOpen(false)}
+                               className="block pl-8 pr-4 py-2 text-sm text-gray-600 hover:bg-gray-50"
+                             >
+@@ -390,7 +412,7 @@ export function Header() {
+                             {district.children.map((muni) => (
+                               <Link
+                                 key={muni.$id}
+-                                to={`/category/${muni.slug}`}
++                                to={to(`/category/${muni.slug}`)}
+                                 onClick={() => setMobileMenuOpen(false)}
+                                 className="block pl-12 pr-4 py-2 text-sm text-gray-500 hover:bg-gray-50"
+                               >
+@@ -406,15 +428,19 @@ export function Header() {
+               )}
+ 
+               <div className="border-t border-gray-100 mt-2 pt-2">
++                <LanguageSwitch
++                  onClick={() => setMobileMenuOpen(false)}
++                  className="flex items-center gap-3 px-4 py-3 text-secondary font-semibold hover:bg-gray-50 transition-colors"
++                />
+                 <Link
+-                  to="/search"
++                  to={to("/search")}
+                   onClick={() => setMobileMenuOpen(false)}
+                   className="flex items-center gap-3 px-4 py-3 text-gray-700 font-medium hover:bg-gray-50 transition-colors"
+                 >
+                   <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                   </svg>
+-                  खोज्नुहोस्
++                  {t.search}
+                 </Link>
+               </div>
+             </nav>
+@@ -422,7 +448,7 @@ export function Header() {
+             {/* Footer */}
+             <div className="p-4 border-t border-gray-100 bg-gray-50">
+               <p className="text-xs text-gray-500 text-center">
+-                © हाम्रो नेपाल न्युज पोर्टल
++                {t.copyrightShort}
+               </p>
+             </div>
+           </m.div>
+diff --git a/apps/web/src/components/layout/Layout.tsx b/apps/web/src/components/layout/Layout.tsx
+index 69d28ea..54248a7 100644
+--- a/apps/web/src/components/layout/Layout.tsx
++++ b/apps/web/src/components/layout/Layout.tsx
+@@ -2,12 +2,20 @@
+  * Main Layout Component
+  */
+ 
++import { useEffect } from "react";
+ import { Outlet, ScrollRestoration } from "react-router-dom";
++import { useLang } from "@/lib/i18n";
+ import { Header } from "./Header";
+ import { Footer } from "./Footer";
+ import { PromoPopup, PromoProvider, PromoSlot } from "@/components/promo";
+ 
+ export function Layout() {
++  const lang = useLang();
++  // Screen readers, fonts and translators follow the page language.
++  useEffect(() => {
++    document.documentElement.lang = lang;
++  }, [lang]);
++
+   return (
+     <PromoProvider>
+       <div className="min-h-screen flex flex-col">
+diff --git a/apps/web/src/components/layout/WeatherWidget.tsx b/apps/web/src/components/layout/WeatherWidget.tsx
+index d7ecb3b..a10a46f 100644
+--- a/apps/web/src/components/layout/WeatherWidget.tsx
++++ b/apps/web/src/components/layout/WeatherWidget.tsx
+@@ -15,6 +15,7 @@ import {
+   saveWeatherCity,
+ } from "@/services/weather.service";
+ import { toNepaliDigits } from "@/lib/bs-date";
++import { STRINGS, useT, type Lang } from "@/lib/i18n";
+ import { m } from "motion/react";
+ 
+ /** The new reading fades in when the city changes. */
+@@ -92,6 +93,7 @@ export function WeatherIcon({
+ 
+ /** One weather state for the whole header (it shows the weather twice: phone and desktop). */
+ export function useWeather() {
++  const { lang, t } = useT();
+   const [city, setCity] = useState(getSavedWeatherCity);
+   const [weather, setWeather] = useState<WeatherData | null>(null);
+   const [loading, setLoading] = useState(true);
+@@ -101,7 +103,7 @@ export function useWeather() {
+   useEffect(() => {
+     let cancelled = false;
+     setLoading(true);
+-    getWeather(city || undefined).then((w) => {
++    getWeather(city || undefined, lang).then((w) => {
+       if (cancelled) return;
+       setWeather(w);
+       setLoading(false);
+@@ -109,7 +111,7 @@ export function useWeather() {
+     return () => {
+       cancelled = true;
+     };
+-  }, [city]);
++  }, [city, lang]);
+ 
+   function choose(slug: string) {
+     setLocateError(null);
+@@ -119,7 +121,7 @@ export function useWeather() {
+       return;
+     }
+     if (!navigator.geolocation) {
+-      setLocateError("यो ब्राउजरमा स्थान पत्ता लगाउन मिल्दैन।");
++      setLocateError(t.noGeolocation);
+       return;
+     }
+     // The position stays in the browser: only the nearest listed city is used.
+@@ -132,23 +134,26 @@ export function useWeather() {
+         setLocating(false);
+       },
+       () => {
+-        setLocateError("स्थान पत्ता लाग्न सकेन। सूचीबाट सहर छान्नुहोस्।");
++        setLocateError(t.geolocationFailed);
+         setLocating(false);
+       },
+       { timeout: 10_000, maximumAge: 30 * 60_000 }
+     );
+   }
+ 
+-  return { city, weather, loading: loading || locating, locateError, choose };
++  return { city, weather, loading: loading || locating, locateError, choose, lang };
+ }
+ 
+ type WeatherState = ReturnType<typeof useWeather>;
+ 
++const cityName = (c: { name: string; nameEn: string }, lang: Lang) => (lang === "en" ? c.nameEn : c.name);
++
+ function CityPicker({ state, id, className = "" }: { state: WeatherState; id: string; className?: string }) {
++  const t = STRINGS[state.lang];
+   return (
+     <>
+       <label htmlFor={id} className="sr-only">
+-        मौसम हेर्ने सहर
++        {t.weatherCity}
+       </label>
+       <select
+         id={id}
+@@ -156,11 +161,13 @@ function CityPicker({ state, id, className = "" }: { state: WeatherState; id: st
+         onChange={(e) => state.choose(e.target.value)}
+         className={`bg-transparent border border-gray-200 rounded px-1 py-0.5 text-gray-600 hover:border-gray-400 cursor-pointer ${className}`}
+       >
+-        <option value="">{WEATHER_CITIES[0].name} (पूर्वनिर्धारित)</option>
+-        <option value={MY_LOCATION}>📍 मेरो स्थान</option>
++        <option value="">
++          {cityName(WEATHER_CITIES[0], state.lang)} ({t.weatherDefault})
++        </option>
++        <option value={MY_LOCATION}>📍 {t.myLocation}</option>
+         {WEATHER_CITIES.slice(1).map((c) => (
+           <option key={c.slug} value={c.slug}>
+-            {c.name}
++            {cityName(c, state.lang)}
+           </option>
+         ))}
+       </select>
+@@ -168,27 +175,30 @@ function CityPicker({ state, id, className = "" }: { state: WeatherState; id: st
+   );
+ }
+ 
+-const linkProps = {
+-  href: OFFICIAL_WEATHER_URL,
+-  target: "_blank",
+-  rel: "noopener noreferrer",
+-  title: "आधिकारिक मौसम पूर्वानुमान (जल तथा मौसम विज्ञान विभाग)",
+-} as const;
++const linkProps = (lang: Lang) =>
++  ({
++    href: OFFICIAL_WEATHER_URL,
++    target: "_blank",
++    rel: "noopener noreferrer",
++    title: STRINGS[lang].weatherOfficial,
++  }) as const;
+ 
+ /** Small version for the phone header bar. */
+ export function WeatherCompact({ state }: { state: WeatherState }) {
+-  const { weather, loading } = state;
++  const { weather, loading, lang } = state;
++  const t = STRINGS[lang];
++  const num = (n: number) => (lang === "en" ? String(n) : toNepaliDigits(n));
+   return (
+     <div className="flex items-center gap-1">
+-      <a {...linkProps} className="flex items-center gap-1 hover:text-primary">
++      <a {...linkProps(lang)} className="flex items-center gap-1 hover:text-primary">
+         {weather && !loading ? (
+           <m.span key={`${weather.city}-${weather.temp}`} className="flex items-center gap-1" {...fadeIn}>
+             <WeatherIcon condition={weather.condition} isDay={weather.isDay} className="w-4 h-4" />
+-            <span className="font-semibold">{toNepaliDigits(weather.temp)}°C</span>
++            <span className="font-semibold">{num(weather.temp)}°C</span>
+             {weather.summary && <span className="sr-only">, {weather.summary}</span>}
+           </m.span>
+         ) : (
+-          <span>{loading ? "…" : "मौसम"}</span>
++          <span>{loading ? "…" : t.weather}</span>
+         )}
+       </a>
+       <CityPicker state={state} id="weather-city-mobile" className="text-xs max-w-[6.5rem]" />
+@@ -198,25 +208,27 @@ export function WeatherCompact({ state }: { state: WeatherState }) {
+ 
+ /** Large version for the desktop header. */
+ export function WeatherFull({ state }: { state: WeatherState }) {
+-  const { weather, loading, locateError } = state;
++  const { weather, loading, locateError, lang } = state;
++  const t = STRINGS[lang];
++  const num = (n: number) => (lang === "en" ? String(n) : toNepaliDigits(n));
+   return (
+     <div className="inline-flex flex-col items-end gap-1">
+-      <a {...linkProps} className="inline-flex items-center gap-3 group">
++      <a {...linkProps(lang)} className="inline-flex items-center gap-3 group">
+         {weather && !loading ? (
+           <m.span key={`${weather.city}-${weather.temp}`} className="inline-flex items-center gap-3" {...fadeIn}>
+             <WeatherIcon condition={weather.condition} isDay={weather.isDay} className="w-10 h-10" />
+             <div className="text-right">
+               <p className="text-2xl font-bold text-gray-800 group-hover:text-primary">
+-                {toNepaliDigits(weather.temp)}°C
++                {num(weather.temp)}°C
+                 {weather.summary && <span className="ml-2 text-sm font-medium text-gray-600">{weather.summary}</span>}
+               </p>
+               <p className="text-xs text-gray-500">
+-                महसुस {toNepaliDigits(weather.feelsLike)}°C · आर्द्रता {toNepaliDigits(weather.humidity)}%
++                {t.feelsLike} {num(weather.feelsLike)}°C · {t.humidity} {num(weather.humidity)}%
+               </p>
+             </div>
+           </m.span>
+         ) : (
+-          <span className="text-sm text-gray-500 group-hover:text-primary">{loading ? "मौसम लोड हुँदै…" : "मौसम पूर्वानुमान हेर्नुहोस् ↗"}</span>
++          <span className="text-sm text-gray-500 group-hover:text-primary">{loading ? t.weatherLoading : t.weatherForecast}</span>
+         )}
+       </a>
+       <CityPicker state={state} id="weather-city" className="text-sm" />
+diff --git a/apps/web/src/components/news/ImageCredit.tsx b/apps/web/src/components/news/ImageCredit.tsx
+index 6a38156..1edefdd 100644
+--- a/apps/web/src/components/news/ImageCredit.tsx
++++ b/apps/web/src/components/news/ImageCredit.tsx
+@@ -1,16 +1,18 @@
+ import type { ImageCredit as Credit } from "@/types";
++import { useT } from "@/lib/i18n";
+ 
+ /**
+  * Caption under a photo: "प्रतीकात्मक तस्बिर · फोटो: Name / Pexels".
+  * Pexels asks for a photographer credit and a link back to Pexels.
+  */
+ export function ImageCredit({ credit, className = "" }: { credit?: Credit | null; className?: string }) {
++  const { t } = useT();
+   if (!credit?.name) return null;
+   const link = "underline underline-offset-2 hover:text-primary";
+   return (
+     <figcaption className={`text-xs text-gray-600 ${className}`}>
+-      {credit.symbolic && <span className="font-medium">प्रतीकात्मक तस्बिर · </span>}
+-      फोटो:{" "}
++      {credit.symbolic && <span className="font-medium">{t.symbolicPhoto} · </span>}
++      {t.photo}{" "}
+       {credit.url ? (
+         <a href={credit.url} target="_blank" rel="noopener noreferrer nofollow" className={link}>
+           {credit.name}
+diff --git a/apps/web/src/components/news/NewsCard.tsx b/apps/web/src/components/news/NewsCard.tsx
+index 23e31a7..595167a 100644
+--- a/apps/web/src/components/news/NewsCard.tsx
++++ b/apps/web/src/components/news/NewsCard.tsx
+@@ -8,6 +8,7 @@ import { Link } from "react-router-dom";
+ import { m } from "motion/react";
+ import type { Article } from "@/types";
+ import { getRelativeTimeNepali } from "@/lib/bs-date";
++import { authorLabel, useT } from "@/lib/i18n";
+ import { getArticleImageUrl } from "@/services/news.service";
+ import { FadeImage } from "@/components/ui/FadeImage";
+ 
+@@ -19,31 +20,35 @@ interface NewsCardProps {
+ const EASE = [0.16, 1, 0.3, 1] as const;
+ 
+ function BreakingTag({ className = "" }: { className?: string }) {
++  const { t } = useT();
+   return (
+     <span className={`inline-flex items-center gap-1.5 bg-primary text-white text-xs font-bold px-2 py-0.5 rounded ${className}`}>
+       <span className="w-1.5 h-1.5 rounded-full bg-white" aria-hidden="true" />
+-      ब्रेकिङ
++      {t.breaking}
+     </span>
+   );
+ }
+ 
+ function When({ article, className = "" }: { article: Article; className?: string }) {
+   const iso = article.publishedAt || article.$createdAt;
++  const { lang } = useT();
+   return (
+     <time dateTime={iso} className={className}>
+-      {getRelativeTimeNepali(iso)}
++      {getRelativeTimeNepali(iso, lang)}
+     </time>
+   );
+ }
+ 
+ export function NewsCard({ article, variant = "default" }: NewsCardProps) {
++  const { lang, to } = useT();
+   const imageUrl = getArticleImageUrl(article.featuredImage || "", 400, 250);
++  const href = to(`/news/${article.slug}`);
+ 
+   if (variant === "featured") {
+     // The page's one load moment: the photo settles, then the headline rises in.
+     return (
+-      <article className="group relative overflow-hidden rounded-xl bg-ink">
+-        <Link to={`/news/${article.slug}`} className="block">
++      <article lang={article.lang} className="group relative overflow-hidden rounded-xl bg-ink">
++        <Link to={href} className="block">
+           <m.div
+             className="aspect-[16/10] md:aspect-video overflow-hidden"
+             initial={{ scale: 1.06 }}
+@@ -70,7 +75,7 @@ export function NewsCard({ article, variant = "default" }: NewsCardProps) {
+             </h2>
+             <p className="text-white/80 text-sm md:text-base mt-2 line-clamp-2 max-w-2xl">{article.excerpt}</p>
+             <div className="flex items-center gap-3 mt-3 text-white/70 text-sm">
+-              {article.authorName && <span>{article.authorName}</span>}
++              {article.authorName && <span>{authorLabel(article.authorName, lang)}</span>}
+               <When article={article} />
+             </div>
+           </m.div>
+@@ -81,8 +86,8 @@ export function NewsCard({ article, variant = "default" }: NewsCardProps) {
+ 
+   if (variant === "horizontal") {
+     return (
+-      <article className="group flex gap-4">
+-        <Link to={`/news/${article.slug}`} className="flex-shrink-0 overflow-hidden rounded-lg" tabIndex={-1} aria-hidden="true">
++      <article lang={article.lang} className="group flex gap-4">
++        <Link to={href} className="flex-shrink-0 overflow-hidden rounded-lg" tabIndex={-1} aria-hidden="true">
+           <FadeImage
+             src={getArticleImageUrl(article.featuredImage || "", 200, 130)}
+             alt=""
+@@ -91,7 +96,7 @@ export function NewsCard({ article, variant = "default" }: NewsCardProps) {
+           />
+         </Link>
+         <div className="flex-1 min-w-0 py-0.5">
+-          <Link to={`/news/${article.slug}`}>
++          <Link to={href}>
+             <h3 className="text-ink font-semibold text-[1.05rem] line-clamp-2 transition-colors group-hover:text-primary">{article.title}</h3>
+           </Link>
+           <p className="text-gray-600 text-sm mt-1 line-clamp-2 hidden md:block">{article.excerpt}</p>
+@@ -103,8 +108,8 @@ export function NewsCard({ article, variant = "default" }: NewsCardProps) {
+ 
+   if (variant === "compact") {
+     return (
+-      <article className="group flex gap-3 py-3 border-b border-gray-100 last:border-0">
+-        <Link to={`/news/${article.slug}`} className="flex-shrink-0 overflow-hidden rounded-md" tabIndex={-1} aria-hidden="true">
++      <article lang={article.lang} className="group flex gap-3 py-3 border-b border-gray-100 last:border-0">
++        <Link to={href} className="flex-shrink-0 overflow-hidden rounded-md" tabIndex={-1} aria-hidden="true">
+           <FadeImage
+             src={getArticleImageUrl(article.featuredImage || "", 120, 80)}
+             alt=""
+@@ -113,7 +118,7 @@ export function NewsCard({ article, variant = "default" }: NewsCardProps) {
+           />
+         </Link>
+         <div className="flex-1 min-w-0">
+-          <Link to={`/news/${article.slug}`}>
++          <Link to={href}>
+             <h3 className="text-ink text-[0.95rem] font-semibold line-clamp-2 transition-colors group-hover:text-primary">{article.title}</h3>
+           </Link>
+           <When article={article} className="block text-gray-500 text-xs mt-1" />
+@@ -124,8 +129,8 @@ export function NewsCard({ article, variant = "default" }: NewsCardProps) {
+ 
+   // Default variant
+   return (
+-    <article className="group bg-white rounded-lg overflow-hidden ring-1 ring-gray-200/80">
+-      <Link to={`/news/${article.slug}`} tabIndex={-1} aria-hidden="true" className="block">
++    <article lang={article.lang} className="group bg-white rounded-lg overflow-hidden ring-1 ring-gray-200/80">
++      <Link to={href} tabIndex={-1} aria-hidden="true" className="block">
+         <div className="aspect-video overflow-hidden">
+           <FadeImage
+             src={imageUrl}
+@@ -137,7 +142,7 @@ export function NewsCard({ article, variant = "default" }: NewsCardProps) {
+       </Link>
+       <div className="p-4">
+         {article.isBreaking && <BreakingTag className="mb-2" />}
+-        <Link to={`/news/${article.slug}`}>
++        <Link to={href}>
+           <h3 className="text-ink font-bold text-lg line-clamp-2 transition-colors group-hover:text-primary">{article.title}</h3>
+         </Link>
+         <p className="text-gray-600 text-sm mt-2 line-clamp-2">{article.excerpt}</p>
+diff --git a/apps/web/src/components/news/NewsGrid.tsx b/apps/web/src/components/news/NewsGrid.tsx
+index 18d7170..77b6fa4 100644
+--- a/apps/web/src/components/news/NewsGrid.tsx
++++ b/apps/web/src/components/news/NewsGrid.tsx
+@@ -6,6 +6,7 @@
+ 
+ import type { Article } from "@/types";
+ import { NewsCard } from "./NewsCard";
++import { useT } from "@/lib/i18n";
+ 
+ interface NewsGridProps {
+   articles: Article[];
+@@ -18,6 +19,7 @@ export function NewsGrid({
+   columns = 3,
+   variant = "default",
+ }: NewsGridProps) {
++  const { t } = useT();
+   const gridCols = {
+     2: "grid-cols-1 md:grid-cols-2",
+     3: "grid-cols-1 md:grid-cols-2 lg:grid-cols-3",
+@@ -26,7 +28,7 @@ export function NewsGrid({
+ 
+   if (articles.length === 0) {
+     return (
+-      <div className="text-center py-12 text-gray-500">कुनै समाचार भेटिएन।</div>
++      <div className="text-center py-12 text-gray-500">{t.noNews}</div>
+     );
+   }
+ 
+diff --git a/apps/web/src/components/promo/PromoPopup.tsx b/apps/web/src/components/promo/PromoPopup.tsx
+index b143f54..74a5fd7 100644
+--- a/apps/web/src/components/promo/PromoPopup.tsx
++++ b/apps/web/src/components/promo/PromoPopup.tsx
+@@ -9,6 +9,7 @@ import { AnimatePresence, m } from "motion/react";
+ import { trackPromotionView } from "@/services/promotions.service";
+ import { PromoImage } from "./PromoSlot";
+ import { usePromotion } from "./PromoProvider";
++import { useT } from "@/lib/i18n";
+ 
+ const SEEN_KEY = "hn_popup_seen";
+ const SHOW_AFTER_MS = 1500;
+@@ -32,6 +33,7 @@ function markSeen() {
+ 
+ export function PromoPopup() {
+   const promo = usePromotion("popup");
++  const { t } = useT();
+   const [open, setOpen] = useState(false);
+ 
+   // Open once the ad has loaded, unless already seen this session.
+@@ -64,7 +66,7 @@ export function PromoPopup() {
+           key="promo-popup"
+           role="dialog"
+           aria-modal="true"
+-          aria-label={`विज्ञापन: ${promo.title}`}
++          aria-label={`${t.ad}: ${promo.title}`}
+           className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 p-4"
+           onClick={() => setOpen(false)}
+           initial={{ opacity: 0 }}
+@@ -81,14 +83,14 @@ export function PromoPopup() {
+             transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
+           >
+             <div className="flex items-center justify-between mb-2 text-white text-sm">
+-              <span>विज्ञापन</span>
++              <span>{t.ad}</span>
+               <button
+                 type="button"
+                 autoFocus
+                 onClick={() => setOpen(false)}
+                 className="px-3 py-1 rounded bg-white/20 hover:bg-white/30 font-medium"
+               >
+-                ✕ बन्द गर्नुहोस्
++                ✕ {t.close}
+               </button>
+             </div>
+             <div className="max-h-[80vh] overflow-auto rounded-lg bg-white">
+diff --git a/apps/web/src/components/promo/PromoSlot.tsx b/apps/web/src/components/promo/PromoSlot.tsx
+index 0535c85..34a22ad 100644
+--- a/apps/web/src/components/promo/PromoSlot.tsx
++++ b/apps/web/src/components/promo/PromoSlot.tsx
+@@ -7,6 +7,7 @@ import { useEffect, useRef } from "react";
+ import type { Promotion, WebPromoPlacement } from "@/types";
+ import { promotionClickUrl, promotionImageUrl, trackPromotionView } from "@/services/promotions.service";
+ import { usePromotion } from "./PromoProvider";
++import { STRINGS, useLang } from "@/lib/i18n";
+ 
+ /** Count a view when at least half the banner has been visible. */
+ function useViewOnce(promo: Promotion | undefined) {
+@@ -35,12 +36,13 @@ function useViewOnce(promo: Promotion | undefined) {
+ 
+ /** The banner image, with the phone version below 768px when there is one. */
+ export function PromoImage({ promo, eager = false, className = "" }: { promo: Promotion; eager?: boolean; className?: string }) {
++  const t = STRINGS[useLang()];
+   const img = (
+     <picture>
+       {promo.mobileImageUrl && <source media="(max-width: 767px)" srcSet={promotionImageUrl(promo.mobileImageUrl)} />}
+       <img
+         src={promotionImageUrl(promo.imageUrl)}
+-        alt={`विज्ञापन: ${promo.title}`}
++        alt={`${t.ad}: ${promo.title}`}
+         loading={eager ? "eager" : "lazy"}
+         className={`block w-full h-auto ${className}`}
+       />
+@@ -64,12 +66,13 @@ export function PromoSlot({
+   className?: string;
+ }) {
+   const promo = usePromotion(placement, nth);
++  const lang = useLang();
+   const ref = useViewOnce(promo);
+   if (!promo) return null;
+   const narrow = placement === "sidebar";
+   return (
+     <div ref={ref} className={`${narrow ? "max-w-[300px] mx-auto" : ""} ${className}`}>
+-      <p className="text-[11px] leading-none text-gray-500 mb-1 text-center">विज्ञापन</p>
++      <p className="text-[11px] leading-none text-gray-500 mb-1 text-center">{STRINGS[lang].ad}</p>
+       <PromoImage promo={promo} eager={placement === "header"} className="rounded" />
+     </div>
+   );
+diff --git a/apps/web/src/components/ui/ErrorState.tsx b/apps/web/src/components/ui/ErrorState.tsx
+index 97214d9..842b444 100644
+--- a/apps/web/src/components/ui/ErrorState.tsx
++++ b/apps/web/src/components/ui/ErrorState.tsx
+@@ -2,17 +2,16 @@
+  * Error State Component
+  */
+ 
++import { useT } from "@/lib/i18n";
++
+ interface ErrorStateProps {
+   title?: string;
+   message?: string;
+   onRetry?: () => void;
+ }
+ 
+-export function ErrorState({
+-  title = "त्रुटि भयो",
+-  message = "डाटा लोड गर्न सकिएन। कृपया पुन: प्रयास गर्नुहोस्।",
+-  onRetry,
+-}: ErrorStateProps) {
++export function ErrorState({ title, message, onRetry }: ErrorStateProps) {
++  const { t } = useT();
+   return (
+     <div className="text-center py-12">
+       <div className="inline-flex items-center justify-center w-16 h-16 bg-red-100 rounded-full mb-4">
+@@ -30,14 +29,14 @@ export function ErrorState({
+           />
+         </svg>
+       </div>
+-      <h3 className="text-lg font-semibold text-gray-900 mb-2">{title}</h3>
+-      <p className="text-gray-600 mb-4">{message}</p>
++      <h3 className="text-lg font-semibold text-gray-900 mb-2">{title ?? t.errorTitle}</h3>
++      <p className="text-gray-600 mb-4">{message ?? t.errorMessage}</p>
+       {onRetry && (
+         <button
+           onClick={onRetry}
+           className="inline-flex items-center px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-dark transition-colors"
+         >
+-          पुन: प्रयास गर्नुहोस्
++          {t.retry}
+         </button>
+       )}
+     </div>
+diff --git a/apps/web/src/components/ui/SectionTitle.tsx b/apps/web/src/components/ui/SectionTitle.tsx
+index 26cf43a..e0f9aa3 100644
+--- a/apps/web/src/components/ui/SectionTitle.tsx
++++ b/apps/web/src/components/ui/SectionTitle.tsx
+@@ -4,11 +4,12 @@
+ 
+ import { Link } from "react-router-dom";
+ import { Pennant } from "./Pennant";
++import { useT } from "@/lib/i18n";
+ 
+ export function SectionTitle({
+   title,
+   to,
+-  linkLabel = "थप हेर्नुहोस्",
++  linkLabel,
+   size = "large",
+   className = "",
+ }: {
+@@ -19,6 +20,7 @@ export function SectionTitle({
+   size?: "large" | "small";
+   className?: string;
+ }) {
++  const { t } = useT();
+   const large = size === "large";
+   return (
+     <div className={`flex items-center justify-between gap-4 ${large ? "mb-5" : "mb-3"} ${className}`}>
+@@ -31,7 +33,7 @@ export function SectionTitle({
+           to={to}
+           className="group/more inline-flex items-center gap-1 text-sm font-semibold text-primary hover:text-primary-dark"
+         >
+-          {linkLabel}
++          {linkLabel ?? t.seeMore}
+           <svg
+             className="w-4 h-4 transition-transform duration-200 group-hover/more:translate-x-0.5 motion-reduce:transition-none"
+             fill="none"
+diff --git a/apps/web/src/lib/i18n.ts b/apps/web/src/lib/i18n.ts
+new file mode 100644
+index 0000000..8bca625
+--- /dev/null
++++ b/apps/web/src/lib/i18n.ts
+@@ -0,0 +1,285 @@
++/**
++ * The English site: the same pages under /en (/en/news/<slug>, /en/category/<slug>…).
++ *
++ * The language comes from the URL, so every page has one address per language
++ * (what the API's hreflang tags and sitemap point to). Stories come translated
++ * from the API (?lang=en); this file holds the site's own words.
++ */
++
++import { useLocation } from "react-router-dom";
++import { localDigits } from "@hamronepal/shared";
++import type { Lang } from "@/types";
++
++export type { Lang };
++
++export function langFromPath(pathname: string): Lang {
++  return pathname === "/en" || pathname.startsWith("/en/") ? "en" : "ne";
++}
++
++/** A site path in a language: "/news/x" → "/en/news/x" on the English site. */
++export function localPath(path: string, lang: Lang): string {
++  if (lang === "ne") return path;
++  return path === "/" ? "/en" : `/en${path.startsWith("/") ? path : `/${path}`}`;
++}
++
++/** The same page in the other language (keeps ?query). */
++export function otherLanguagePath(pathname: string, search: string, to: Lang): string {
++  const bare = langFromPath(pathname) === "en" ? pathname.slice(3) || "/" : pathname;
++  return localPath(bare, to) + search;
++}
++
++/** For API calls: only the English site adds ?lang=en, so Nepali URLs (and caches) stay as they were. */
++export const langQuery = (lang?: Lang) => (lang === "en" ? "en" : undefined);
++
++/** The pipeline's system author; shown under its English name on the English site. */
++const AI_DESK_NAME = "हाम्रो नेपाल AI डेस्क";
++
++const ne = {
++  siteName: "हाम्रो नेपाल",
++  brand: ["हाम्रो", "नेपाल"] as [string, string],
++  tagline: "तपाईंको ठाउँको, देशभरको समाचार",
++  defaultTitle: "हाम्रो नेपाल - नेपालको विश्वसनीय समाचार पोर्टल",
++  homeHeading: "हाम्रो नेपाल – ताजा नेपाली समाचार",
++  homeLink: "हाम्रो नेपाल गृहपृष्ठ",
++  home: "गृहपृष्ठ",
++  search: "खोज्नुहोस्",
++  menu: "मेनु",
++  mainMenu: "मुख्य मेनु",
++  mobileMenu: "मोबाइल मेनु",
++  openMenu: "मेनु खोल्नुहोस्",
++  closeMenu: "मेनु बन्द गर्नुहोस्",
++  categories: "श्रेणीहरू",
++  local: "स्थानीय",
++  localNews: "स्थानीय समाचार",
++  allOf: (name: string) => `सबै ${name}`,
++  breaking: "ब्रेकिङ",
++  copyrightShort: "© हाम्रो नेपाल न्युज पोर्टल",
++  /** Link to the other language (shown in that language). */
++  switchLabel: "English",
++  switchTitle: "Read Hamro Nepal in English",
++
++  // footer
++  about: "नेपालको विश्वसनीय समाचार पोर्टल। राजनीति, अर्थतन्त्र, खेलकुद, मनोरञ्जन र अन्य विविध समाचारहरू।",
++  quickLinks: "द्रुत लिङ्कहरू",
++  allNews: "सबै समाचार",
++  rssFeed: "RSS फिड",
++  newsCategories: "समाचार श्रेणीहरू",
++  footerTopics: [
++    ["rajniti", "राजनीति"],
++    ["arthatantra", "अर्थतन्त्र"],
++    ["khelkud", "खेलकुद"],
++    ["manoranjan", "मनोरञ्जन"],
++  ] as Array<[string, string]>,
++  contact: "सम्पर्क",
++  phone: "फोन",
++  email: "इमेल",
++  rights: (year: string) => `© ${year} हाम्रो नेपाल। सर्वाधिकार सुरक्षित।`,
++  pexelsBefore: "केही प्रतीकात्मक तस्बिरहरू",
++  pexelsAfter: "बाट।",
++
++  // home
++  topStories: "मुख्य समाचार",
++  latestNews: "ताजा समाचार",
++  seeAll: "सबै हेर्नुहोस्",
++  seeMore: "थप हेर्नुहोस्",
++  localPrefix: (name: string) => `स्थानीय: ${name}`,
++  moreNews: "अन्य समाचार",
++  homeError: "गृहपृष्ठ लोड गर्न सकिएन।",
++  homeEmpty: "अहिले कुनै समाचार छैन।",
++  homeEmptyLink: "",
++
++  // category
++  breadcrumb: "ब्रेडक्रम्ब",
++  categoryNotFound: "श्रेणी भेटिएन।",
++  categoryError: "श्रेणी लोड गर्न सकिएन।",
++  loading: "लोड हुँदैछ...",
++  totalNews: (n: string) => `कुल ${n} समाचार`,
++  newsHeading: "समाचारहरू",
++  loadMoreNews: "थप समाचार हेर्नुहोस्",
++  categoryEmpty: "यस श्रेणीमा कुनै समाचार छैन।",
++
++  // article
++  articleNotFound: "समाचार भेटिएन।",
++  articleError: "समाचार लोड गर्न सकिएन।",
++  views: (n: string) => `${n} पटक हेरिएको`,
++  aiNote: (source?: string) =>
++    `यो समाचार AI को सहायताले ${source ? `${source}को` : "अन्य सञ्चारमाध्यमको"} रिपोर्टका आधारमा तयार पारी हाम्रो सम्पादकले जाँच गरेका हुन्।`,
++  tags: "ट्यागहरू:",
++  share: "सेयर गर्नुहोस्:",
++  related: "सम्बन्धित समाचार",
++  noRelated: "कुनै सम्बन्धित समाचार भेटिएन।",
++  notTranslated: "",
++  readInNepali: "",
++
++  // search
++  searchTitle: "खोज",
++  searchHeading: "समाचार खोज",
++  searchLabel: "समाचार खोज्नुहोस्",
++  searchPlaceholder: "समाचार खोज्नुहोस्...",
++  searchError: "खोज्न सकिएन।",
++  searchFound: (q: string, n: string) => `“${q}” को लागि ${n} समाचार भेटिए`,
++  searchNone: "कुनै समाचार भेटिएन। अर्को शब्दले खोज्नुहोस्।",
++  moreResults: "थप समाचार",
++  noNews: "कुनै समाचार भेटिएन।",
++
++  // 404
++  notFoundTitle: "पृष्ठ भेटिएन",
++  notFoundText: "तपाईंले खोज्नुभएको पृष्ठ अवस्थित छैन वा हटाइएको हुन सक्छ।",
++  goHome: "गृहपृष्ठमा जानुहोस्",
++
++  // shared bits
++  errorTitle: "त्रुटि भयो",
++  errorMessage: "डाटा लोड गर्न सकिएन। कृपया पुन: प्रयास गर्नुहोस्।",
++  retry: "पुन: प्रयास गर्नुहोस्",
++  ad: "विज्ञापन",
++  close: "बन्द गर्नुहोस्",
++  symbolicPhoto: "प्रतीकात्मक तस्बिर",
++  photo: "फोटो:",
++
++  // weather
++  weather: "मौसम",
++  weatherCity: "मौसम हेर्ने सहर",
++  weatherDefault: "पूर्वनिर्धारित",
++  myLocation: "मेरो स्थान",
++  weatherOfficial: "आधिकारिक मौसम पूर्वानुमान (जल तथा मौसम विज्ञान विभाग)",
++  feelsLike: "महसुस",
++  humidity: "आर्द्रता",
++  weatherLoading: "मौसम लोड हुँदै…",
++  weatherForecast: "मौसम पूर्वानुमान हेर्नुहोस् ↗",
++  noGeolocation: "यो ब्राउजरमा स्थान पत्ता लगाउन मिल्दैन।",
++  geolocationFailed: "स्थान पत्ता लाग्न सकेन। सूचीबाट सहर छान्नुहोस्।",
++};
++
++export type Strings = typeof ne;
++
++const en: Strings = {
++  siteName: "Hamro Nepal",
++  brand: ["Hamro", "Nepal"],
++  tagline: "News from your town and all of Nepal",
++  defaultTitle: "Hamro Nepal - Trusted news from Nepal",
++  homeHeading: "Hamro Nepal – latest news from Nepal in English",
++  homeLink: "Hamro Nepal home",
++  home: "Home",
++  search: "Search",
++  menu: "Menu",
++  mainMenu: "Main menu",
++  mobileMenu: "Mobile menu",
++  openMenu: "Open menu",
++  closeMenu: "Close menu",
++  categories: "Sections",
++  local: "Local",
++  localNews: "Local news",
++  allOf: (name: string) => `All of ${name}`,
++  breaking: "Breaking",
++  copyrightShort: "© Hamro Nepal news portal",
++  switchLabel: "नेपाली",
++  switchTitle: "हाम्रो नेपाल नेपालीमा पढ्नुहोस्",
++
++  about: "Trusted news from Nepal: politics, the economy, sports, entertainment and more, in English.",
++  quickLinks: "Quick links",
++  allNews: "All news",
++  rssFeed: "RSS feed (Nepali)",
++  newsCategories: "Sections",
++  footerTopics: [
++    ["rajniti", "Politics"],
++    ["arthatantra", "Economy"],
++    ["khelkud", "Sports"],
++    ["manoranjan", "Entertainment"],
++  ],
++  contact: "Contact",
++  phone: "Phone",
++  email: "Email",
++  rights: (year: string) => `© ${year} Hamro Nepal. All rights reserved.`,
++  pexelsBefore: "Some representative photos from",
++  pexelsAfter: ".",
++
++  topStories: "Top stories",
++  latestNews: "Latest news",
++  seeAll: "See all",
++  seeMore: "See more",
++  localPrefix: (name: string) => `Local: ${name}`,
++  moreNews: "More news",
++  homeError: "Could not load the home page.",
++  homeEmpty: "English versions of our stories will appear here soon.",
++  homeEmptyLink: "Read the latest news in Nepali →",
++
++  breadcrumb: "Breadcrumb",
++  categoryNotFound: "Section not found.",
++  categoryError: "Could not load this section.",
++  loading: "Loading...",
++  totalNews: (n: string) => `${n} ${n === "1" ? "story" : "stories"}`,
++  newsHeading: "Stories",
++  loadMoreNews: "Load more stories",
++  categoryEmpty: "No English stories in this section yet.",
++
++  articleNotFound: "Story not found.",
++  articleError: "Could not load this story.",
++  views: (n: string) => `${n} ${n === "1" ? "view" : "views"}`,
++  aiNote: (source?: string) =>
++    `This story was prepared with the help of AI from ${source ? `a report by ${source}` : "other outlets' reports"}, checked by our editors and translated into English.`,
++  tags: "Tags:",
++  share: "Share:",
++  related: "Related news",
++  noRelated: "No related news found.",
++  notTranslated: "This story is not available in English yet. Here is the Nepali original.",
++  readInNepali: "Read on the Nepali site",
++
++  searchTitle: "Search",
++  searchHeading: "Search news",
++  searchLabel: "Search news",
++  searchPlaceholder: "Search news in English...",
++  searchError: "Search failed.",
++  searchFound: (q: string, n: string) => `${n} ${n === "1" ? "story" : "stories"} found for “${q}”`,
++  searchNone: "No stories found. Try another word.",
++  moreResults: "More results",
++  noNews: "No stories found.",
++
++  notFoundTitle: "Page not found",
++  notFoundText: "The page you are looking for does not exist or may have been removed.",
++  goHome: "Go to the home page",
++
++  errorTitle: "Something went wrong",
++  errorMessage: "Could not load the data. Please try again.",
++  retry: "Try again",
++  ad: "Advertisement",
++  close: "Close",
++  symbolicPhoto: "Representative image",
++  photo: "Photo:",
++
++  weather: "Weather",
++  weatherCity: "City for the weather",
++  weatherDefault: "default",
++  myLocation: "My location",
++  weatherOfficial: "Official weather forecast (Department of Hydrology and Meteorology)",
++  feelsLike: "Feels like",
++  humidity: "Humidity",
++  weatherLoading: "Loading weather…",
++  weatherForecast: "See the forecast ↗",
++  noGeolocation: "This browser cannot find your location.",
++  geolocationFailed: "Could not find your location. Choose a city from the list.",
++};
++
++export const STRINGS: Record<Lang, Strings> = { ne, en };
++
++/** Author line: the AI desk has an English name; people's names are shown as written. */
++export function authorLabel(name: string | undefined, lang: Lang): string | undefined {
++  return lang === "en" && name === AI_DESK_NAME ? "Hamro Nepal AI Desk" : name;
++}
++
++/** The page's language from the URL. Only for components inside the router. */
++export function useLang(): Lang {
++  return langFromPath(useLocation().pathname);
++}
++
++/** Everything a public component needs for the reader's language. */
++export function useT() {
++  const lang = useLang();
++  return {
++    lang,
++    t: STRINGS[lang],
++    /** A site path in this language. */
++    to: (path: string) => localPath(path, lang),
++    /** Digits in this language (१२ / 12). */
++    num: (n: number | string) => localDigits(n, lang),
++  };
++}
+diff --git a/apps/web/src/lib/site.ts b/apps/web/src/lib/site.ts
+index 4fc0a57..a6b4849 100644
+--- a/apps/web/src/lib/site.ts
++++ b/apps/web/src/lib/site.ts
+@@ -4,6 +4,8 @@
+  */
+ export const SITE_CONTACT = {
+   address: "काठमाडौं, नेपाल",
++  /** The address on the English site. */
++  addressEn: "Kathmandu, Nepal",
+   phone: "",
+   email: "",
+   social: {
+diff --git a/apps/web/src/lib/useDocumentTitle.ts b/apps/web/src/lib/useDocumentTitle.ts
+index 9535490..e535852 100644
+--- a/apps/web/src/lib/useDocumentTitle.ts
++++ b/apps/web/src/lib/useDocumentTitle.ts
+@@ -1,11 +1,12 @@
+ import { useEffect } from "react";
++import { STRINGS, useLang } from "./i18n";
+ 
+-export const SITE_NAME = "हाम्रो नेपाल";
+-const DEFAULT_TITLE = `${SITE_NAME} - नेपालको विश्वसनीय समाचार पोर्टल`;
++export const SITE_NAME = STRINGS.ne.siteName;
+ 
+ /** Sets the browser tab title. Pass nothing (or null while loading) for the site default. */
+ export function useDocumentTitle(title?: string | null) {
++  const t = STRINGS[useLang()];
+   useEffect(() => {
+-    document.title = title ? `${title} - ${SITE_NAME}` : DEFAULT_TITLE;
+-  }, [title]);
++    document.title = title ? `${title} - ${t.siteName}` : t.defaultTitle;
++  }, [title, t]);
+ }
+diff --git a/apps/web/src/pages/CategoryPage.tsx b/apps/web/src/pages/CategoryPage.tsx
+index 9eeaefe..7d2b330 100644
+--- a/apps/web/src/pages/CategoryPage.tsx
++++ b/apps/web/src/pages/CategoryPage.tsx
+@@ -15,23 +15,23 @@ import {
+ import { NewsGrid } from "@/components/news/NewsGrid";
+ import { NewsGridSkeleton, SidebarSkeleton } from "@/components/ui/Skeleton";
+ import { ErrorState } from "@/components/ui/ErrorState";
+-import { toNepaliDigits } from "@/lib/bs-date";
++import { STRINGS, useT, type Lang } from "@/lib/i18n";
+ import { useDocumentTitle } from "@/lib/useDocumentTitle";
+ import { PromoSlot } from "@/components/promo";
+ import { Pennant } from "@/components/ui/Pennant";
+ import { SectionTitle } from "@/components/ui/SectionTitle";
+ 
+ /** "/category/all" lists every published article. */
+-const ALL_NEWS: Category = {
++const allNews = (lang: Lang): Category => ({
+   $id: "all",
+   $createdAt: "",
+   $updatedAt: "",
+-  name: "ताजा समाचार",
++  name: STRINGS[lang].latestNews,
+   slug: "all",
+   sortOrder: 0,
+   isActive: true,
+   type: "topic",
+-};
++});
+ 
+ export function CategoryPage() {
+   const { slug } = useParams<{ slug: string }>();
+@@ -45,10 +45,11 @@ export function CategoryPage() {
+   const [error, setError] = useState<string | null>(null);
+ 
+   const ITEMS_PER_PAGE = 12;
++  const { lang, t, to, num } = useT();
+ 
+   function fetchPage(cat: Category, offset: number) {
+     const page = { limit: ITEMS_PER_PAGE, offset };
+-    return cat.$id === ALL_NEWS.$id ? getPublishedArticles(page) : getArticlesByCategory(cat.$id, page);
++    return cat.$id === "all" ? getPublishedArticles(page, lang) : getArticlesByCategory(cat.$id, page, lang);
+   }
+ 
+   async function loadCategory() {
+@@ -61,12 +62,12 @@ export function CategoryPage() {
+ 
+     try {
+       const [cat, cats] = await Promise.all([
+-        slug === "all" ? Promise.resolve(ALL_NEWS) : getCategoryBySlug(slug),
+-        getCategories(),
++        slug === "all" ? Promise.resolve(allNews(lang)) : getCategoryBySlug(slug, lang),
++        getCategories(lang),
+       ]);
+ 
+       if (!cat) {
+-        setError("श्रेणी भेटिएन।");
++        setError(t.categoryNotFound);
+         setIsLoading(false);
+         return;
+       }
+@@ -80,7 +81,7 @@ export function CategoryPage() {
+       setTotal(result.total);
+     } catch (err) {
+       console.error("Failed to load category:", err);
+-      setError("श्रेणी लोड गर्न सकिएन।");
++      setError(t.categoryError);
+     } finally {
+       setIsLoading(false);
+     }
+@@ -106,7 +107,7 @@ export function CategoryPage() {
+ 
+   useEffect(() => {
+     loadCategory();
+-  }, [slug]);
++  }, [slug, lang]);
+ 
+   useDocumentTitle(isLoading ? null : category?.name);
+ 
+@@ -123,9 +124,9 @@ export function CategoryPage() {
+   return (
+     <div className="container mx-auto px-4 py-6">
+       {/* Breadcrumb */}
+-      <nav className="text-sm text-gray-500 mb-4" aria-label="ब्रेडक्रम्ब">
+-        <Link to="/" className="hover:text-primary">
+-          गृहपृष्ठ
++      <nav className="text-sm text-gray-500 mb-4" aria-label={t.breadcrumb}>
++        <Link to={to("/")} className="hover:text-primary">
++          {t.home}
+         </Link>
+         <span className="mx-2">/</span>
+         <span className="text-gray-900">{category?.name || "..."}</span>
+@@ -138,14 +139,14 @@ export function CategoryPage() {
+           <div className="bg-white rounded-xl p-6 mb-6 ring-1 ring-gray-200/80 border-t-4 border-primary">
+             <h1 className="flex items-center gap-3 text-3xl md:text-4xl font-bold text-ink">
+               <Pennant className="w-4 h-5" />
+-              {isLoading ? "लोड हुँदैछ..." : category?.name}
++              {isLoading ? t.loading : category?.name}
+             </h1>
+             {category?.description && (
+               <p className="text-gray-600 mt-3">{category.description}</p>
+             )}
+             {!isLoading && (
+               <p className="text-sm text-gray-500 mt-2">
+-                कुल {toNepaliDigits(total)} समाचार
++                {t.totalNews(num(total))}
+               </p>
+             )}
+           </div>
+@@ -155,7 +156,7 @@ export function CategoryPage() {
+             <NewsGridSkeleton count={6} />
+           ) : articles.length > 0 ? (
+             <>
+-              <h2 className="sr-only">समाचारहरू</h2>
++              <h2 className="sr-only">{t.newsHeading}</h2>
+               <NewsGrid articles={articles} columns={3} />
+ 
+               {/* Load More Button */}
+@@ -187,10 +188,10 @@ export function CategoryPage() {
+                             d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                           />
+                         </svg>
+-                        लोड हुँदैछ...
++                        {t.loading}
+                       </>
+                     ) : (
+-                      "थप समाचार हेर्नुहोस्"
++                      t.loadMoreNews
+                     )}
+                   </button>
+                 </div>
+@@ -198,7 +199,7 @@ export function CategoryPage() {
+             </>
+           ) : (
+             <div className="bg-white rounded-lg p-12 text-center text-gray-500">
+-              यस श्रेणीमा कुनै समाचार छैन।
++              {t.categoryEmpty}
+             </div>
+           )}
+         </div>
+@@ -209,7 +210,7 @@ export function CategoryPage() {
+ 
+           {/* Categories List */}
+           <div className="bg-white rounded-xl p-4 ring-1 ring-gray-200/80 sticky top-24">
+-            <SectionTitle title="श्रेणीहरू" size="small" />
++            <SectionTitle title={t.categories} size="small" />
+ 
+             {isLoading ? (
+               <SidebarSkeleton />
+@@ -218,7 +219,7 @@ export function CategoryPage() {
+                 {allCategories.map((cat) => (
+                   <li key={cat.$id}>
+                     <Link
+-                      to={`/category/${cat.slug}`}
++                      to={to(`/category/${cat.slug}`)}
+                       className={`block px-3 py-2 rounded-md transition-colors ${
+                         cat.slug === slug
+                           ? "bg-primary text-white"
+diff --git a/apps/web/src/pages/HomePage.tsx b/apps/web/src/pages/HomePage.tsx
+index 3563019..32851cb 100644
+--- a/apps/web/src/pages/HomePage.tsx
++++ b/apps/web/src/pages/HomePage.tsx
+@@ -5,6 +5,8 @@
+  */
+ 
+ import { useState, useEffect } from "react";
++import { Link } from "react-router-dom";
++import { useT } from "@/lib/i18n";
+ import type { Article, Category } from "@/types";
+ import { getHomeData } from "@/services/news.service";
+ import { NewsCard } from "@/components/news/NewsCard";
+@@ -33,13 +35,14 @@ export function HomePage() {
+   const [data, setData] = useState<HomeData | null>(null);
+   const [isLoading, setIsLoading] = useState(true);
+   const [error, setError] = useState<string | null>(null);
++  const { lang, t, to } = useT();
+ 
+   async function loadData() {
+     setIsLoading(true);
+     setError(null);
+ 
+     try {
+-      const home = await getHomeData();
++      const home = await getHomeData(lang);
+       const sections = home.sections.slice(0, 3);
+       const categoryArticles: Record<string, Article[]> = {};
+       for (const s of sections) categoryArticles[s.category.$id] = s.articles;
+@@ -67,7 +70,7 @@ export function HomePage() {
+       });
+     } catch (err) {
+       console.error("Failed to load home page:", err);
+-      setError("गृहपृष्ठ लोड गर्न सकिएन।");
++      setError(t.homeError);
+     } finally {
+       setIsLoading(false);
+     }
+@@ -75,7 +78,7 @@ export function HomePage() {
+ 
+   useEffect(() => {
+     loadData();
+-  }, []);
++  }, [lang]);
+ 
+   useDocumentTitle();
+ 
+@@ -89,7 +92,19 @@ export function HomePage() {
+ 
+   return (
+     <div className="container mx-auto px-4 py-6">
+-      <h1 className="sr-only">हाम्रो नेपाल – ताजा नेपाली समाचार</h1>
++      <h1 className="sr-only">{t.homeHeading}</h1>
++
++      {/* The English site before any story has been translated. */}
++      {!isLoading && data && data.latest.length === 0 && (
++        <div className="bg-white rounded-xl p-10 ring-1 ring-gray-200/80 text-center text-gray-600 mb-8">
++          <p>{t.homeEmpty}</p>
++          {t.homeEmptyLink && (
++            <Link to="/" lang="ne" className="inline-block mt-3 font-semibold text-primary hover:text-primary-dark">
++              {t.homeEmptyLink}
++            </Link>
++          )}
++        </div>
++      )}
+ 
+       {/* Featured Section */}
+       <section className="mb-8">
+@@ -114,7 +129,7 @@ export function HomePage() {
+               {/* Side list (hidden when there is nothing else to show) */}
+               {data.side.length > 0 && (
+               <div className="bg-white rounded-xl p-4 ring-1 ring-gray-200/80">
+-                <SectionTitle title="मुख्य समाचार" size="small" />
++                <SectionTitle title={t.topStories} size="small" />
+                 <div className="space-y-0">
+                   {data.side.map((article) => (
+                     <NewsCard
+@@ -132,8 +147,9 @@ export function HomePage() {
+       </section>
+ 
+       {/* Latest News Section */}
++      {(isLoading || !!data?.latest.length) && (
+       <section className="mb-10">
+-        <SectionTitle title="ताजा समाचार" to="/category/all" linkLabel="सबै हेर्नुहोस्" />
++        <SectionTitle title={t.latestNews} to={to("/category/all")} linkLabel={t.seeAll} />
+ 
+         {isLoading ? (
+           <NewsGridSkeleton count={6} />
+@@ -143,6 +159,7 @@ export function HomePage() {
+           )
+         )}
+       </section>
++      )}
+ 
+       <PromoSlot placement="home" className="mb-10" />
+ 
+@@ -150,7 +167,7 @@ export function HomePage() {
+       {!isLoading &&
+         data?.local.map(({ category, articles }) => (
+           <section key={category.$id} className="mb-10">
+-            <SectionTitle title={`स्थानीय: ${category.name}`} to={`/category/${category.slug}`} />
++            <SectionTitle title={t.localPrefix(category.name)} to={to(`/category/${category.slug}`)} />
+             <NewsGrid articles={articles.slice(0, 4)} columns={4} />
+           </section>
+         ))}
+@@ -163,7 +180,7 @@ export function HomePage() {
+ 
+           return (
+             <section key={category.$id} className="mb-10">
+-              <SectionTitle title={category.name} to={`/category/${category.slug}`} />
++              <SectionTitle title={category.name} to={to(`/category/${category.slug}`)} />
+ 
+               <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+                 {/* Main article */}
+@@ -194,7 +211,7 @@ export function HomePage() {
+       {/* More Latest News */}
+       {!isLoading && data?.latest && data.latest.length > 6 && (
+         <section className="mb-10">
+-          <SectionTitle title="अन्य समाचार" />
++          <SectionTitle title={t.moreNews} />
+           <NewsGrid articles={data.latest.slice(6)} columns={4} />
+         </section>
+       )}
+diff --git a/apps/web/src/pages/NewsDetailPage.tsx b/apps/web/src/pages/NewsDetailPage.tsx
+index 8498885..405921a 100644
+--- a/apps/web/src/pages/NewsDetailPage.tsx
++++ b/apps/web/src/pages/NewsDetailPage.tsx
+@@ -29,7 +29,9 @@ import { ErrorState } from "@/components/ui/ErrorState";
+ import { ImageCredit } from "@/components/news/ImageCredit";
+ import { PromoSlot } from "@/components/promo";
+ import { SectionTitle } from "@/components/ui/SectionTitle";
+-import { formatDualDate, toNepaliDigits } from "@/lib/bs-date";
++import { formatDualDate } from "@/lib/bs-date";
++import { STRINGS, authorLabel, useT } from "@/lib/i18n";
++import { useDocumentTitle } from "@/lib/useDocumentTitle";
+ 
+ export function NewsDetailPage() {
+   const { slug } = useParams<{ slug: string }>();
+@@ -38,6 +40,7 @@ export function NewsDetailPage() {
+   const [relatedArticles, setRelatedArticles] = useState<Article[]>([]);
+   const [isLoading, setIsLoading] = useState(true);
+   const [error, setError] = useState<string | null>(null);
++  const { lang, t, to, num } = useT();
+ 
+   async function loadArticle() {
+     if (!slug) return;
+@@ -46,31 +49,30 @@ export function NewsDetailPage() {
+     setError(null);
+ 
+     try {
+-      const art = await getArticleBySlug(slug);
++      const art = await getArticleBySlug(slug, lang);
+ 
+       if (!art) {
+-        setError("समाचार भेटिएन।");
++        setError(t.articleNotFound);
+         setIsLoading(false);
+         return;
+       }
+ 
+       setArticle(art);
+-      document.title = `${art.title} - हाम्रो नेपाल`;
+ 
+       // Increment view count (fire and forget)
+       incrementViewCount(art.$id);
+ 
+       // Load category and related articles
+       const [cat, related] = await Promise.all([
+-        getCategoryById(art.categoryId),
+-        getRelatedArticles(art.$id, art.categoryId, 5),
++        getCategoryById(art.categoryId, lang),
++        getRelatedArticles(art.$id, art.categoryId, 5, lang),
+       ]);
+ 
+       setCategory(cat);
+       setRelatedArticles(related);
+     } catch (err) {
+       console.error("Failed to load article:", err);
+-      setError("समाचार लोड गर्न सकिएन।");
++      setError(t.articleError);
+     } finally {
+       setIsLoading(false);
+     }
+@@ -79,7 +81,9 @@ export function NewsDetailPage() {
+   // Scrolling to the top on a new article is done by <ScrollRestoration /> in Layout.
+   useEffect(() => {
+     loadArticle();
+-  }, [slug]);
++  }, [slug, lang]);
++
++  useDocumentTitle(article?.title);
+ 
+   if (error) {
+     return (
+@@ -90,8 +94,10 @@ export function NewsDetailPage() {
+   }
+ 
+   const dates = article?.publishedAt
+-    ? formatDualDate(article.publishedAt)
++    ? formatDualDate(article.publishedAt, lang)
+     : null;
++  // On the English site, a story not translated yet comes back in Nepali.
++  const untranslated = lang === "en" && article?.lang === "ne";
+ 
+   return (
+     <div className="container mx-auto px-4 py-6">
+@@ -102,13 +108,22 @@ export function NewsDetailPage() {
+             <ArticleDetailSkeleton />
+           ) : (
+             article && (
+-              <div className="bg-white rounded-xl ring-1 ring-gray-200/80 overflow-hidden">
++              <div lang={article.lang} className="bg-white rounded-xl ring-1 ring-gray-200/80 overflow-hidden">
++                {untranslated && (
++                  <p lang="en" className="px-6 py-3 bg-secondary/10 text-sm text-secondary-dark border-b border-secondary/20">
++                    {t.notTranslated}{" "}
++                    <Link to={`/news/${article.slug}`} className="font-semibold underline underline-offset-2">
++                      {t.readInNepali}
++                    </Link>
++                  </p>
++                )}
+                 {/* Article Header */}
+                 <div className="p-6 pb-0">
+                   {/* Category Badge */}
+                   {category && (
+                     <Link
+-                      to={`/category/${category.slug}`}
++                      to={to(`/category/${category.slug}`)}
++                      lang={lang}
+                       className="inline-block bg-primary text-white text-sm font-medium px-3 py-1 rounded mb-4"
+                     >
+                       {category.name}
+@@ -136,7 +151,7 @@ export function NewsDetailPage() {
+                           d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
+                         />
+                       </svg>
+-                      {article.authorName}
++                      {authorLabel(article.authorName, lang)}
+                     </div>
+ 
+                     {dates && (
+@@ -182,7 +197,7 @@ export function NewsDetailPage() {
+                           d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
+                         />
+                       </svg>
+-                      {toNepaliDigits(article.viewCount)} पटक हेरिएको
++                      {t.views(num(article.viewCount))}
+                     </div>
+                   </div>
+                 </div>
+@@ -217,16 +232,16 @@ export function NewsDetailPage() {
+                 <PromoSlot placement="article" className="px-6 pb-6" />
+ 
+                 {article.source?.type === "ai" && (
+-                  <p className="px-6 pb-4 text-xs text-gray-500">
+-                    यो समाचार AI को सहायताले {article.source.name ? `${article.source.name}को` : "अन्य सञ्चारमाध्यमको"} रिपोर्टका आधारमा तयार पारी हाम्रो सम्पादकले जाँच गरेका हुन्।
++                  <p lang={untranslated ? "ne" : lang} className="px-6 pb-4 text-xs text-gray-500">
++                    {(untranslated ? STRINGS.ne : t).aiNote(article.source.name)}
+                   </p>
+                 )}
+ 
+-                {/* Tags */}
+-                {article.tags && article.tags.length > 0 && (
++                {/* Tags (Nepali words: shown on the Nepali site only) */}
++                {lang === "ne" && article.tags && article.tags.length > 0 && (
+                   <div className="px-6 pb-6 pt-4 border-t">
+                     <span className="text-gray-500 text-sm mr-2">
+-                      ट्यागहरू:
++                      {t.tags}
+                     </span>
+                     {article.tags.map((tag) => (
+                       <Link
+@@ -242,8 +257,8 @@ export function NewsDetailPage() {
+ 
+                 {/* Share Buttons */}
+                 <div className="px-6 py-4 bg-gray-50 border-t flex items-center gap-4">
+-                  <span className="text-gray-600 font-medium">
+-                    सेयर गर्नुहोस्:
++                  <span lang={lang} className="text-gray-600 font-medium">
++                    {t.share}
+                   </span>
+                   <button
+                     onClick={() =>
+@@ -317,7 +332,7 @@ export function NewsDetailPage() {
+ 
+           {/* Related Articles */}
+           <div className="bg-white rounded-xl p-4 ring-1 ring-gray-200/80 sticky top-24">
+-            <SectionTitle title="सम्बन्धित समाचार" size="small" />
++            <SectionTitle title={t.related} size="small" />
+ 
+             {isLoading ? (
+               <SidebarSkeleton />
+@@ -329,7 +344,7 @@ export function NewsDetailPage() {
+               </div>
+             ) : (
+               <p className="text-gray-500 text-sm">
+-                कुनै सम्बन्धित समाचार भेटिएन।
++                {t.noRelated}
+               </p>
+             )}
+           </div>
+diff --git a/apps/web/src/pages/NotFoundPage.tsx b/apps/web/src/pages/NotFoundPage.tsx
+index 7d29b2a..d093945 100644
+--- a/apps/web/src/pages/NotFoundPage.tsx
++++ b/apps/web/src/pages/NotFoundPage.tsx
+@@ -4,19 +4,21 @@
+ 
+ import { Link } from "react-router-dom";
+ import { useDocumentTitle } from "@/lib/useDocumentTitle";
++import { useT } from "@/lib/i18n";
+ 
+ export function NotFoundPage() {
+-  useDocumentTitle("पृष्ठ भेटिएन");
++  const { t, to, num } = useT();
++  useDocumentTitle(t.notFoundTitle);
+   return (
+     <div className="container mx-auto px-4 py-16 text-center">
+       <div className="max-w-md mx-auto">
+-        <p className="text-9xl font-bold text-primary mb-4" aria-hidden="true">४०४</p>
+-        <h1 className="text-2xl font-bold text-gray-900 mb-4">पृष्ठ भेटिएन</h1>
++        <p className="text-9xl font-bold text-primary mb-4" aria-hidden="true">{num(404)}</p>
++        <h1 className="text-2xl font-bold text-gray-900 mb-4">{t.notFoundTitle}</h1>
+         <p className="text-gray-600 mb-8">
+-          तपाईंले खोज्नुभएको पृष्ठ अवस्थित छैन वा हटाइएको हुन सक्छ।
++          {t.notFoundText}
+         </p>
+         <Link
+-          to="/"
++          to={to("/")}
+           className="inline-flex items-center px-6 py-3 bg-primary text-white rounded-lg hover:bg-primary-dark transition-colors"
+         >
+           <svg
+@@ -32,7 +34,7 @@ export function NotFoundPage() {
+               d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"
+             />
+           </svg>
+-          गृहपृष्ठमा जानुहोस्
++          {t.goHome}
+         </Link>
+       </div>
+     </div>
+diff --git a/apps/web/src/pages/SearchPage.tsx b/apps/web/src/pages/SearchPage.tsx
+index 76f070c..c1fc75f 100644
+--- a/apps/web/src/pages/SearchPage.tsx
++++ b/apps/web/src/pages/SearchPage.tsx
+@@ -9,7 +9,8 @@ import { searchArticles } from "@/services/news.service";
+ import { NewsGrid } from "@/components/news/NewsGrid";
+ import { NewsGridSkeleton } from "@/components/ui/Skeleton";
+ import { ErrorState } from "@/components/ui/ErrorState";
+-import { toNepaliDigits } from "@/lib/bs-date";
++import { useT } from "@/lib/i18n";
++import { useDocumentTitle } from "@/lib/useDocumentTitle";
+ 
+ const PAGE_SIZE = 12;
+ 
+@@ -22,6 +23,7 @@ export function SearchPage() {
+   const [isLoading, setIsLoading] = useState(false);
+   const [isLoadingMore, setIsLoadingMore] = useState(false);
+   const [error, setError] = useState<string | null>(null);
++  const { lang, t, num } = useT();
+ 
+   async function run(q: string) {
+     setInput(q);
+@@ -31,25 +33,25 @@ export function SearchPage() {
+     if (q.length < 2) return;
+     setIsLoading(true);
+     try {
+-      const res = await searchArticles(q, { limit: PAGE_SIZE });
++      const res = await searchArticles(q, { limit: PAGE_SIZE }, lang);
+       setArticles(res.documents);
+       setTotal(res.total);
+     } catch {
+-      setError("खोज्न सकिएन।");
++      setError(t.searchError);
+     } finally {
+       setIsLoading(false);
+     }
+   }
+ 
++  useDocumentTitle(query ? `${t.searchTitle}: ${query}` : t.searchTitle);
+   useEffect(() => {
+-    document.title = query ? `खोज: ${query} - हाम्रो नेपाल` : "खोज - हाम्रो नेपाल";
+     run(query);
+-  }, [query]);
++  }, [query, lang]);
+ 
+   async function loadMore() {
+     setIsLoadingMore(true);
+     try {
+-      const res = await searchArticles(query, { limit: PAGE_SIZE, offset: articles.length });
++      const res = await searchArticles(query, { limit: PAGE_SIZE, offset: articles.length }, lang);
+       setArticles((prev) => [...prev, ...res.documents]);
+     } finally {
+       setIsLoadingMore(false);
+@@ -63,22 +65,22 @@ export function SearchPage() {
+ 
+   return (
+     <div className="container mx-auto px-4 py-6">
+-      <h1 className="sr-only">समाचार खोज</h1>
++      <h1 className="sr-only">{t.searchHeading}</h1>
+       <form onSubmit={onSubmit} className="max-w-2xl mx-auto mb-8 flex gap-2" role="search">
+         <label htmlFor="search" className="sr-only">
+-          समाचार खोज्नुहोस्
++          {t.searchLabel}
+         </label>
+         <input
+           id="search"
+           type="search"
+           value={input}
+           onChange={(e) => setInput(e.target.value)}
+-          placeholder="समाचार खोज्नुहोस्..."
++          placeholder={t.searchPlaceholder}
+           autoFocus
+           className="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
+         />
+         <button type="submit" className="px-6 py-3 bg-primary text-white rounded-lg font-medium hover:bg-primary/90">
+-          खोज्नुहोस्
++          {t.search}
+         </button>
+       </form>
+ 
+@@ -86,7 +88,7 @@ export function SearchPage() {
+ 
+       {query.length >= 2 && !isLoading && !error && (
+         <h2 className="text-gray-600 mb-6 font-normal">
+-          “{query}” को लागि {toNepaliDigits(total)} समाचार भेटिए
++          {t.searchFound(query, num(total))}
+         </h2>
+       )}
+ 
+@@ -96,7 +98,7 @@ export function SearchPage() {
+         <NewsGrid articles={articles} columns={3} />
+       ) : (
+         query.length >= 2 &&
+-        !error && <p className="text-center text-gray-500 py-12">कुनै समाचार भेटिएन। अर्को शब्दले खोज्नुहोस्।</p>
++        !error && <p className="text-center text-gray-500 py-12">{t.searchNone}</p>
+       )}
+ 
+       {articles.length < total && (
+@@ -106,7 +108,7 @@ export function SearchPage() {
+             disabled={isLoadingMore}
+             className="px-6 py-3 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50"
+           >
+-            {isLoadingMore ? "लोड हुँदैछ..." : "थप समाचार"}
++            {isLoadingMore ? t.loading : t.moreResults}
+           </button>
+         </div>
+       )}
+diff --git a/apps/web/src/pages/dashboard/ArticleEditorPage.tsx b/apps/web/src/pages/dashboard/ArticleEditorPage.tsx
+index d143ec0..c7f0a3f 100644
+--- a/apps/web/src/pages/dashboard/ArticleEditorPage.tsx
++++ b/apps/web/src/pages/dashboard/ArticleEditorPage.tsx
+@@ -13,6 +13,8 @@ import {
+   getArticleById,
+   uploadImage,
+   getImagePreviewUrl,
++  translateArticleNow,
++  type UpdateArticleInput,
+ } from "@/services/admin.service";
+ import {
+   getCategories,
+@@ -22,7 +24,8 @@ import {
+ } from "@/services/categories.service";
+ import { canPublish } from "@/services/auth.service";
+ import { useAuth } from "@/contexts/AuthContext";
+-import type { Article, ArticleStatus, Category } from "@/types";
++import type { Article, ArticleStatus, ArticleTranslation, Category } from "@/types";
++import { formatDualDate } from "@/lib/bs-date";
+ import { AIAssistantModal } from "@/components/dashboard/AIAssistantModal";
+ import { AIWarnings } from "@/components/dashboard/AIWarnings";
+ // The editor is large and only editors need it: load it with this page.
+@@ -57,6 +60,39 @@ const initialFormData: ArticleFormData = {
+   isFeatured: false,
+ };
+ 
++/** The English version as edited in the form. */
++interface EnglishForm {
++  title: string;
++  excerpt: string;
++  content: string;
++}
++const emptyEnglish: EnglishForm = { title: "", excerpt: "", content: "" };
++
++const englishOf = (en?: ArticleTranslation): EnglishForm => ({
++  title: en?.title ?? "",
++  excerpt: en?.excerpt ?? "",
++  content: en?.content ?? "",
++});
++
++/** Where the English version came from, for the badge in the English section. */
++function EnglishStatus({ meta }: { meta?: ArticleTranslation }) {
++  if (!meta?.title) return <span className="text-xs px-2 py-0.5 rounded bg-gray-100 text-gray-600">अनुवाद छैन</span>;
++  const when = meta.translatedAt ? ` · ${formatDualDate(meta.translatedAt).relative}` : "";
++  return (
++    <span className="flex flex-wrap gap-1.5">
++      <span className={`text-xs px-2 py-0.5 rounded ${meta.edited ? "bg-green-100 text-green-800" : "bg-purple-100 text-purple-800"}`}>
++        {meta.edited ? "सम्पादकले सच्याएको" : `AI अनुवाद${meta.model ? ` (${meta.model})` : ""}`}
++        {when}
++      </span>
++      {meta.outdated && (
++        <span className="text-xs px-2 py-0.5 rounded bg-amber-100 text-amber-800">
++          नेपाली बदलिएको छ – अंग्रेजी पुरानो हुन सक्छ
++        </span>
++      )}
++    </span>
++  );
++}
++
+ const inputClass =
+   "w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition";
+ 
+@@ -89,6 +125,15 @@ export function ArticleEditorPage() {
+   const [error, setError] = useState<string | null>(null);
+   const [showAdvanced, setShowAdvanced] = useState(false);
+   const [showAIModal, setShowAIModal] = useState(false);
++  // English version: the form copy, what the API last said about it, and
++  // whether a person changed it here (only then is it sent on save).
++  const [english, setEnglish] = useState<EnglishForm>(emptyEnglish);
++  const [englishMeta, setEnglishMeta] = useState<ArticleTranslation | undefined>(undefined);
++  const [englishDirty, setEnglishDirty] = useState(false);
++  const [showEnglish, setShowEnglish] = useState(false);
++  const [translating, setTranslating] = useState(false);
++  // Remounts the English editor when the AI replaces its text.
++  const [englishVersion, setEnglishVersion] = useState(0);
+ 
+   const isEditing = !!id;
+ 
+@@ -102,6 +147,8 @@ export function ArticleEditorPage() {
+         if (id) {
+           const article = await getArticleById(id);
+           setSource(article.source);
++          setEnglish(englishOf(article.en));
++          setEnglishMeta(article.en);
+           // Most specific location = the one that is not a parent of another selected one.
+           const selected = locations.filter((l) => article.locationIds?.includes(l.$id));
+           const parents = new Set(selected.map((l) => l.parentId));
+@@ -189,7 +236,7 @@ export function ArticleEditorPage() {
+     setSaving(true);
+ 
+     try {
+-      const data = {
++      const data: UpdateArticleInput & { title: string; categoryId: string } = {
+         title: formData.title.trim(),
+         slug: formData.slug || generateSlug(formData.title),
+         excerpt: formData.excerpt.trim() || formData.title.trim(),
+@@ -206,6 +253,11 @@ export function ArticleEditorPage() {
+         isBreaking: formData.isBreaking,
+         isFeatured: formData.isFeatured,
+       };
++      if (englishDirty) {
++        data.en = english.title.trim()
++          ? { title: english.title.trim(), excerpt: english.excerpt.trim(), content: english.content.trim() }
++          : null;
++      }
+ 
+       if (isEditing) await updateArticle(id!, data);
+       else await createArticle(data);
+@@ -219,6 +271,30 @@ export function ArticleEditorPage() {
+     }
+   };
+ 
++  const changeEnglish = (patch: Partial<EnglishForm>) => {
++    setEnglish((prev) => ({ ...prev, ...patch }));
++    setEnglishDirty(true);
++  };
++
++  /** AI translation of the saved Nepali; replaces the English in the form. */
++  const handleTranslate = async () => {
++    if (!id) return;
++    if (englishDirty && !confirm("तपाईंले लेखेको अंग्रेजी AI अनुवादले बदलिनेछ। जारी राख्ने हो?")) return;
++    setTranslating(true);
++    setError(null);
++    try {
++      const article = await translateArticleNow(id);
++      setEnglish(englishOf(article.en));
++      setEnglishMeta(article.en);
++      setEnglishDirty(false);
++      setEnglishVersion((v) => v + 1);
++    } catch (err) {
++      setError(err instanceof Error && err.message ? err.message : "अनुवाद गर्न सकिएन।");
++    } finally {
++      setTranslating(false);
++    }
++  };
++
+   if (loading) {
+     return (
+       <div className="max-w-4xl mx-auto space-y-6">
+@@ -366,6 +442,97 @@ export function ArticleEditorPage() {
+           </div>
+         </div>
+ 
++        {/* English version (the English site at /en) */}
++        <div className="bg-white rounded-lg shadow-sm p-6 space-y-4">
++          <div className="flex flex-wrap items-center justify-between gap-3">
++            <button
++              type="button"
++              onClick={() => setShowEnglish(!showEnglish)}
++              aria-expanded={showEnglish}
++              className="flex items-center gap-2 font-semibold text-gray-800"
++            >
++              <svg className={`w-4 h-4 transition-transform ${showEnglish ? "rotate-90" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
++                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
++              </svg>
++              अंग्रेजी संस्करण (English)
++            </button>
++            <EnglishStatus meta={englishDirty ? { ...englishMeta, title: english.title, edited: true, outdated: false, translatedAt: undefined } : englishMeta} />
++          </div>
++
++          {showEnglish && (
++            <>
++              <p className="text-sm text-gray-500">
++                प्रकाशित समाचार हरेक घण्टा AI ले अंग्रेजीमा अनुवाद गर्छ। यहाँ सच्याउनुभयो भने त्यो सम्पादकको संस्करण मानिन्छ र AI ले फेरि बदल्दैन।
++                शीर्षक खाली गरेर सेभ गर्दा अंग्रेजी संस्करण हट्छ।
++              </p>
++              {mayPublish && isEditing && (
++                <button
++                  type="button"
++                  onClick={handleTranslate}
++                  disabled={translating}
++                  className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-lg hover:opacity-90 transition text-sm font-medium disabled:opacity-50"
++                >
++                  {translating ? <Spinner className="w-4 h-4" /> : <span>✨</span>}
++                  {translating ? "अनुवाद हुँदैछ..." : "AI ले अहिले अनुवाद गर्नुहोस्"}
++                </button>
++              )}
++              {mayPublish && isEditing && (
++                <p className="text-xs text-gray-500 -mt-2">सेभ भइसकेको नेपाली पाठ अनुवाद हुन्छ। नेपाली बदल्नुभएको छ भने पहिले सेभ गर्नुहोस्।</p>
++              )}
++
++              <div lang="en" className="space-y-4">
++                <div>
++                  <label htmlFor="en-title" className="block text-sm font-medium text-gray-700 mb-1">
++                    Title
++                  </label>
++                  <input
++                    type="text"
++                    id="en-title"
++                    value={english.title}
++                    onChange={(e) => changeEnglish({ title: e.target.value })}
++                    maxLength={300}
++                    className={inputClass}
++                    placeholder="English headline"
++                  />
++                </div>
++                <div>
++                  <label htmlFor="en-excerpt" className="block text-sm font-medium text-gray-700 mb-1">
++                    Summary
++                  </label>
++                  <textarea
++                    id="en-excerpt"
++                    value={english.excerpt}
++                    onChange={(e) => changeEnglish({ excerpt: e.target.value })}
++                    rows={2}
++                    maxLength={1000}
++                    className={`${inputClass} resize-none`}
++                    placeholder="A short English summary"
++                  />
++                </div>
++                <div>
++                  <p id="en-content-label" className="block text-sm font-medium text-gray-700 mb-1">
++                    Story
++                  </p>
++                  <Suspense fallback={<div className="h-64 rounded-lg border border-gray-300 bg-gray-50 animate-pulse" aria-label="सम्पादक लोड हुँदै" />}>
++                    <RichTextEditor
++                      key={englishVersion}
++                      id="en-content"
++                      labelledBy="en-content-label"
++                      value={english.content}
++                      onChange={(html) => {
++                        // The editor reports its first render too; only a real change counts as an edit.
++                        if (html !== english.content) changeEnglish({ content: html });
++                      }}
++                      onUploadImage={uploadImage}
++                      placeholder="The English story…"
++                    />
++                  </Suspense>
++                </div>
++              </div>
++            </>
++          )}
++        </div>
++
+         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+           {/* Classification */}
+           <div className="bg-white rounded-lg shadow-sm p-6 space-y-4">
+diff --git a/apps/web/src/pages/dashboard/ArticlesListPage.tsx b/apps/web/src/pages/dashboard/ArticlesListPage.tsx
+index eafe1b7..c33cece 100644
+--- a/apps/web/src/pages/dashboard/ArticlesListPage.tsx
++++ b/apps/web/src/pages/dashboard/ArticlesListPage.tsx
+@@ -292,6 +292,14 @@ export function ArticlesListPage() {
+                             >
+                               {article.title}
+                             </Link>
++                            {article.en?.title && (
++                              <span
++                                className="inline-block mt-1 text-[11px] font-semibold px-1.5 py-0.5 rounded bg-secondary/10 text-secondary"
++                                title={`अंग्रेजी संस्करण: ${article.en.title}`}
++                              >
++                                EN{article.en.edited ? " ✓" : ""}
++                              </span>
++                            )}
+                           </div>
+                         </div>
+                       </td>
+diff --git a/apps/web/src/pages/dashboard/CategoriesPage.tsx b/apps/web/src/pages/dashboard/CategoriesPage.tsx
+index 190baca..70d26aa 100644
+--- a/apps/web/src/pages/dashboard/CategoriesPage.tsx
++++ b/apps/web/src/pages/dashboard/CategoriesPage.tsx
+@@ -16,6 +16,8 @@ import { toNepaliDigits } from "@/lib/bs-date";
+ 
+ interface CategoryFormData {
+   name: string;
++  /** Shown on the English site (/en); the Nepali name is used when empty. */
++  nameEn: string;
+   slug: string;
+   description: string;
+   sortOrder: number;
+@@ -23,6 +25,7 @@ interface CategoryFormData {
+ 
+ const initialFormData: CategoryFormData = {
+   name: "",
++  nameEn: "",
+   slug: "",
+   description: "",
+   sortOrder: 0,
+@@ -87,6 +90,7 @@ export function CategoriesPage() {
+     setEditingId(category.$id);
+     setFormData({
+       name: category.name,
++      nameEn: category.nameEn || "",
+       slug: category.slug,
+       description: category.description || "",
+       sortOrder: category.sortOrder || 0,
+@@ -116,6 +120,7 @@ export function CategoriesPage() {
+     try {
+       const categoryData = {
+         name: formData.name.trim(),
++        nameEn: formData.nameEn.trim(),
+         slug: formData.slug || generateSlug(formData.name),
+         description: formData.description.trim() || undefined,
+         sortOrder: formData.sortOrder,
+@@ -244,6 +249,28 @@ export function CategoriesPage() {
+                 />
+               </div>
+ 
++              {/* English name */}
++              <div>
++                <label
++                  htmlFor="nameEn"
++                  className="block text-sm font-medium text-gray-700 mb-1"
++                >
++                  अंग्रेजी नाम (English)
++                </label>
++                <input
++                  type="text"
++                  id="nameEn"
++                  name="nameEn"
++                  lang="en"
++                  value={formData.nameEn}
++                  onChange={handleChange}
++                  maxLength={100}
++                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition"
++                  placeholder="e.g. Politics"
++                />
++                <p className="text-xs text-gray-500 mt-1">अंग्रेजी साइटमा देखिन्छ; खाली भए नेपाली नाम।</p>
++              </div>
++
+               {/* Slug */}
+               <div>
+                 <label
+@@ -410,6 +437,11 @@ export function CategoriesPage() {
+                         <span className="font-medium text-gray-800">
+                           {category.name}
+                         </span>
++                        {category.nameEn && (
++                          <span lang="en" className="block text-xs text-gray-500">
++                            {category.nameEn}
++                          </span>
++                        )}
+                       </td>
+                       <td className="px-6 py-4 text-sm text-gray-600">
+                         <code className="px-2 py-1 bg-gray-100 rounded text-xs">
+diff --git a/apps/web/src/router.tsx b/apps/web/src/router.tsx
+index 2b359f3..25b8e47 100644
+--- a/apps/web/src/router.tsx
++++ b/apps/web/src/router.tsx
+@@ -19,34 +19,21 @@ import {
+   PrintPage,
+ } from "@/pages/dashboard";
+ 
++/** The reader pages; the language comes from the URL (lib/i18n.ts). */
++function publicPages() {
++  return [
++    { index: true, element: <HomePage /> },
++    { path: "category/:slug", element: <CategoryPage /> },
++    { path: "news/:slug", element: <NewsDetailPage /> },
++    { path: "search", element: <SearchPage /> },
++    { path: "*", element: <NotFoundPage /> },
++  ];
++}
++
+ export const router = createBrowserRouter([
+-  // Public routes
+-  {
+-    path: "/",
+-    element: <Layout />,
+-    children: [
+-      {
+-        index: true,
+-        element: <HomePage />,
+-      },
+-      {
+-        path: "category/:slug",
+-        element: <CategoryPage />,
+-      },
+-      {
+-        path: "news/:slug",
+-        element: <NewsDetailPage />,
+-      },
+-      {
+-        path: "search",
+-        element: <SearchPage />,
+-      },
+-      {
+-        path: "*",
+-        element: <NotFoundPage />,
+-      },
+-    ],
+-  },
++  // Public routes: the Nepali site at /, the English site at /en (same pages).
++  { path: "/", element: <Layout />, children: publicPages() },
++  { path: "/en", element: <Layout />, children: publicPages() },
+ 
+   // Dashboard login (public)
+   {
+diff --git a/apps/web/src/services/admin.service.ts b/apps/web/src/services/admin.service.ts
+index 40cf111..a219c88 100644
+--- a/apps/web/src/services/admin.service.ts
++++ b/apps/web/src/services/admin.service.ts
+@@ -18,6 +18,12 @@ export interface ArticleInput {
+   status?: ArticleStatus;
+   isFeatured?: boolean;
+   isBreaking?: boolean;
++  /**
++   * The English version, as an editor typed or corrected it (null removes it).
++   * Send it only when someone changed it: the API then marks it as edited by a
++   * person, and the hourly translation job stops replacing it.
++   */
++  en?: { title: string; excerpt?: string; content?: string } | null;
+ }
+ 
+ export type CreateArticleInput = ArticleInput;
+@@ -81,6 +87,11 @@ export async function updateArticle(id: string, data: UpdateArticleInput): Promi
+   return api.patch(`/admin/articles/${id}`, data);
+ }
+ 
++/** Make the English version now with AI, from the article's saved Nepali (editors and admins). */
++export async function translateArticleNow(id: string): Promise<Article> {
++  return api.post(`/admin/articles/${id}/translate`);
++}
++
+ export async function deleteArticle(id: string): Promise<void> {
+   await api.delete(`/admin/articles/${id}`);
+ }
+diff --git a/apps/web/src/services/categories.service.ts b/apps/web/src/services/categories.service.ts
+index 3a2e2ac..b00f06c 100644
+--- a/apps/web/src/services/categories.service.ts
++++ b/apps/web/src/services/categories.service.ts
+@@ -3,21 +3,22 @@
+  */
+ 
+ import { api } from "@/lib/api";
+-import type { Category } from "@/types";
++import { langQuery } from "@/lib/i18n";
++import type { Category, Lang } from "@/types";
+ 
+-/** Active topic categories (राजनीति, खेलकुद ...), in menu order. */
+-export async function getCategories(): Promise<Category[]> {
+-  return api.get<Category[]>("/categories", { type: "topic" });
++/** Active topic categories (राजनीति, खेलकुद ...), in menu order. "en": English names. */
++export async function getCategories(lang?: Lang): Promise<Category[]> {
++  return api.get<Category[]>("/categories", { type: "topic", lang: langQuery(lang) });
+ }
+ 
+ /** Active location categories (provinces, districts, municipalities). */
+-export async function getLocationCategories(): Promise<Category[]> {
+-  return api.get<Category[]>("/categories", { type: "location" });
++export async function getLocationCategories(lang?: Lang): Promise<Category[]> {
++  return api.get<Category[]>("/categories", { type: "location", lang: langQuery(lang) });
+ }
+ 
+-export async function getCategoryBySlug(slug: string): Promise<Category | null> {
++export async function getCategoryBySlug(slug: string, lang?: Lang): Promise<Category | null> {
+   try {
+-    return await api.get<Category>(`/categories/${encodeURIComponent(slug)}`);
++    return await api.get<Category>(`/categories/${encodeURIComponent(slug)}`, { lang: langQuery(lang) });
+   } catch (err) {
+     if ((err as { status?: number }).status === 404) return null;
+     throw err;
+diff --git a/apps/web/src/services/categoriesAdmin.service.ts b/apps/web/src/services/categoriesAdmin.service.ts
+index 4a69c3b..4898aed 100644
+--- a/apps/web/src/services/categoriesAdmin.service.ts
++++ b/apps/web/src/services/categoriesAdmin.service.ts
+@@ -7,6 +7,8 @@ import type { Category, CategoryType } from "@/types";
+ 
+ export interface CreateCategoryInput {
+   name: string;
++  /** English name for the English site (/en). */
++  nameEn?: string;
+   slug?: string;
+   description?: string;
+   icon?: string;
+diff --git a/apps/web/src/services/news.service.ts b/apps/web/src/services/news.service.ts
+index 1baa169..ed77408 100644
+--- a/apps/web/src/services/news.service.ts
++++ b/apps/web/src/services/news.service.ts
+@@ -3,64 +3,72 @@
+  */
+ 
+ import { api } from "@/lib/api";
+-import type { Article, HomeData, PaginatedResponse, PaginationParams } from "@/types";
++import { langQuery } from "@/lib/i18n";
++import type { Article, HomeData, Lang, PaginatedResponse, PaginationParams } from "@/types";
+ 
+-export async function getHomeData(): Promise<HomeData> {
+-  return api.get<HomeData>("/home");
++// Every read takes the reader's language: "en" returns the English versions
++// (lists then hold only translated stories; one story falls back to Nepali, lang: "ne").
++
++export async function getHomeData(lang?: Lang): Promise<HomeData> {
++  return api.get<HomeData>("/home", { lang: langQuery(lang) });
+ }
+ 
+ export async function getPublishedArticles(
+-  pagination?: PaginationParams
++  pagination?: PaginationParams,
++  lang?: Lang
+ ): Promise<PaginatedResponse<Article>> {
+-  return api.get("/articles", { limit: pagination?.limit ?? 20, offset: pagination?.offset });
++  return api.get("/articles", { limit: pagination?.limit ?? 20, offset: pagination?.offset, lang: langQuery(lang) });
+ }
+ 
+-export async function getArticleBySlug(slug: string): Promise<Article | null> {
++export async function getArticleBySlug(slug: string, lang?: Lang): Promise<Article | null> {
+   try {
+-    return await api.get<Article>(`/articles/${encodeURIComponent(slug)}`);
++    return await api.get<Article>(`/articles/${encodeURIComponent(slug)}`, { lang: langQuery(lang) });
+   } catch (err) {
+     if ((err as { status?: number }).status === 404) return null;
+     throw err;
+   }
+ }
+ 
+-export async function getFeaturedArticles(limit = 5): Promise<Article[]> {
+-  const res = await api.get<PaginatedResponse<Article>>("/articles", { featured: true, limit });
++export async function getFeaturedArticles(limit = 5, lang?: Lang): Promise<Article[]> {
++  const res = await api.get<PaginatedResponse<Article>>("/articles", { featured: true, limit, lang: langQuery(lang) });
+   return res.documents;
+ }
+ 
+-export async function getBreakingNews(limit = 10): Promise<Article[]> {
+-  const res = await api.get<PaginatedResponse<Article>>("/articles", { breaking: true, limit });
++export async function getBreakingNews(limit = 10, lang?: Lang): Promise<Article[]> {
++  const res = await api.get<PaginatedResponse<Article>>("/articles", { breaking: true, limit, lang: langQuery(lang) });
+   return res.documents;
+ }
+ 
+ /** Works for topic categories and location categories (id or slug). */
+ export async function getArticlesByCategory(
+   categoryId: string,
+-  pagination?: PaginationParams
++  pagination?: PaginationParams,
++  lang?: Lang
+ ): Promise<PaginatedResponse<Article>> {
+   return api.get("/articles", {
+     category: categoryId,
+     limit: pagination?.limit ?? 20,
+     offset: pagination?.offset,
++    lang: langQuery(lang),
+   });
+ }
+ 
+-export async function getRelatedArticles(articleId: string, _categoryId?: string, limit = 5): Promise<Article[]> {
++export async function getRelatedArticles(articleId: string, _categoryId?: string, limit = 5, lang?: Lang): Promise<Article[]> {
+   void _categoryId;
+-  return api.get(`/articles/${articleId}/related`, { limit });
++  return api.get(`/articles/${articleId}/related`, { limit, lang: langQuery(lang) });
+ }
+ 
+-export async function getLatestArticles(limit = 10): Promise<Article[]> {
+-  const res = await getPublishedArticles({ limit });
++export async function getLatestArticles(limit = 10, lang?: Lang): Promise<Article[]> {
++  const res = await getPublishedArticles({ limit }, lang);
+   return res.documents;
+ }
+ 
+ export async function searchArticles(
+   q: string,
+-  pagination?: PaginationParams
++  pagination?: PaginationParams,
++  lang?: Lang
+ ): Promise<PaginatedResponse<Article>> {
+-  return api.get("/search", { q, limit: pagination?.limit ?? 20, offset: pagination?.offset });
++  return api.get("/search", { q, limit: pagination?.limit ?? 20, offset: pagination?.offset, lang: langQuery(lang) });
+ }
+ 
+ /** Fire and forget; the server increments atomically. */
+diff --git a/apps/web/src/services/weather.service.ts b/apps/web/src/services/weather.service.ts
+index 6ba62ba..a930d19 100644
+--- a/apps/web/src/services/weather.service.ts
++++ b/apps/web/src/services/weather.service.ts
+@@ -3,15 +3,16 @@
+  */
+ 
+ import { api } from "@/lib/api";
+-import type { WeatherData } from "@/types";
++import { langQuery } from "@/lib/i18n";
++import type { Lang, WeatherData } from "@/types";
+ export { WEATHER_CITIES, OFFICIAL_WEATHER_URL, nearestWeatherCity, findWeatherCity } from "@hamronepal/shared";
+ 
+ export type { WeatherData };
+ 
+-/** Weather for a listed city (slug), or the site's default place (Panauti). */
+-export async function getWeather(city?: string): Promise<WeatherData | null> {
++/** Weather for a listed city (slug), or the site's default place (Panauti). "en": English place and summary. */
++export async function getWeather(city?: string, lang?: Lang): Promise<WeatherData | null> {
+   try {
+-    return await api.get<WeatherData | null>("/weather", { city });
++    return await api.get<WeatherData | null>("/weather", { city, lang: langQuery(lang) });
+   } catch {
+     return null;
+   }
+-- 
+2.43.0
+
