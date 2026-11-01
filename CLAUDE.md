@@ -25,6 +25,7 @@ npm run user:set -w apps/api -- --email x@y.np --name "नाम" --role admin  
 npm run ingest -w apps/api -- --dry-run --max 2  # AI pipeline, nothing saved
 npm run ingest -w apps/api -- --max 5            # saves pending drafts
 npm run images:backfill -w apps/api -- --dry-run # stock photos for older AI drafts (needs PEXELS_API_KEY)
+npm run images:backfill -w apps/api -- --from-source --limit 50  # or link each outlet's own photo (demo only)
 
 # mobile
 cd apps/mobile && npm install && npx expo start   # EXPO_PUBLIC_API_URL in apps/mobile/.env
@@ -88,6 +89,8 @@ How it runs and is tested:
 - `runIngest(opts, deps)` takes injectable `fetchAll`/`extract`/`generate`; the tests use fakes.
 - A GitHub Actions workflow (`.github/workflows/ingest.yml`) runs it every hour against Atlas.
 - Editors approve drafts in `/dashboard/review` (AI समीक्षा). AI drafts are never published automatically.
+- **Drafts without images:** this happens when the hourly job runs with `INGEST_SOURCE_IMAGES=false` (repo variable) and no `PEXELS_API_KEY` secret. To repeat the photo fix, run `npm run images:backfill -w apps/api -- --from-source --limit 50` from a regular PC. It links each outlet's own photo, so it's for the demo only.
+- **Sites that block GitHub's servers:** eKantipur and Ukera return 403 to the hourly job but work from a regular PC.
 
 ### Web (`apps/web`)
 

@@ -108,8 +108,10 @@ for (const s of SOURCES) {
       note = `unreachable – added disabled (${(err as Error).message.slice(0, 60)})`;
     }
   }
-  await NewsSource.create({ ...s, isActive });
-  console.log(`  source ${s.name}: ${note}`);
+  const { location, ...fields } = s;
+  const place = location ? await Category.findOne({ type: "location", slug: location }).select("_id").lean() : null;
+  await NewsSource.create({ ...fields, locationId: place?._id ?? null, isActive });
+  console.log(`  source ${s.name}: ${note}${place ? ` (स्थान: ${location})` : ""}`);
 }
 
 console.log("Seed complete.");

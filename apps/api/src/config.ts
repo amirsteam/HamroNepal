@@ -20,6 +20,15 @@ export const config = {
   isTest: nodeEnv === "test",
   port: num("PORT", 4000),
   mongoUri: str("MONGODB_URI"),
+  /**
+   * DNS servers for looking up the database host, e.g. "8.8.8.8,1.1.1.1".
+   * Only for machines whose DNS cannot resolve mongodb+srv addresses
+   * ("querySrv ECONNREFUSED"). Empty = the system's DNS.
+   */
+  dnsServers: str("DNS_SERVERS")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean),
   jwtSecret: str("JWT_SECRET"),
   cookieSecure: str("COOKIE_SECURE", nodeEnv === "production" ? "true" : "false") === "true",
   publicSiteUrl: str("PUBLIC_SITE_URL", "http://localhost:5173").replace(/\/$/, ""),

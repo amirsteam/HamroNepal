@@ -1,5 +1,9 @@
+import { setServers } from "node:dns";
 import mongoose from "mongoose";
 import { config } from "./config";
+
+// Some machines' DNS cannot look up mongodb+srv hosts; DNS_SERVERS overrides it.
+if (config.dnsServers.length) setServers(config.dnsServers);
 
 let connecting: Promise<typeof mongoose> | null = null;
 

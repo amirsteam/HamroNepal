@@ -184,8 +184,9 @@ export const TOPICS: Array<{ slug: string; name: string }> = [
 /**
  * Feeds checked to be online (Oct 2026). The seed re-checks before enabling.
  * kind "page": the site has no RSS, so its section page is read instead.
+ * location: slug of the place a local outlet covers (its stories get that place).
  */
-export const SOURCES: Array<{ name: string; url: string; kind?: "rss" | "page" }> = [
+export const SOURCES: Array<{ name: string; url: string; kind?: "rss" | "page"; location?: string }> = [
   { name: "अनलाइनखबर", url: "https://www.onlinekhabar.com/feed" },
   { name: "रातोपाटी", url: "https://ratopati.com/feed" },
   { name: "नागरिक", url: "https://nagariknews.nagariknetwork.com/feed" },
@@ -207,4 +208,6 @@ export const SOURCES: Array<{ name: string; url: string; kind?: "rss" | "page" }
   { name: "बीबीसी (विश्व)", url: "https://feeds.bbci.co.uk/news/world/rss.xml" },
   // No RSS feed (Oct 2026); the समाचार section page is read instead.
   { name: "कान्तिपुर", url: "https://ekantipur.com/news", kind: "page" },
+  // Local Kavre outlet: its stories count as Kavre (a priority place).
+  { name: "काभ्रे खबर", url: "https://www.kavrekhabar.com/feed/", location: "kavrepalanchok" },
 ];
