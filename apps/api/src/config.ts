@@ -83,7 +83,8 @@ export const config = {
         ? `${process.env.VERCEL_GIT_REPO_OWNER}/${process.env.VERCEL_GIT_REPO_SLUG}`
         : ""
     ),
-    ref: str("GITHUB_REF", "main"),
+    // Not GITHUB_REF: GitHub Actions sets that one itself (e.g. "refs/pull/3/merge").
+    ref: str("GITHUB_DISPATCH_REF", "main"),
   },
 
   /** The weekly print edition (PDF for the press). */
