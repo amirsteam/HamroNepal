@@ -22,3 +22,7 @@ jobs:
         run: npm test -w apps/api
       - name: Build
         run: npm run build
+      # Vercel's function loader can't require() ES-module-only packages, which
+      # Node 22+ allows locally. Load the built API the strict way to catch it.
+      - name: API bundle loads like on Vercel
+        run: node --no-experimental-require-module -e "import('./apps/api/dist/index.mjs').then((m) => { if (typeof m.default !== 'function') process.exit(1); })"
