@@ -4,12 +4,17 @@
  *   npm run images:backfill -w apps/api -- --dry-run
  *   npm run images:backfill -w apps/api -- --limit 20
  *   npm run images:backfill -w apps/api -- --from-source --limit 50
+ *   npm run images:backfill -w apps/api -- --rehost --dry-run
  *
  * Default: a symbolic Pexels stock photo (one AI call for English search
  * words + one Pexels search per article; needs PEXELS_API_KEY).
  * --from-source: the outlet's own photo from the original article page,
  * uploaded to Cloudinary (linked if that fails) and credited to it. The photos are the outlets'
  * copyright: for demos or with their permission (see INGEST_SOURCE_IMAGES).
+ * --rehost: articles whose photo still points at an outlet's site (older
+ * drafts, from before photos were uploaded with the draft) get a Cloudinary
+ * copy, so the site can serve it resized and in WebP/AVIF. Same photo, same
+ * credit; each old → new link is printed so it can be put back.
  */
 
 import { connectDB, disconnectDB } from "../src/db";
@@ -25,8 +30,14 @@ import { storeRemoteImage } from "../src/services/imageStore";
 const args = process.argv.slice(2);
 const dryRun = args.includes("--dry-run");
 const fromSource = args.includes("--from-source");
+const rehost = args.includes("--rehost");
 const limitArg = args.indexOf("--limit");
 const limit = limitArg >= 0 ? Math.max(1, Number(args[limitArg + 1]) || 20) : 20;
+
+if (rehost) {
+  await rehostPhotos();
+  process.exit(0);
+}
 
 if (!fromSource && !isStockPhotoConfigured()) {
   console.error("PEXELS_API_KEY is not set (apps/api/.env). Get a free key at https://www.pexels.com/api/");
@@ -109,4 +120,41 @@ try {
   console.log(`Done: ${added} photo(s) ${dryRun ? "found" : "added"}.`);
 } finally {
   await disconnectDB();
+}
+
+/** Photos hosted on our own Cloudinary or on Pexels can be resized; anything else is an outlet's file. */
+function isResizable(url: string): boolean {
+  return /res\.cloudinary\.com\/.*\/upload\/|images\.pexels\.com/.test(url);
+}
+
+async function rehostPhotos() {
+  await connectDB(config.mongoUri);
+  try {
+    const articles = await Article.find({ featuredImage: { $regex: "^https?://" } })
+      .select("title featuredImage")
+      .sort({ publishedAt: -1, createdAt: -1 });
+    const todo = articles.filter((a) => !isResizable(a.featuredImage as string)).slice(0, limit);
+    console.log(`${todo.length} photo(s) on outlets' sites to copy to Cloudinary${dryRun ? " (dry run – nothing is saved)" : ""}`);
+    let moved = 0;
+    for (const article of todo) {
+      const old = article.featuredImage as string;
+      if (dryRun) {
+        console.log(`  would copy: ${old}`);
+        continue;
+      }
+      try {
+        const stored = await storeRemoteImage(old);
+        if (!stored) throw new Error("Cloudinary is not configured");
+        await Article.updateOne({ _id: article._id }, { $set: { featuredImage: stored.url, featuredImagePublicId: stored.publicId } });
+        moved++;
+        console.log(`  ✓ ${old}
+    → ${stored.url}`);
+      } catch (err) {
+        console.log(`  ✗ ${old}: ${(err as Error).message}`);
+      }
+    }
+    console.log(`Done: ${moved} photo(s) ${dryRun ? "to copy" : "copied"}.`);
+  } finally {
+    await disconnectDB();
+  }
 }

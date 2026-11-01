@@ -9,7 +9,21 @@ import type { Article, HomeData, Lang, PaginatedResponse, PaginationParams } fro
 // Every read takes the reader's language: "en" returns the English versions
 // (lists then hold only translated stories; one story falls back to Nepali, lang: "ne").
 
+declare global {
+  interface Window {
+    /** Started by public/boot.js on the home page, before the app loaded. */
+    __hnHome?: { lang: Lang; data: Promise<HomeData | null> };
+  }
+}
+
 export async function getHomeData(lang?: Lang): Promise<HomeData> {
+  // Use the early request once (first visit to the home page); later visits fetch fresh.
+  const early = window.__hnHome;
+  if (early && early.lang === (lang ?? "ne") && !import.meta.env.VITE_API_URL) {
+    window.__hnHome = undefined;
+    const data = await early.data;
+    if (data) return data;
+  }
   return api.get<HomeData>("/home", { lang: langQuery(lang) });
 }
 

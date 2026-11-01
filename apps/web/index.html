@@ -5,13 +5,7 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
-    <!-- Fonts: connect early and load in parallel with the app (a CSS @import would wait for the CSS first). -->
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      rel="stylesheet"
-      href="https://fonts.googleapis.com/css2?family=Anek+Devanagari:wdth,wght@75..125,400..800&family=Mukta:wght@400;500;600;700&display=swap"
-    />
+    <!-- Fonts are self-hosted (src/fonts.css, public/fonts): no third-party request before the page draws. -->
     <link rel="alternate" type="application/rss+xml" title="हाम्रो नेपाल" href="%SITE_URL%/rss.xml" />
     <meta name="theme-color" content="#c8102e" />
     
@@ -75,24 +69,8 @@
       }
     </script>
 
-    <!-- The site's colours (Dashboard → साइट सेटिङ), cached from the last visit, before the page draws. -->
-    <script>
-      try {
-        var hn = JSON.parse(localStorage.getItem("hn_site_settings") || "null");
-        if (hn && hn.colors) {
-          var dk = function (h, a) {
-            var n = parseInt(h.slice(1), 16);
-            return "#" + [n >> 16, (n >> 8) & 255, n & 255].map(function (c) { return Math.round(c * (1 - a)).toString(16).padStart(2, "0"); }).join("");
-          };
-          var st = document.documentElement.style, c = hn.colors;
-          st.setProperty("--color-primary", c.primary);
-          st.setProperty("--color-primary-dark", dk(c.primary, 0.2));
-          st.setProperty("--color-secondary", c.secondary);
-          st.setProperty("--color-secondary-dark", dk(c.secondary, 0.25));
-          st.setProperty("--color-ink", c.ink);
-        }
-      } catch (e) {}
-    </script>
+    <!-- Cached site colours + an early start on the home stories (public/boot.js). -->
+    <script src="/boot.js" defer></script>
     <title>हाम्रो नेपाल - नेपालको विश्वसनीय समाचार पोर्टल</title>
   </head>
   <body>
