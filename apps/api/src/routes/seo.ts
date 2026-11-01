@@ -176,7 +176,7 @@ export function newsArticleJsonLd(a: ArticleForLd, o: { url: string; lang: "ne" 
     "@type": "NewsMediaOrganization",
     name: o.lang === "en" ? SITE_NAME_EN : SITE_NAME,
     url: `${site}/`,
-    logo: { "@type": "ImageObject", url: brand.logoUrl || brand.ogImageUrl || `${site}/og-image.png` },
+    logo: { "@type": "ImageObject", url: brand.logoUrl || `${site}/brand/logo-square.png` },
   };
   const byPerson = a.authorName && a.source?.type !== "ai";
   return {
