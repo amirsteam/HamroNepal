@@ -3,21 +3,22 @@
  */
 
 import { api } from "@/lib/api";
-import type { Category } from "@/types";
+import { langQuery } from "@/lib/i18n";
+import type { Category, Lang } from "@/types";
 
-/** Active topic categories (राजनीति, खेलकुद ...), in menu order. */
-export async function getCategories(): Promise<Category[]> {
-  return api.get<Category[]>("/categories", { type: "topic" });
+/** Active topic categories (राजनीति, खेलकुद ...), in menu order. "en": English names. */
+export async function getCategories(lang?: Lang): Promise<Category[]> {
+  return api.get<Category[]>("/categories", { type: "topic", lang: langQuery(lang) });
 }
 
 /** Active location categories (provinces, districts, municipalities). */
-export async function getLocationCategories(): Promise<Category[]> {
-  return api.get<Category[]>("/categories", { type: "location" });
+export async function getLocationCategories(lang?: Lang): Promise<Category[]> {
+  return api.get<Category[]>("/categories", { type: "location", lang: langQuery(lang) });
 }
 
-export async function getCategoryBySlug(slug: string): Promise<Category | null> {
+export async function getCategoryBySlug(slug: string, lang?: Lang): Promise<Category | null> {
   try {
-    return await api.get<Category>(`/categories/${encodeURIComponent(slug)}`);
+    return await api.get<Category>(`/categories/${encodeURIComponent(slug)}`, { lang: langQuery(lang) });
   } catch (err) {
     if ((err as { status?: number }).status === 404) return null;
     throw err;

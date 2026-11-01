@@ -15,23 +15,23 @@ import {
 import { NewsGrid } from "@/components/news/NewsGrid";
 import { NewsGridSkeleton, SidebarSkeleton } from "@/components/ui/Skeleton";
 import { ErrorState } from "@/components/ui/ErrorState";
-import { toNepaliDigits } from "@/lib/bs-date";
+import { STRINGS, useT, type Lang } from "@/lib/i18n";
 import { useDocumentTitle } from "@/lib/useDocumentTitle";
 import { PromoSlot } from "@/components/promo";
 import { Pennant } from "@/components/ui/Pennant";
 import { SectionTitle } from "@/components/ui/SectionTitle";
 
 /** "/category/all" lists every published article. */
-const ALL_NEWS: Category = {
+const allNews = (lang: Lang): Category => ({
   $id: "all",
   $createdAt: "",
   $updatedAt: "",
-  name: "ताजा समाचार",
+  name: STRINGS[lang].latestNews,
   slug: "all",
   sortOrder: 0,
   isActive: true,
   type: "topic",
-};
+});
 
 export function CategoryPage() {
   const { slug } = useParams<{ slug: string }>();
@@ -45,10 +45,11 @@ export function CategoryPage() {
   const [error, setError] = useState<string | null>(null);
 
   const ITEMS_PER_PAGE = 12;
+  const { lang, t, to, num } = useT();
 
   function fetchPage(cat: Category, offset: number) {
     const page = { limit: ITEMS_PER_PAGE, offset };
-    return cat.$id === ALL_NEWS.$id ? getPublishedArticles(page) : getArticlesByCategory(cat.$id, page);
+    return cat.$id === "all" ? getPublishedArticles(page, lang) : getArticlesByCategory(cat.$id, page, lang);
   }
 
   async function loadCategory() {
@@ -61,12 +62,12 @@ export function CategoryPage() {
 
     try {
       const [cat, cats] = await Promise.all([
-        slug === "all" ? Promise.resolve(ALL_NEWS) : getCategoryBySlug(slug),
-        getCategories(),
+        slug === "all" ? Promise.resolve(allNews(lang)) : getCategoryBySlug(slug, lang),
+        getCategories(lang),
       ]);
 
       if (!cat) {
-        setError("श्रेणी भेटिएन।");
+        setError(t.categoryNotFound);
         setIsLoading(false);
         return;
       }
@@ -80,7 +81,7 @@ export function CategoryPage() {
       setTotal(result.total);
     } catch (err) {
       console.error("Failed to load category:", err);
-      setError("श्रेणी लोड गर्न सकिएन।");
+      setError(t.categoryError);
     } finally {
       setIsLoading(false);
     }
@@ -106,7 +107,7 @@ export function CategoryPage() {
 
   useEffect(() => {
     loadCategory();
-  }, [slug]);
+  }, [slug, lang]);
 
   useDocumentTitle(isLoading ? null : category?.name);
 
@@ -123,9 +124,9 @@ export function CategoryPage() {
   return (
     <div className="container mx-auto px-4 py-6">
       {/* Breadcrumb */}
-      <nav className="text-sm text-gray-500 mb-4" aria-label="ब्रेडक्रम्ब">
-        <Link to="/" className="hover:text-primary">
-          गृहपृष्ठ
+      <nav className="text-sm text-gray-500 mb-4" aria-label={t.breadcrumb}>
+        <Link to={to("/")} className="hover:text-primary">
+          {t.home}
         </Link>
         <span className="mx-2">/</span>
         <span className="text-gray-900">{category?.name || "..."}</span>
@@ -138,14 +139,14 @@ export function CategoryPage() {
           <div className="bg-white rounded-xl p-6 mb-6 ring-1 ring-gray-200/80 border-t-4 border-primary">
             <h1 className="flex items-center gap-3 text-3xl md:text-4xl font-bold text-ink">
               <Pennant className="w-4 h-5" />
-              {isLoading ? "लोड हुँदैछ..." : category?.name}
+              {isLoading ? t.loading : category?.name}
             </h1>
             {category?.description && (
               <p className="text-gray-600 mt-3">{category.description}</p>
             )}
             {!isLoading && (
               <p className="text-sm text-gray-500 mt-2">
-                कुल {toNepaliDigits(total)} समाचार
+                {t.totalNews(num(total))}
               </p>
             )}
           </div>
@@ -155,7 +156,7 @@ export function CategoryPage() {
             <NewsGridSkeleton count={6} />
           ) : articles.length > 0 ? (
             <>
-              <h2 className="sr-only">समाचारहरू</h2>
+              <h2 className="sr-only">{t.newsHeading}</h2>
               <NewsGrid articles={articles} columns={3} />
 
               {/* Load More Button */}
@@ -187,10 +188,10 @@ export function CategoryPage() {
                             d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
                           />
                         </svg>
-                        लोड हुँदैछ...
+                        {t.loading}
                       </>
                     ) : (
-                      "थप समाचार हेर्नुहोस्"
+                      t.loadMoreNews
                     )}
                   </button>
                 </div>
@@ -198,7 +199,7 @@ export function CategoryPage() {
             </>
           ) : (
             <div className="bg-white rounded-lg p-12 text-center text-gray-500">
-              यस श्रेणीमा कुनै समाचार छैन।
+              {t.categoryEmpty}
             </div>
           )}
         </div>
@@ -209,7 +210,7 @@ export function CategoryPage() {
 
           {/* Categories List */}
           <div className="bg-white rounded-xl p-4 ring-1 ring-gray-200/80 sticky top-24">
-            <SectionTitle title="श्रेणीहरू" size="small" />
+            <SectionTitle title={t.categories} size="small" />
 
             {isLoading ? (
               <SidebarSkeleton />
@@ -218,7 +219,7 @@ export function CategoryPage() {
                 {allCategories.map((cat) => (
                   <li key={cat.$id}>
                     <Link
-                      to={`/category/${cat.slug}`}
+                      to={to(`/category/${cat.slug}`)}
                       className={`block px-3 py-2 rounded-md transition-colors ${
                         cat.slug === slug
                           ? "bg-primary text-white"

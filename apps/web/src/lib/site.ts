@@ -4,6 +4,8 @@
  */
 export const SITE_CONTACT = {
   address: "काठमाडौं, नेपाल",
+  /** The address on the English site. */
+  addressEn: "Kathmandu, Nepal",
   phone: "",
   email: "",
   social: {

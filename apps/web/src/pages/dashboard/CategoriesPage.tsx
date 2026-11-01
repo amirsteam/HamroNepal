@@ -16,6 +16,8 @@ import { toNepaliDigits } from "@/lib/bs-date";
 
 interface CategoryFormData {
   name: string;
+  /** Shown on the English site (/en); the Nepali name is used when empty. */
+  nameEn: string;
   slug: string;
   description: string;
   sortOrder: number;
@@ -23,6 +25,7 @@ interface CategoryFormData {
 
 const initialFormData: CategoryFormData = {
   name: "",
+  nameEn: "",
   slug: "",
   description: "",
   sortOrder: 0,
@@ -87,6 +90,7 @@ export function CategoriesPage() {
     setEditingId(category.$id);
     setFormData({
       name: category.name,
+      nameEn: category.nameEn || "",
       slug: category.slug,
       description: category.description || "",
       sortOrder: category.sortOrder || 0,
@@ -116,6 +120,7 @@ export function CategoriesPage() {
     try {
       const categoryData = {
         name: formData.name.trim(),
+        nameEn: formData.nameEn.trim(),
         slug: formData.slug || generateSlug(formData.name),
         description: formData.description.trim() || undefined,
         sortOrder: formData.sortOrder,
@@ -242,6 +247,28 @@ export function CategoriesPage() {
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition"
                   placeholder="श्रेणीको नाम"
                 />
+              </div>
+
+              {/* English name */}
+              <div>
+                <label
+                  htmlFor="nameEn"
+                  className="block text-sm font-medium text-gray-700 mb-1"
+                >
+                  अंग्रेजी नाम (English)
+                </label>
+                <input
+                  type="text"
+                  id="nameEn"
+                  name="nameEn"
+                  lang="en"
+                  value={formData.nameEn}
+                  onChange={handleChange}
+                  maxLength={100}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition"
+                  placeholder="e.g. Politics"
+                />
+                <p className="text-xs text-gray-500 mt-1">अंग्रेजी साइटमा देखिन्छ; खाली भए नेपाली नाम।</p>
               </div>
 
               {/* Slug */}
@@ -410,6 +437,11 @@ export function CategoriesPage() {
                         <span className="font-medium text-gray-800">
                           {category.name}
                         </span>
+                        {category.nameEn && (
+                          <span lang="en" className="block text-xs text-gray-500">
+                            {category.nameEn}
+                          </span>
+                        )}
                       </td>
                       <td className="px-6 py-4 text-sm text-gray-600">
                         <code className="px-2 py-1 bg-gray-100 rounded text-xs">

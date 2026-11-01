@@ -6,6 +6,7 @@
 
 import type { Article } from "@/types";
 import { NewsCard } from "./NewsCard";
+import { useT } from "@/lib/i18n";
 
 interface NewsGridProps {
   articles: Article[];
@@ -18,6 +19,7 @@ export function NewsGrid({
   columns = 3,
   variant = "default",
 }: NewsGridProps) {
+  const { t } = useT();
   const gridCols = {
     2: "grid-cols-1 md:grid-cols-2",
     3: "grid-cols-1 md:grid-cols-2 lg:grid-cols-3",
@@ -26,7 +28,7 @@ export function NewsGrid({
 
   if (articles.length === 0) {
     return (
-      <div className="text-center py-12 text-gray-500">कुनै समाचार भेटिएन।</div>
+      <div className="text-center py-12 text-gray-500">{t.noNews}</div>
     );
   }
 

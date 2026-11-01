@@ -15,6 +15,7 @@ import {
   saveWeatherCity,
 } from "@/services/weather.service";
 import { toNepaliDigits } from "@/lib/bs-date";
+import { STRINGS, useT, type Lang } from "@/lib/i18n";
 import { m } from "motion/react";
 
 /** The new reading fades in when the city changes. */
@@ -92,6 +93,7 @@ export function WeatherIcon({
 
 /** One weather state for the whole header (it shows the weather twice: phone and desktop). */
 export function useWeather() {
+  const { lang, t } = useT();
   const [city, setCity] = useState(getSavedWeatherCity);
   const [weather, setWeather] = useState<WeatherData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -101,7 +103,7 @@ export function useWeather() {
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
-    getWeather(city || undefined).then((w) => {
+    getWeather(city || undefined, lang).then((w) => {
       if (cancelled) return;
       setWeather(w);
       setLoading(false);
@@ -109,7 +111,7 @@ export function useWeather() {
     return () => {
       cancelled = true;
     };
-  }, [city]);
+  }, [city, lang]);
 
   function choose(slug: string) {
     setLocateError(null);
@@ -119,7 +121,7 @@ export function useWeather() {
       return;
     }
     if (!navigator.geolocation) {
-      setLocateError("यो ब्राउजरमा स्थान पत्ता लगाउन मिल्दैन।");
+      setLocateError(t.noGeolocation);
       return;
     }
     // The position stays in the browser: only the nearest listed city is used.
@@ -132,23 +134,26 @@ export function useWeather() {
         setLocating(false);
       },
       () => {
-        setLocateError("स्थान पत्ता लाग्न सकेन। सूचीबाट सहर छान्नुहोस्।");
+        setLocateError(t.geolocationFailed);
         setLocating(false);
       },
       { timeout: 10_000, maximumAge: 30 * 60_000 }
     );
   }
 
-  return { city, weather, loading: loading || locating, locateError, choose };
+  return { city, weather, loading: loading || locating, locateError, choose, lang };
 }
 
 type WeatherState = ReturnType<typeof useWeather>;
 
+const cityName = (c: { name: string; nameEn: string }, lang: Lang) => (lang === "en" ? c.nameEn : c.name);
+
 function CityPicker({ state, id, className = "" }: { state: WeatherState; id: string; className?: string }) {
+  const t = STRINGS[state.lang];
   return (
     <>
       <label htmlFor={id} className="sr-only">
-        मौसम हेर्ने सहर
+        {t.weatherCity}
       </label>
       <select
         id={id}
@@ -156,11 +161,13 @@ function CityPicker({ state, id, className = "" }: { state: WeatherState; id: st
         onChange={(e) => state.choose(e.target.value)}
         className={`bg-transparent border border-gray-200 rounded px-1 py-0.5 text-gray-600 hover:border-gray-400 cursor-pointer ${className}`}
       >
-        <option value="">{WEATHER_CITIES[0].name} (पूर्वनिर्धारित)</option>
-        <option value={MY_LOCATION}>📍 मेरो स्थान</option>
+        <option value="">
+          {cityName(WEATHER_CITIES[0], state.lang)} ({t.weatherDefault})
+        </option>
+        <option value={MY_LOCATION}>📍 {t.myLocation}</option>
         {WEATHER_CITIES.slice(1).map((c) => (
           <option key={c.slug} value={c.slug}>
-            {c.name}
+            {cityName(c, state.lang)}
           </option>
         ))}
       </select>
@@ -168,27 +175,30 @@ function CityPicker({ state, id, className = "" }: { state: WeatherState; id: st
   );
 }
 
-const linkProps = {
-  href: OFFICIAL_WEATHER_URL,
-  target: "_blank",
-  rel: "noopener noreferrer",
-  title: "आधिकारिक मौसम पूर्वानुमान (जल तथा मौसम विज्ञान विभाग)",
-} as const;
+const linkProps = (lang: Lang) =>
+  ({
+    href: OFFICIAL_WEATHER_URL,
+    target: "_blank",
+    rel: "noopener noreferrer",
+    title: STRINGS[lang].weatherOfficial,
+  }) as const;
 
 /** Small version for the phone header bar. */
 export function WeatherCompact({ state }: { state: WeatherState }) {
-  const { weather, loading } = state;
+  const { weather, loading, lang } = state;
+  const t = STRINGS[lang];
+  const num = (n: number) => (lang === "en" ? String(n) : toNepaliDigits(n));
   return (
     <div className="flex items-center gap-1">
-      <a {...linkProps} className="flex items-center gap-1 hover:text-primary">
+      <a {...linkProps(lang)} className="flex items-center gap-1 hover:text-primary">
         {weather && !loading ? (
           <m.span key={`${weather.city}-${weather.temp}`} className="flex items-center gap-1" {...fadeIn}>
             <WeatherIcon condition={weather.condition} isDay={weather.isDay} className="w-4 h-4" />
-            <span className="font-semibold">{toNepaliDigits(weather.temp)}°C</span>
+            <span className="font-semibold">{num(weather.temp)}°C</span>
             {weather.summary && <span className="sr-only">, {weather.summary}</span>}
           </m.span>
         ) : (
-          <span>{loading ? "…" : "मौसम"}</span>
+          <span>{loading ? "…" : t.weather}</span>
         )}
       </a>
       <CityPicker state={state} id="weather-city-mobile" className="text-xs max-w-[6.5rem]" />
@@ -198,25 +208,27 @@ export function WeatherCompact({ state }: { state: WeatherState }) {
 
 /** Large version for the desktop header. */
 export function WeatherFull({ state }: { state: WeatherState }) {
-  const { weather, loading, locateError } = state;
+  const { weather, loading, locateError, lang } = state;
+  const t = STRINGS[lang];
+  const num = (n: number) => (lang === "en" ? String(n) : toNepaliDigits(n));
   return (
     <div className="inline-flex flex-col items-end gap-1">
-      <a {...linkProps} className="inline-flex items-center gap-3 group">
+      <a {...linkProps(lang)} className="inline-flex items-center gap-3 group">
         {weather && !loading ? (
           <m.span key={`${weather.city}-${weather.temp}`} className="inline-flex items-center gap-3" {...fadeIn}>
             <WeatherIcon condition={weather.condition} isDay={weather.isDay} className="w-10 h-10" />
             <div className="text-right">
               <p className="text-2xl font-bold text-gray-800 group-hover:text-primary">
-                {toNepaliDigits(weather.temp)}°C
+                {num(weather.temp)}°C
                 {weather.summary && <span className="ml-2 text-sm font-medium text-gray-600">{weather.summary}</span>}
               </p>
               <p className="text-xs text-gray-500">
-                महसुस {toNepaliDigits(weather.feelsLike)}°C · आर्द्रता {toNepaliDigits(weather.humidity)}%
+                {t.feelsLike} {num(weather.feelsLike)}°C · {t.humidity} {num(weather.humidity)}%
               </p>
             </div>
           </m.span>
         ) : (
-          <span className="text-sm text-gray-500 group-hover:text-primary">{loading ? "मौसम लोड हुँदै…" : "मौसम पूर्वानुमान हेर्नुहोस् ↗"}</span>
+          <span className="text-sm text-gray-500 group-hover:text-primary">{loading ? t.weatherLoading : t.weatherForecast}</span>
         )}
       </a>
       <CityPicker state={state} id="weather-city" className="text-sm" />

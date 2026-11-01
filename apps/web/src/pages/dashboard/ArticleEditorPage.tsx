@@ -13,6 +13,8 @@ import {
   getArticleById,
   uploadImage,
   getImagePreviewUrl,
+  translateArticleNow,
+  type UpdateArticleInput,
 } from "@/services/admin.service";
 import {
   getCategories,
@@ -22,7 +24,8 @@ import {
 } from "@/services/categories.service";
 import { canPublish } from "@/services/auth.service";
 import { useAuth } from "@/contexts/AuthContext";
-import type { Article, ArticleStatus, Category } from "@/types";
+import type { Article, ArticleStatus, ArticleTranslation, Category } from "@/types";
+import { formatDualDate } from "@/lib/bs-date";
 import { AIAssistantModal } from "@/components/dashboard/AIAssistantModal";
 import { AIWarnings } from "@/components/dashboard/AIWarnings";
 // The editor is large and only editors need it: load it with this page.
@@ -57,6 +60,39 @@ const initialFormData: ArticleFormData = {
   isFeatured: false,
 };
 
+/** The English version as edited in the form. */
+interface EnglishForm {
+  title: string;
+  excerpt: string;
+  content: string;
+}
+const emptyEnglish: EnglishForm = { title: "", excerpt: "", content: "" };
+
+const englishOf = (en?: ArticleTranslation): EnglishForm => ({
+  title: en?.title ?? "",
+  excerpt: en?.excerpt ?? "",
+  content: en?.content ?? "",
+});
+
+/** Where the English version came from, for the badge in the English section. */
+function EnglishStatus({ meta }: { meta?: ArticleTranslation }) {
+  if (!meta?.title) return <span className="text-xs px-2 py-0.5 rounded bg-gray-100 text-gray-600">अनुवाद छैन</span>;
+  const when = meta.translatedAt ? ` · ${formatDualDate(meta.translatedAt).relative}` : "";
+  return (
+    <span className="flex flex-wrap gap-1.5">
+      <span className={`text-xs px-2 py-0.5 rounded ${meta.edited ? "bg-green-100 text-green-800" : "bg-purple-100 text-purple-800"}`}>
+        {meta.edited ? "सम्पादकले सच्याएको" : `AI अनुवाद${meta.model ? ` (${meta.model})` : ""}`}
+        {when}
+      </span>
+      {meta.outdated && (
+        <span className="text-xs px-2 py-0.5 rounded bg-amber-100 text-amber-800">
+          नेपाली बदलिएको छ – अंग्रेजी पुरानो हुन सक्छ
+        </span>
+      )}
+    </span>
+  );
+}
+
 const inputClass =
   "w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition";
 
@@ -89,6 +125,15 @@ export function ArticleEditorPage() {
   const [error, setError] = useState<string | null>(null);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [showAIModal, setShowAIModal] = useState(false);
+  // English version: the form copy, what the API last said about it, and
+  // whether a person changed it here (only then is it sent on save).
+  const [english, setEnglish] = useState<EnglishForm>(emptyEnglish);
+  const [englishMeta, setEnglishMeta] = useState<ArticleTranslation | undefined>(undefined);
+  const [englishDirty, setEnglishDirty] = useState(false);
+  const [showEnglish, setShowEnglish] = useState(false);
+  const [translating, setTranslating] = useState(false);
+  // Remounts the English editor when the AI replaces its text.
+  const [englishVersion, setEnglishVersion] = useState(0);
 
   const isEditing = !!id;
 
@@ -102,6 +147,8 @@ export function ArticleEditorPage() {
         if (id) {
           const article = await getArticleById(id);
           setSource(article.source);
+          setEnglish(englishOf(article.en));
+          setEnglishMeta(article.en);
           // Most specific location = the one that is not a parent of another selected one.
           const selected = locations.filter((l) => article.locationIds?.includes(l.$id));
           const parents = new Set(selected.map((l) => l.parentId));
@@ -189,7 +236,7 @@ export function ArticleEditorPage() {
     setSaving(true);
 
     try {
-      const data = {
+      const data: UpdateArticleInput & { title: string; categoryId: string } = {
         title: formData.title.trim(),
         slug: formData.slug || generateSlug(formData.title),
         excerpt: formData.excerpt.trim() || formData.title.trim(),
@@ -206,6 +253,11 @@ export function ArticleEditorPage() {
         isBreaking: formData.isBreaking,
         isFeatured: formData.isFeatured,
       };
+      if (englishDirty) {
+        data.en = english.title.trim()
+          ? { title: english.title.trim(), excerpt: english.excerpt.trim(), content: english.content.trim() }
+          : null;
+      }
 
       if (isEditing) await updateArticle(id!, data);
       else await createArticle(data);
@@ -216,6 +268,30 @@ export function ArticleEditorPage() {
       setError(err instanceof Error && err.message ? err.message : "समाचार सेभ गर्न सकिएन। कृपया पुन: प्रयास गर्नुहोस्।");
     } finally {
       setSaving(false);
+    }
+  };
+
+  const changeEnglish = (patch: Partial<EnglishForm>) => {
+    setEnglish((prev) => ({ ...prev, ...patch }));
+    setEnglishDirty(true);
+  };
+
+  /** AI translation of the saved Nepali; replaces the English in the form. */
+  const handleTranslate = async () => {
+    if (!id) return;
+    if (englishDirty && !confirm("तपाईंले लेखेको अंग्रेजी AI अनुवादले बदलिनेछ। जारी राख्ने हो?")) return;
+    setTranslating(true);
+    setError(null);
+    try {
+      const article = await translateArticleNow(id);
+      setEnglish(englishOf(article.en));
+      setEnglishMeta(article.en);
+      setEnglishDirty(false);
+      setEnglishVersion((v) => v + 1);
+    } catch (err) {
+      setError(err instanceof Error && err.message ? err.message : "अनुवाद गर्न सकिएन।");
+    } finally {
+      setTranslating(false);
     }
   };
 
@@ -364,6 +440,97 @@ export function ArticleEditorPage() {
               />
             </Suspense>
           </div>
+        </div>
+
+        {/* English version (the English site at /en) */}
+        <div className="bg-white rounded-lg shadow-sm p-6 space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <button
+              type="button"
+              onClick={() => setShowEnglish(!showEnglish)}
+              aria-expanded={showEnglish}
+              className="flex items-center gap-2 font-semibold text-gray-800"
+            >
+              <svg className={`w-4 h-4 transition-transform ${showEnglish ? "rotate-90" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+              </svg>
+              अंग्रेजी संस्करण (English)
+            </button>
+            <EnglishStatus meta={englishDirty ? { ...englishMeta, title: english.title, edited: true, outdated: false, translatedAt: undefined } : englishMeta} />
+          </div>
+
+          {showEnglish && (
+            <>
+              <p className="text-sm text-gray-500">
+                प्रकाशित समाचार हरेक घण्टा AI ले अंग्रेजीमा अनुवाद गर्छ। यहाँ सच्याउनुभयो भने त्यो सम्पादकको संस्करण मानिन्छ र AI ले फेरि बदल्दैन।
+                शीर्षक खाली गरेर सेभ गर्दा अंग्रेजी संस्करण हट्छ।
+              </p>
+              {mayPublish && isEditing && (
+                <button
+                  type="button"
+                  onClick={handleTranslate}
+                  disabled={translating}
+                  className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-lg hover:opacity-90 transition text-sm font-medium disabled:opacity-50"
+                >
+                  {translating ? <Spinner className="w-4 h-4" /> : <span>✨</span>}
+                  {translating ? "अनुवाद हुँदैछ..." : "AI ले अहिले अनुवाद गर्नुहोस्"}
+                </button>
+              )}
+              {mayPublish && isEditing && (
+                <p className="text-xs text-gray-500 -mt-2">सेभ भइसकेको नेपाली पाठ अनुवाद हुन्छ। नेपाली बदल्नुभएको छ भने पहिले सेभ गर्नुहोस्।</p>
+              )}
+
+              <div lang="en" className="space-y-4">
+                <div>
+                  <label htmlFor="en-title" className="block text-sm font-medium text-gray-700 mb-1">
+                    Title
+                  </label>
+                  <input
+                    type="text"
+                    id="en-title"
+                    value={english.title}
+                    onChange={(e) => changeEnglish({ title: e.target.value })}
+                    maxLength={300}
+                    className={inputClass}
+                    placeholder="English headline"
+                  />
+                </div>
+                <div>
+                  <label htmlFor="en-excerpt" className="block text-sm font-medium text-gray-700 mb-1">
+                    Summary
+                  </label>
+                  <textarea
+                    id="en-excerpt"
+                    value={english.excerpt}
+                    onChange={(e) => changeEnglish({ excerpt: e.target.value })}
+                    rows={2}
+                    maxLength={1000}
+                    className={`${inputClass} resize-none`}
+                    placeholder="A short English summary"
+                  />
+                </div>
+                <div>
+                  <p id="en-content-label" className="block text-sm font-medium text-gray-700 mb-1">
+                    Story
+                  </p>
+                  <Suspense fallback={<div className="h-64 rounded-lg border border-gray-300 bg-gray-50 animate-pulse" aria-label="सम्पादक लोड हुँदै" />}>
+                    <RichTextEditor
+                      key={englishVersion}
+                      id="en-content"
+                      labelledBy="en-content-label"
+                      value={english.content}
+                      onChange={(html) => {
+                        // The editor reports its first render too; only a real change counts as an edit.
+                        if (html !== english.content) changeEnglish({ content: html });
+                      }}
+                      onUploadImage={uploadImage}
+                      placeholder="The English story…"
+                    />
+                  </Suspense>
+                </div>
+              </div>
+            </>
+          )}
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

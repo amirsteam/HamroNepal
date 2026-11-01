@@ -18,6 +18,12 @@ export interface ArticleInput {
   status?: ArticleStatus;
   isFeatured?: boolean;
   isBreaking?: boolean;
+  /**
+   * The English version, as an editor typed or corrected it (null removes it).
+   * Send it only when someone changed it: the API then marks it as edited by a
+   * person, and the hourly translation job stops replacing it.
+   */
+  en?: { title: string; excerpt?: string; content?: string } | null;
 }
 
 export type CreateArticleInput = ArticleInput;
@@ -79,6 +85,11 @@ export async function createArticle(data: CreateArticleInput): Promise<Article> 
 
 export async function updateArticle(id: string, data: UpdateArticleInput): Promise<Article> {
   return api.patch(`/admin/articles/${id}`, data);
+}
+
+/** Make the English version now with AI, from the article's saved Nepali (editors and admins). */
+export async function translateArticleNow(id: string): Promise<Article> {
+  return api.post(`/admin/articles/${id}/translate`);
 }
 
 export async function deleteArticle(id: string): Promise<void> {
