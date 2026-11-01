@@ -83,6 +83,15 @@ export async function incrementViewCount(articleId: string): Promise<void> {
 export const PLACEHOLDER = "/placeholder-news.svg";
 
 /**
+ * srcset for photos on hosts that resize (Cloudinary, Pexels), so phones
+ * download a phone-sized photo. Undefined for other hosts (one size only).
+ */
+export function getArticleImageSrcSet(imageRef: string, widths: number[], ratio: number): string | undefined {
+  if (!imageRef || !/res\.cloudinary\.com\/.*\/upload\/|images\.pexels\.com/.test(imageRef)) return undefined;
+  return widths.map((w) => `${getArticleImageUrl(imageRef, w, Math.round(w * ratio))} ${w}w`).join(", ");
+}
+
+/**
  * Image URL at a given size. Cloudinary URLs get a resize transform; other
  * URLs are used as they are.
  */

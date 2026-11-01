@@ -23,6 +23,12 @@ const loginSchema = z.object({
   password: z.string().min(1).max(200),
 });
 
+// Compared against when the email is unknown, so a wrong email takes as long
+// as a wrong password and the answer time doesn't reveal who has an account.
+// Made on first use, not at start-up (serverless cold starts).
+let dummyHash: Promise<string> | null = null;
+const getDummyHash = () => (dummyHash ??= bcrypt.hash("not-a-real-password", 12));
+
 async function publicUser(id: string) {
   return toApi(await User.findById(id).lean());
 }
@@ -30,7 +36,8 @@ async function publicUser(id: string) {
 authRouter.post("/login", loginLimiter, async (req, res) => {
   const { email, password } = loginSchema.parse(req.body);
   const user = await User.findOne({ email: email.toLowerCase() }).select("+passwordHash");
-  const ok = user && user.isActive && !user.isSystem && (await bcrypt.compare(password, user.passwordHash));
+  const matches = await bcrypt.compare(password, user?.passwordHash ?? (await getDummyHash()));
+  const ok = user && user.isActive && !user.isSystem && matches;
   if (!ok) throw unauthorized("इमेल वा पासवर्ड मिलेन।");
   issueSession(res, String(user._id));
   res.json(await publicUser(String(user._id)));

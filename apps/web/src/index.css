@@ -1,4 +1,4 @@
-@import url("https://fonts.googleapis.com/css2?family=Anek+Devanagari:wdth,wght@75..125,400..800&family=Mukta:wght@400;500;600;700&display=swap");
+/* Fonts are linked in index.html (loaded in parallel, not behind this file). */
 @import "tailwindcss";
 
 /*

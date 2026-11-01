@@ -36,6 +36,7 @@ const AI_DESK_NAME = "हाम्रो नेपाल AI डेस्क";
 
 const ne = {
   siteName: "हाम्रो नेपाल",
+  skipToContent: "मुख्य सामग्रीमा जानुहोस्",
   brand: ["हाम्रो", "नेपाल"] as [string, string],
   tagline: "तपाईंको ठाउँको, देशभरको समाचार",
   defaultTitle: "हाम्रो नेपाल - नेपालको विश्वसनीय समाचार पोर्टल",
@@ -154,6 +155,7 @@ export type Strings = typeof ne;
 
 const en: Strings = {
   siteName: "Hamro Nepal",
+  skipToContent: "Skip to main content",
   brand: ["Hamro", "Nepal"],
   tagline: "News from your town and all of Nepal",
   defaultTitle: "Hamro Nepal - Trusted news from Nepal",

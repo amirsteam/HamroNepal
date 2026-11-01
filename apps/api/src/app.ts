@@ -8,6 +8,7 @@ import cors from "cors";
 import helmet from "helmet";
 import { config } from "./config";
 import { loadUser, requireAuth, requireRole } from "./middleware/auth";
+import { sameOriginWrites } from "./middleware/origin";
 import { errorHandler, notFoundHandler } from "./middleware/error";
 import { publicRouter } from "./routes/public";
 import { authRouter } from "./routes/auth";
@@ -33,6 +34,7 @@ export function createApp() {
   }
   app.use(express.json({ limit: "1mb" }));
   app.use(cookieParser());
+  app.use("/api", sameOriginWrites);
   app.use(loadUser);
 
   app.get("/api/health", (_req, res) => res.json({ ok: true }));

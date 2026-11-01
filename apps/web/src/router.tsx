@@ -2,22 +2,37 @@
  * App Router Configuration
  */
 
+import { Suspense, lazy, type ComponentType, type ReactNode } from "react";
 import { createBrowserRouter } from "react-router-dom";
 import { Layout } from "@/components/layout";
 import { HomePage, CategoryPage, NewsDetailPage, NotFoundPage, SearchPage } from "@/pages";
-import { DashboardLayout } from "@/components/dashboard";
 import { ProtectedRoute } from "@/components/auth";
-import {
-  LoginPage,
-  DashboardHomePage,
-  ArticlesListPage,
-  ArticleEditorPage,
-  CategoriesPage,
-  ReviewPage,
-  SourcesPage,
-  PromotionsPage,
-  PrintPage,
-} from "@/pages/dashboard";
+
+// The dashboard (editor, AI tools, print, ads) loads only when someone opens
+// /dashboard, so readers never download it.
+const dash = <K extends string>(name: K) =>
+  lazy(() =>
+    import("@/pages/dashboard").then((m) => ({ default: (m as unknown as Record<K, ComponentType>)[name] }))
+  );
+const DashboardLayout = lazy(() => import("@/components/dashboard").then((m) => ({ default: m.DashboardLayout })));
+const LoginPage = dash("LoginPage");
+const DashboardHomePage = dash("DashboardHomePage");
+const ArticlesListPage = dash("ArticlesListPage");
+const ArticleEditorPage = dash("ArticleEditorPage");
+const CategoriesPage = dash("CategoriesPage");
+const ReviewPage = dash("ReviewPage");
+const SourcesPage = dash("SourcesPage");
+const PromotionsPage = dash("PromotionsPage");
+const PrintPage = dash("PrintPage");
+
+function Loading() {
+  return (
+    <div className="min-h-screen flex items-center justify-center text-gray-500" role="status">
+      लोड हुँदैछ...
+    </div>
+  );
+}
+const load = (node: ReactNode) => <Suspense fallback={<Loading />}>{node}</Suspense>;
 
 /** The reader pages; the language comes from the URL (lib/i18n.ts). */
 function publicPages() {
@@ -38,39 +53,37 @@ export const router = createBrowserRouter([
   // Dashboard login (public)
   {
     path: "/dashboard/login",
-    element: <LoginPage />,
+    element: load(<LoginPage />),
   },
 
   // Dashboard routes (protected)
   {
     path: "/dashboard",
     element: (
-      <ProtectedRoute>
-        <DashboardLayout />
-      </ProtectedRoute>
+      <ProtectedRoute>{load(<DashboardLayout />)}</ProtectedRoute>
     ),
     children: [
       {
         index: true,
-        element: <DashboardHomePage />,
+        element: load(<DashboardHomePage />),
       },
       {
         path: "articles",
-        element: <ArticlesListPage />,
+        element: load(<ArticlesListPage />),
       },
       {
         path: "articles/new",
-        element: <ArticleEditorPage />,
+        element: load(<ArticleEditorPage />),
       },
       {
         path: "articles/:id",
-        element: <ArticleEditorPage />,
+        element: load(<ArticleEditorPage />),
       },
       {
         path: "categories",
         element: (
           <ProtectedRoute allowedRoles={["admin", "editor"]}>
-            <CategoriesPage />
+            {load(<CategoriesPage />)}
           </ProtectedRoute>
         ),
       },
@@ -78,7 +91,7 @@ export const router = createBrowserRouter([
         path: "review",
         element: (
           <ProtectedRoute allowedRoles={["admin", "editor"]}>
-            <ReviewPage />
+            {load(<ReviewPage />)}
           </ProtectedRoute>
         ),
       },
@@ -86,7 +99,7 @@ export const router = createBrowserRouter([
         path: "sources",
         element: (
           <ProtectedRoute allowedRoles={["admin", "editor"]}>
-            <SourcesPage />
+            {load(<SourcesPage />)}
           </ProtectedRoute>
         ),
       },
@@ -94,7 +107,7 @@ export const router = createBrowserRouter([
         path: "print",
         element: (
           <ProtectedRoute allowedRoles={["admin", "editor"]}>
-            <PrintPage />
+            {load(<PrintPage />)}
           </ProtectedRoute>
         ),
       },
@@ -102,7 +115,7 @@ export const router = createBrowserRouter([
         path: "promotions",
         element: (
           <ProtectedRoute allowedRoles={["admin"]}>
-            <PromotionsPage />
+            {load(<PromotionsPage />)}
           </ProtectedRoute>
         ),
       },

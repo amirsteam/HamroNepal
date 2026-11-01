@@ -50,14 +50,15 @@ Lint (`npm run lint`) is not clean: `react-hooks/set-state-in-effect` is used th
 
 - **Entry points:** `app.ts` builds the Express app. `server.ts` runs it locally. `vercel.ts` is the serverless handler, re-exported by the root `api/index.mjs`.
 - **Response shape:** routes return documents through `toApi()`/`toApiList()` (`src/lib/http.ts`), which rename `_id`→`$id` and `createdAt/updatedAt`→`$createdAt/$updatedAt`. The shared types and every UI use these `$` names (left over from Appwrite), so keep the mapping.
-- **Auth:** a JWT is stored in the httpOnly cookie `hn_session`. `loadUser` re-reads the user on every request. `/auth/me` returns `null` (200) when signed out.
+- **Auth:** a JWT is stored in the httpOnly cookie `hn_session`. `loadUser` re-reads the user on every request. `/auth/me` returns `null` (200) when signed out. Login compares against a dummy hash for unknown emails, so timing doesn't reveal accounts.
+- **Cross-site writes:** `middleware/origin.ts` refuses POST/PATCH/DELETE under `/api` whose `Origin` is not the site, `PUBLIC_SITE_URL` or `CORS_ORIGINS` (requests without `Origin`, such as scripts, pass).
 - **Roles are enforced on the server.** Most rules are in `buildUpdate` in `routes/admin/articles.ts`:
   - reporter: a "published" request becomes "pending"; cannot set featured/breaking; edits only their own unpublished articles.
   - editor: everything except delete.
   - admin: everything.
 - **HTML safety:** article HTML is sanitized on save (`src/lib/sanitize.ts`, allowlist), and the web sanitizes again with DOMPurify when rendering.
 - **Categories:** one `Category` collection with `type: "topic" | "location"`. Locations form a tree (province → district → municipality, via `parentId`/`level`) and carry `aliases` (Nepali/English place names) for matching. An article has one topic `categoryId` plus `locationIds`, which always include ancestors (`expandLocations`), so a Panauti story also lists under Kavre and Bagmati. Location rows come from `src/seed/data.ts`; the dashboard categories page manages topics only.
-- **SEO:** `routes/seo.ts` serves `/news/:slug` by injecting that article's OG/Twitter tags into the built `apps/web/dist/index.html`. It falls back to fetching `PUBLIC_SITE_URL/index.html`. The same file serves `/sitemap.xml`, `/news-sitemap.xml` and `/rss.xml`.
+- **SEO:** `routes/seo.ts` serves `/news/:slug` by injecting that article's OG/Twitter tags, canonical/hreflang links and `NewsArticle` JSON-LD (`newsArticleJsonLd`; AI-desk stories are credited to the organisation) into the built `apps/web/dist/index.html`. It falls back to fetching `PUBLIC_SITE_URL/index.html`. Section pages (`/category/:slug`, `/en/category/:slug`) and `/en` get their title, description and canonical the same way. The same file serves `/robots.txt` (absolute sitemap URLs; `/search` disallowed), `/sitemap.xml`, `/news-sitemap.xml` (both languages) and `/rss.xml`. `index.html` itself carries the site's Organization/WebSite JSON-LD.
 - **Static index.html:** `apps/web/index.html` uses `%SITE_URL%`, which a plugin in `vite.config.ts` replaces with `PUBLIC_SITE_URL` at build time.
 - **Mongoose gotchas:** `errors` is a reserved path name (the ingest run model uses `errorLog`). The article text index uses `default_language: "none"` for Devanagari.
 
@@ -141,6 +142,8 @@ A weekly press PDF: 318 × 483 mm trim plus 3 mm bleed, CMYK, and 6 pages, match
 
 ### Web (`apps/web`)
 
+- **Performance:** the dashboard pages are lazy-loaded in `router.tsx`, so readers never download them. Fonts are linked from `index.html` with preconnect (not `@import` in CSS). Cards and the article photo use `srcset` (`getArticleImageSrcSet`) for Cloudinary/Pexels images.
+- **Head tags in the app:** `Layout` sets the canonical link per page and `noindex` on search (`lib/seo.ts`); an untranslated story's English page points its canonical at the Nepali one.
 - **Data access:** components never call `fetch`. Data goes through `src/services/*`, which use `src/lib/api.ts` (`credentials: "include"`, throws `ApiError`).
 - **Auth state:** `AuthContext` exposes `user` and `author`, which are the same object from `/auth/me`.
 - **Article body editor:** `components/dashboard/RichTextEditor.tsx` (Tiptap 3) is lazy-loaded by the article form, so readers never download it. It offers only what `sanitizeArticleHtml` keeps; code marks/blocks are off. Links must be http(s)/mailto, and images upload to Cloudinary and ask for alt text. There is also an HTML view. If you allow a new tag in the editor, add it to the sanitizer allowlist too.
@@ -154,7 +157,9 @@ A weekly press PDF: 318 × 483 mm trim plus 3 mm bleed, CMYK, and 6 pages, match
 
 ### Deployment
 
-- **Vercel** (`vercel.json`): the static `apps/web/dist` plus one function, `api/index.mjs`. Rewrites send `/api/*`, `/news/:slug`, `/en/news/:slug`, `/n/:id`, the sitemaps and RSS to the function; everything else goes to the SPA.
+- **Vercel** (`vercel.json`): the static `apps/web/dist` plus one function, `api/index.mjs`. Rewrites send `/api/*`, `/news/:slug`, `/en/news/:slug`, `/en`, `/category/:slug`, `/en/category/:slug`, `/n/:id`, `/robots.txt`, the sitemaps and RSS to the function; everything else goes to the SPA.
+- **Security headers** (`vercel.json`, every path except `/api/`): a CSP (scripts only from the site; styles/fonts also from Google Fonts; images from any https host; no frames), HSTS, `X-Frame-Options: DENY`, `nosniff`, Referrer-Policy and Permissions-Policy (geolocation for the weather's "मेरो स्थान"). If you add a script, embed or third-party service, add its host to the CSP. The API's headers come from helmet.
+- **Design source files** (e.g. `design/og-image.psd`) stay out of `apps/web/public`, which is published as is.
 - **Database and images:** MongoDB Atlas and Cloudinary. Cloudinary is set either with `CLOUDINARY_URL` or with the three separate `CLOUDINARY_*` values.
 
 ## Conventions

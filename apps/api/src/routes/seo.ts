@@ -3,7 +3,7 @@
  * and an RSS feed. Mounted at the site root, not under /api.
  */
 
-import { Router } from "express";
+import { Router, type Response } from "express";
 import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
@@ -66,6 +66,11 @@ export function injectArticleMeta(
     alternates?: { ne: string; en?: string };
     /** Where search engines should index this (default: url). */
     canonical?: string;
+    /** "website" for section and home pages (default "article"). */
+    type?: "article" | "website";
+    modifiedAt?: string;
+    /** schema.org data for search engines (e.g. NewsArticle), added as JSON-LD. */
+    jsonLd?: Record<string, unknown>;
   }
 ): string {
   const lang = meta.lang ?? "ne";
@@ -74,7 +79,7 @@ export function injectArticleMeta(
   out = out.replace(/<html lang="[^"]*"/i, `<html lang="${lang}"`);
   out = setMeta(out, "property", "og:locale", lang === "en" ? "en_US" : "ne_NP");
   out = setMeta(out, "name", "description", meta.description);
-  out = setMeta(out, "property", "og:type", "article");
+  out = setMeta(out, "property", "og:type", meta.type ?? "article");
   out = setMeta(out, "property", "og:title", meta.title);
   out = setMeta(out, "property", "og:description", meta.description);
   out = setMeta(out, "property", "og:url", meta.url);
@@ -86,35 +91,87 @@ export function injectArticleMeta(
     out = setMeta(out, "name", "twitter:image", meta.image);
   }
   if (meta.publishedAt) out = setMeta(out, "property", "article:published_time", meta.publishedAt);
+  if (meta.modifiedAt) out = setMeta(out, "property", "article:modified_time", meta.modifiedAt);
   const links = [`<link rel="canonical" href="${escapeXml(meta.canonical ?? meta.url)}" />`];
   if (meta.alternates) {
     links.push(`<link rel="alternate" hreflang="ne" href="${escapeXml(meta.alternates.ne)}" />`);
     if (meta.alternates.en) links.push(`<link rel="alternate" hreflang="en" href="${escapeXml(meta.alternates.en)}" />`);
     links.push(`<link rel="alternate" hreflang="x-default" href="${escapeXml(meta.alternates.ne)}" />`);
   }
+  if (meta.jsonLd) links.push(jsonLdScript(meta.jsonLd));
   return out
     .replace(/<link rel="(canonical|alternate)"[^>]*hreflang[^>]*>|<link rel="canonical"[^>]*>/gi, "")
     .replace("</head>", `    ${links.join("\n    ")}\n  </head>`);
+}
+
+/** A JSON-LD block; "<" is escaped so text from articles can never close the script tag. */
+export function jsonLdScript(data: Record<string, unknown>): string {
+  return `<script type="application/ld+json">${JSON.stringify(data).replace(/</g, "\\u003c")}</script>`;
+}
+
+const ARTICLE_FIELDS = "title excerpt featuredImage slug publishedAt updatedAt authorName source.type en.title en.excerpt";
+
+type ArticleForLd = {
+  title: string;
+  excerpt?: string | null;
+  featuredImage?: string | null;
+  publishedAt?: Date | null;
+  updatedAt?: Date | null;
+  authorName?: string | null;
+  source?: { type?: string | null } | null;
+};
+
+/**
+ * schema.org NewsArticle (Google's article and Top Stories features).
+ * AI-desk drafts are credited to the organisation, not to a person.
+ */
+export function newsArticleJsonLd(a: ArticleForLd, o: { url: string; lang: "ne" | "en"; title: string; description: string }) {
+  const site = config.publicSiteUrl;
+  const publisher = {
+    "@type": "NewsMediaOrganization",
+    name: o.lang === "en" ? SITE_NAME_EN : SITE_NAME,
+    url: `${site}/`,
+    logo: { "@type": "ImageObject", url: `${site}/og-image.png` },
+  };
+  const byPerson = a.authorName && a.source?.type !== "ai";
+  return {
+    "@context": "https://schema.org",
+    "@type": "NewsArticle",
+    mainEntityOfPage: { "@type": "WebPage", "@id": o.url },
+    headline: o.title.slice(0, 110),
+    description: o.description,
+    ...(a.featuredImage ? { image: [a.featuredImage] } : {}),
+    ...(a.publishedAt ? { datePublished: a.publishedAt.toISOString() } : {}),
+    ...(a.updatedAt ? { dateModified: a.updatedAt.toISOString() } : {}),
+    author: byPerson ? { "@type": "Person", name: a.authorName } : publisher,
+    publisher,
+    inLanguage: o.lang,
+    isAccessibleForFree: true,
+  };
 }
 
 // GET /news/:slug – SPA shell with this article's preview tags.
 seoRouter.get("/news/:slug", async (req, res) => {
   const html = await getIndexHtml();
   const article = await Article.findOne({ slug: req.params.slug, status: "published" })
-    .select("title excerpt featuredImage slug publishedAt en.title")
+    .select(ARTICLE_FIELDS)
     .lean();
   res.set("Content-Type", "text/html; charset=utf-8");
   res.set("Cache-Control", "public, max-age=0, s-maxage=300, stale-while-revalidate=600");
   if (!article) return res.status(404).send(html);
 
+  const url = `${config.publicSiteUrl}/news/${encodeURIComponent(article.slug)}`;
+  const description = toPlainText(article.excerpt || article.title).slice(0, 200);
   res.send(
     injectArticleMeta(html, {
       title: article.title,
-      description: toPlainText(article.excerpt || article.title).slice(0, 200),
+      description,
       image: article.featuredImage || undefined,
-      url: `${config.publicSiteUrl}/news/${encodeURIComponent(article.slug)}`,
+      url,
       publishedAt: article.publishedAt?.toISOString(),
+      modifiedAt: article.updatedAt?.toISOString(),
       alternates: articleAlternates(article),
+      jsonLd: newsArticleJsonLd(article, { url, lang: "ne", title: article.title, description }),
     })
   );
 });
@@ -128,7 +185,7 @@ const articleAlternates = (a: { slug: string; en?: { title?: string | null } | n
 seoRouter.get("/en/news/:slug", async (req, res) => {
   const html = await getIndexHtml();
   const article = await Article.findOne({ slug: req.params.slug, status: "published" })
-    .select("title excerpt featuredImage slug publishedAt en.title en.excerpt")
+    .select(ARTICLE_FIELDS)
     .lean();
   res.set("Content-Type", "text/html; charset=utf-8");
   res.set("Cache-Control", "public, max-age=0, s-maxage=300, stale-while-revalidate=600");
@@ -136,18 +193,81 @@ seoRouter.get("/en/news/:slug", async (req, res) => {
 
   const alternates = articleAlternates(article);
   const translated = !!article.en?.title;
+  const title = translated ? article.en!.title! : article.title;
+  const description = toPlainText((translated ? article.en!.excerpt : article.excerpt) || title).slice(0, 200);
+  const url = `${config.publicSiteUrl}/en/news/${encodeURIComponent(article.slug)}`;
   res.send(
     injectArticleMeta(html, {
-      title: translated ? article.en!.title! : article.title,
-      description: toPlainText((translated ? article.en!.excerpt : article.excerpt) || article.title).slice(0, 200),
+      title,
+      description,
       image: article.featuredImage || undefined,
-      url: `${config.publicSiteUrl}/en/news/${encodeURIComponent(article.slug)}`,
+      url,
       publishedAt: article.publishedAt?.toISOString(),
+      modifiedAt: article.updatedAt?.toISOString(),
       lang: "en",
       alternates,
       // Not translated yet: the page shows the Nepali, so index the Nepali one.
       canonical: translated ? undefined : alternates.ne,
+      // Structured data only for the real English page (the Nepali one carries its own).
+      jsonLd: translated ? newsArticleJsonLd(article, { url, lang: "en", title, description }) : undefined,
     })
+  );
+});
+
+// ------------------------------------------------------------ section pages and the English home
+
+const HOME_TEXT = {
+  ne: { title: "ताजा नेपाली समाचार", description: "राजनीति, अर्थतन्त्र, खेलकुद, मनोरञ्जन र स्थानीय समाचार – हाम्रो नेपाल।" },
+  en: { title: "Latest news from Nepal", description: "Politics, the economy, sports, entertainment and local news from Nepal, in English." },
+};
+
+/** Title, description, canonical and hreflang for a section page (/category/x) or a home page. */
+async function sendSectionPage(res: Response, lang: "ne" | "en", slug?: string) {
+  const html = await getIndexHtml();
+  res.set("Content-Type", "text/html; charset=utf-8");
+  res.set("Cache-Control", "public, max-age=0, s-maxage=600, stale-while-revalidate=1800");
+  const site = config.publicSiteUrl;
+  const path = slug ? `/category/${encodeURIComponent(slug)}` : "/";
+  const alternates = { ne: `${site}${path}`, en: `${site}/en${path === "/" ? "" : path}` };
+  const url = lang === "en" ? alternates.en : alternates.ne;
+
+  let title = HOME_TEXT[lang].title;
+  let description = HOME_TEXT[lang].description;
+  if (slug && slug !== "all") {
+    const cat = await Category.findOne({ slug, isActive: true }).select("name nameEn description").lean();
+    if (!cat) return res.status(404).send(html.replace(/<html lang="[^"]*"/i, `<html lang="${lang}"`));
+    title = lang === "en" ? cat.nameEn || cat.name : cat.name;
+    description =
+      (lang === "ne" && cat.description) ||
+      (lang === "en" ? `${title}: the latest news from Nepal, in English.` : `${title} – हाम्रो नेपालका ताजा समाचार।`);
+  }
+  res.send(injectArticleMeta(html, { title, description, url, lang, alternates, type: "website" }));
+}
+
+// The Nepali home is the static index.html (it already has the site's tags).
+seoRouter.get("/en", (_req, res) => sendSectionPage(res, "en"));
+seoRouter.get("/category/:slug", (req, res) => sendSectionPage(res, "ne", req.params.slug));
+seoRouter.get("/en/category/:slug", (req, res) => sendSectionPage(res, "en", req.params.slug));
+
+// GET /robots.txt – sitemap addresses must be absolute.
+seoRouter.get("/robots.txt", (_req, res) => {
+  const base = config.publicSiteUrl;
+  res.set("Content-Type", "text/plain; charset=utf-8");
+  res.set("Cache-Control", "public, max-age=3600");
+  res.send(
+    [
+      "User-agent: *",
+      "Allow: /",
+      "Disallow: /dashboard",
+      "Disallow: /api/",
+      // Search results are endless thin pages.
+      "Disallow: /search",
+      "Disallow: /en/search",
+      "",
+      `Sitemap: ${base}/sitemap.xml`,
+      `Sitemap: ${base}/news-sitemap.xml`,
+      "",
+    ].join("\n")
   );
 });
 
@@ -170,9 +290,10 @@ seoRouter.get("/sitemap.xml", async (_req, res) => {
   const urls = [
     `<url><loc>${base}/</loc><changefreq>hourly</changefreq><priority>1.0</priority></url>`,
     `<url><loc>${base}/en</loc><changefreq>hourly</changefreq><priority>0.9</priority></url>`,
-    ...categories.map(
-      (c) => `<url><loc>${base}/category/${encodeURIComponent(c.slug)}</loc><changefreq>hourly</changefreq></url>`
-    ),
+    ...categories.flatMap((c) => [
+      `<url><loc>${base}/category/${encodeURIComponent(c.slug)}</loc><changefreq>hourly</changefreq></url>`,
+      `<url><loc>${base}/en/category/${encodeURIComponent(c.slug)}</loc><changefreq>hourly</changefreq></url>`,
+    ]),
     ...articles.map(
       (a) =>
         `<url><loc>${base}/news/${encodeURIComponent(a.slug)}</loc><lastmod>${a.updatedAt.toISOString()}</lastmod></url>`
@@ -195,14 +316,20 @@ seoRouter.get("/sitemap.xml", async (_req, res) => {
 seoRouter.get("/news-sitemap.xml", async (_req, res) => {
   const since = new Date(Date.now() - 48 * 3600_000);
   const articles = await Article.find({ status: "published", publishedAt: { $gte: since } })
-    .select("slug title publishedAt")
+    .select("slug title publishedAt en.title")
     .sort({ publishedAt: -1 })
-    .limit(1000)
+    .limit(500)
     .lean();
   const base = config.publicSiteUrl;
-  const items = articles.map(
-    (a) => `<url><loc>${base}/news/${encodeURIComponent(a.slug)}</loc><news:news><news:publication><news:name>${SITE_NAME}</news:name><news:language>ne</news:language></news:publication><news:publication_date>${a.publishedAt!.toISOString()}</news:publication_date><news:title>${escapeXml(a.title)}</news:title></news:news></url>`
-  );
+  const entry = (loc: string, name: string, lang: string, date: Date, title: string) =>
+    `<url><loc>${loc}</loc><news:news><news:publication><news:name>${name}</news:name><news:language>${lang}</news:language></news:publication><news:publication_date>${date.toISOString()}</news:publication_date><news:title>${escapeXml(title)}</news:title></news:news></url>`;
+  // Google allows 1000 URLs per news sitemap: up to 500 stories in each language.
+  const items = articles.flatMap((a) => {
+    const path = `/news/${encodeURIComponent(a.slug)}`;
+    const out = [entry(`${base}${path}`, SITE_NAME, "ne", a.publishedAt!, a.title)];
+    if (a.en?.title) out.push(entry(`${base}/en${path}`, SITE_NAME_EN, "en", a.publishedAt!, a.en.title));
+    return out;
+  });
   res.set("Content-Type", "application/xml; charset=utf-8");
   res.set("Cache-Control", "public, max-age=0, s-maxage=300");
   res.send(
