@@ -8,6 +8,7 @@ import { RouterProvider } from "react-router-dom";
 import { LazyMotion, MotionConfig } from "motion/react";
 import { router } from "./router";
 import { AuthProvider } from "@/contexts/AuthContext";
+import { SettingsProvider } from "@/lib/settings";
 
 const loadMotionFeatures = () => import("@/lib/motionFeatures").then((mod) => mod.default);
 
@@ -18,9 +19,11 @@ function App() {
     // readers who ask for less motion.
     <LazyMotion features={loadMotionFeatures} strict>
       <MotionConfig reducedMotion="user">
-        <AuthProvider>
-          <RouterProvider router={router} />
-        </AuthProvider>
+        <SettingsProvider>
+          <AuthProvider>
+            <RouterProvider router={router} />
+          </AuthProvider>
+        </SettingsProvider>
       </MotionConfig>
     </LazyMotion>
   );

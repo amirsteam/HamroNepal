@@ -91,7 +91,7 @@ async function setPrintBoxes(pdf: Uint8Array, title: string): Promise<Uint8Array
     page.setTrimBox((width - trimW) / 2, (height - trimH) / 2, trimW, trimH);
   }
   doc.setTitle(title);
-  doc.setProducer("हाम्रो नेपाल print edition (Chrome + Ghostscript)");
+  doc.setProducer("Print edition (Chrome + Ghostscript)");
   return doc.save({ useObjectStreams: false });
 }
 

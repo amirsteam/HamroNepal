@@ -31,7 +31,7 @@ import { ImageCredit } from "@/components/news/ImageCredit";
 import { PromoSlot } from "@/components/promo";
 import { SectionTitle } from "@/components/ui/SectionTitle";
 import { formatDualDate } from "@/lib/bs-date";
-import { STRINGS, authorLabel, useT } from "@/lib/i18n";
+import { STRINGS, useT } from "@/lib/i18n";
 import { useDocumentTitle } from "@/lib/useDocumentTitle";
 import { setCanonical } from "@/lib/seo";
 
@@ -42,7 +42,7 @@ export function NewsDetailPage() {
   const [relatedArticles, setRelatedArticles] = useState<Article[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const { lang, t, to, num } = useT();
+  const { lang, t, to, num, author } = useT();
 
   async function loadArticle() {
     if (!slug) return;
@@ -158,7 +158,7 @@ export function NewsDetailPage() {
                           d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
                         />
                       </svg>
-                      {authorLabel(article.authorName, lang)}
+                      {author(article.authorName)}
                     </div>
 
                     {dates && (

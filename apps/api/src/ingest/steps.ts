@@ -6,6 +6,7 @@ import type { GenerateJSON } from "../ai";
 import {
   CLASSIFIER_SYSTEM,
   WRITER_SYSTEM,
+  PROMPT_SITE_NAME,
   classifyPrompt,
   classifySchema,
   writePrompt,
@@ -57,6 +58,8 @@ export interface WriteInput {
   sourceText: string;
   topicName: string;
   locationName?: string;
+  /** The outlet's name (site settings), used in the writer's instructions. */
+  siteName?: string;
 }
 
 export interface WriteOutput extends WrittenArticle {
@@ -77,7 +80,7 @@ export function withoutSourceCredit(html: string): string {
 
 export async function writeArticle(generate: GenerateJSON, input: WriteInput): Promise<WriteOutput> {
   const { data, model } = await generate({
-    system: WRITER_SYSTEM,
+    system: input.siteName ? WRITER_SYSTEM.split(PROMPT_SITE_NAME).join(input.siteName) : WRITER_SYSTEM,
     prompt: writePrompt(input),
     schema: writeSchema,
     temperature: 0.3,

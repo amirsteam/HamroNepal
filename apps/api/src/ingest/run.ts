@@ -31,6 +31,8 @@ import { draftWarnings, hashUrl, isNearDuplicate, titleTokens, unsupportedNumber
 import { classifyItems, writeArticle } from "./steps";
 import { findStockPhoto as defaultFindPhoto, type FindStockPhoto, type StockPhoto } from "../services/stockPhoto";
 import { storeRemoteImage, type StoreImage } from "../services/imageStore";
+import { getSettings } from "../services/settings";
+import { aiDeskName } from "@hamronepal/shared";
 
 export const AI_DESK_EMAIL = "ai-desk@hamronepal.local";
 export const AI_DESK_NAME = "हाम्रो नेपाल AI डेस्क";
@@ -87,6 +89,10 @@ export async function runIngest(opts: IngestOptions = {}, deps: IngestDeps = {})
   const findPhoto = deps.findPhoto ?? defaultFindPhoto;
   const checkImage = deps.checkImage ?? defaultCheckImage;
   const storeImage = deps.storeImage ?? storeRemoteImage;
+
+  // The outlet's name (Dashboard → साइट सेटिङ): in the writer's prompt and the drafts' byline.
+  const site = await getSettings();
+  const deskName = aiDeskName(site.name.ne);
 
   const stats: IngestRunStats = { fetched: 0, duplicates: 0, skipped: 0, classified: 0, drafted: 0, failed: 0 };
   const errorLog: string[] = [];
@@ -282,6 +288,7 @@ export async function runIngest(opts: IngestOptions = {}, deps: IngestDeps = {})
         }
 
         const written = await writeArticle(generate, {
+          siteName: site.name.ne,
           title: item.title,
           sourceName: item.sourceName,
           sourceUrl: source.url,
@@ -363,7 +370,7 @@ export async function runIngest(opts: IngestOptions = {}, deps: IngestDeps = {})
           locationIds: location ? gazetteer.withAncestors(location.id) : [],
           tags: written.tags,
           authorId: aiDesk!._id,
-          authorName: AI_DESK_NAME,
+          authorName: deskName,
           status: "pending",
           createdAtBS: bsDateString(),
           source: {

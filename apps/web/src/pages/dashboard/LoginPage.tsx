@@ -9,8 +9,11 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { toNepaliDigits } from "@/lib/bs-date";
 import { useDocumentTitle } from "@/lib/useDocumentTitle";
+import { SiteLogo } from "@/components/layout/SiteLogo";
+import { useSettings } from "@/lib/settings";
 
 export function LoginPage() {
+  const settings = useSettings();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -46,7 +49,9 @@ export function LoginPage() {
         {/* Logo */}
         <div className="text-center mb-8">
           <a href="/" className="inline-block">
-            <h1 className="text-3xl font-bold text-secondary">हाम्रो नेपाल</h1>
+            <h1 className="flex justify-center">
+              <SiteLogo variant="login" />
+            </h1>
           </a>
           <p className="text-gray-600 mt-2">एडमिन ड्यासबोर्ड</p>
         </div>
@@ -140,7 +145,7 @@ export function LoginPage() {
 
         {/* Footer */}
         <p className="text-center text-sm text-gray-600 mt-6">
-          © {toNepaliDigits(new Date().getFullYear())} हाम्रो नेपाल। सबै अधिकार सुरक्षित।
+          © {toNepaliDigits(new Date().getFullYear())} {settings.name.ne}। सबै अधिकार सुरक्षित।
         </p>
       </div>
     </main>

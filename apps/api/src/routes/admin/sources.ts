@@ -9,6 +9,9 @@ import { isObjectId, notFound, toApi, toApiList } from "../../lib/http";
 import { requireRole } from "../../middleware/auth";
 import { fetchFeed } from "../../ingest/fetch";
 import { runIngest } from "../../ingest/run";
+import { HttpError } from "../../lib/http";
+import { canDispatchIngest, dispatchIngest } from "../../services/ingestTrigger";
+import { config } from "../../config";
 
 export const adminSourcesRouter = Router();
 export const adminIngestRouter = Router();
@@ -64,6 +67,27 @@ adminSourcesRouter.post("/:id/test", requireRole("admin"), async (req, res) => {
 // GET /admin/ingest/runs
 adminIngestRouter.get("/runs", async (_req, res) => {
   res.json(toApiList(await IngestRun.find().sort({ startedAt: -1 }).limit(20).lean()));
+});
+
+// POST /admin/ingest/start – "अहिले समाचार ल्याउनुहोस्" on AI समीक्षा (editors and admins).
+// With a GitHub token it starts the full news job on GitHub (drafts arrive in a
+// few minutes); without one it runs a small batch in this request.
+adminIngestRouter.post("/start", async (_req, res) => {
+  const running = await IngestRun.exists({
+    dryRun: false,
+    finishedAt: { $exists: false },
+    startedAt: { $gt: new Date(Date.now() - 15 * 60_000) },
+  });
+  if (running) throw new HttpError(409, "समाचार संकलन अहिले चलिरहेको छ। सकिएपछि मस्यौदा यहाँ आउँछन्।");
+
+  if (canDispatchIngest()) {
+    await dispatchIngest(config.ingest.maxDrafts);
+    res.status(202).json({ mode: "github" });
+    return;
+  }
+  // Vercel stops a request at 60 s, so only a couple of drafts there.
+  const run = await runIngest({ maxDrafts: process.env.VERCEL ? 2 : 5, trigger: "manual" });
+  res.json({ mode: "direct", drafted: run.stats.drafted, errors: run.errorLog.slice(0, 5) });
 });
 
 // POST /admin/ingest/run { dryRun?, maxDrafts? } – admin only. Kept small so it

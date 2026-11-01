@@ -18,7 +18,7 @@ import { bsDateString } from "../../lib/bs";
 import { HttpError, badRequest, escapeRegex, forbidden, intParam, isObjectId, notFound, toApi, toApiList } from "../../lib/http";
 import { sourceHash } from "../../ai/translate";
 import { isAIConfigured } from "../../ai";
-import { translateAndSave } from "../../services/translations";
+import { needsTranslation, translateAndSave } from "../../services/translations";
 import { isEditorOrAdmin, requireRole } from "../../middleware/auth";
 import { draftWarnings } from "../../ingest/text";
 import { withoutSourceCredit } from "../../ingest/steps";
@@ -140,6 +140,34 @@ function applyEnglish(article: InstanceType<typeof Article>, en: z.infer<typeof 
   });
 }
 
+/**
+ * How long a publish waits for the English version. Vercel stops the function
+ * at 60 s; if the AI is slower, the hourly job finishes the translation.
+ */
+const PUBLISH_TRANSLATE_MS = 40_000;
+
+/**
+ * Published stories get their English version straight away (and again when
+ * their Nepali changes), so they appear on /en without waiting for the hourly
+ * job. English a person edited is left alone. A failure never blocks publishing.
+ */
+async function translateIfPublished(article: InstanceType<typeof Article>) {
+  if (article.status !== "published" || !isAIConfigured() || !needsTranslation(article)) return;
+  let timer: NodeJS.Timeout | undefined;
+  try {
+    await Promise.race([
+      translateAndSave(article),
+      new Promise((_, reject) => {
+        timer = setTimeout(() => reject(new Error("timed out")), PUBLISH_TRANSLATE_MS);
+      }),
+    ]);
+  } catch (err) {
+    console.warn(`[translate] ${article.slug}: ${(err as Error).message.slice(0, 200)} (the hourly job will retry)`);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 function canEdit(req: Request, article: { authorId: unknown; status: string }) {
   if (isEditorOrAdmin(req.user)) return true;
   return String(article.authorId) === req.user!.id && article.status !== "published";
@@ -233,6 +261,7 @@ adminArticlesRouter.post("/", async (req, res) => {
     applyEnglish(article, input.en);
     await article.save();
   }
+  await translateIfPublished(article);
   res.status(201).json(toApi(withTranslationState(article.toObject())));
 });
 
@@ -257,6 +286,7 @@ adminArticlesRouter.patch("/:id", async (req, res) => {
   }
   applyEnglish(article, input.en);
   await article.save();
+  await translateIfPublished(article);
   res.json(toApi(withTranslationState(article.toObject())));
 });
 

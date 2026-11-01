@@ -11,18 +11,54 @@ import { Article, Category } from "../models";
 import { config } from "../config";
 import { toPlainText } from "../lib/sanitize";
 import { escapeXml, isObjectId } from "../lib/http";
+import { DEFAULT_SITE_SETTINGS, type SiteSettings } from "@hamronepal/shared";
+import { getSettings } from "../services/settings";
 
 export const seoRouter = Router();
 
-const SITE_NAME = "हाम्रो नेपाल";
-const SITE_NAME_EN = "Hamro Nepal";
+// The site's name and description come from Dashboard → साइट सेटिङ (cached a minute).
+// Every handler that uses them calls refreshBrand() first.
+let brand: SiteSettings = DEFAULT_SITE_SETTINGS;
+let SITE_NAME = brand.name.ne;
+let SITE_NAME_EN = brand.name.en;
+async function refreshBrand(): Promise<SiteSettings> {
+  brand = await getSettings();
+  SITE_NAME = brand.name.ne;
+  SITE_NAME_EN = brand.name.en;
+  return brand;
+}
+
+/** The built index.html's default tags, rewritten with the site's own name, description and images. */
+function brandTemplate(html: string, b: SiteSettings): string {
+  const d = DEFAULT_SITE_SETTINGS;
+  const title = `${b.name.ne} - ${b.tagline.ne}`;
+  let out = html.replace(/<title>[\s\S]*?<\/title>/i, `<title>${escapeXml(title)}</title>`);
+  out = setMeta(out, "name", "description", b.description.ne);
+  out = setMeta(out, "name", "author", b.name.ne);
+  out = setMeta(out, "name", "theme-color", b.colors.primary);
+  out = setMeta(out, "property", "og:site_name", b.name.ne);
+  out = setMeta(out, "property", "og:title", title);
+  out = setMeta(out, "property", "og:description", b.description.ne);
+  out = setMeta(out, "name", "twitter:title", title);
+  out = setMeta(out, "name", "twitter:description", b.description.ne);
+  if (b.ogImageUrl) {
+    out = setMeta(out, "property", "og:image", b.ogImageUrl);
+    out = setMeta(out, "name", "twitter:image", b.ogImageUrl);
+  }
+  if (b.faviconUrl) out = out.replace(/<link rel="icon"[^>]*>/i, `<link rel="icon" href="${escapeXml(b.faviconUrl)}" />`);
+  // Structured data and the RSS link title carry the name too.
+  if (b.name.ne !== d.name.ne) out = out.split(d.name.ne).join(escapeXml(b.name.ne));
+  if (b.name.en !== d.name.en) out = out.split(d.name.en).join(escapeXml(b.name.en));
+  return out;
+}
 
 // ------------------------------------------------------------ index.html template
 
 let template: { html: string; at: number } | null = null;
 
 async function getIndexHtml(): Promise<string> {
-  if (template && Date.now() - template.at < 10 * 60_000) return template.html;
+  const b = await refreshBrand();
+  if (template && Date.now() - template.at < 10 * 60_000) return brandTemplate(template.html, b);
 
   // Local/dev: read the built SPA. Production (Vercel): fetch the static file.
   const here = path.dirname(fileURLToPath(import.meta.url));
@@ -43,7 +79,7 @@ async function getIndexHtml(): Promise<string> {
     html = await res.text();
   }
   template = { html, at: Date.now() };
-  return html;
+  return brandTemplate(html, b);
 }
 
 function setMeta(html: string, attr: "property" | "name", key: string, value: string): string {
@@ -131,7 +167,7 @@ export function newsArticleJsonLd(a: ArticleForLd, o: { url: string; lang: "ne" 
     "@type": "NewsMediaOrganization",
     name: o.lang === "en" ? SITE_NAME_EN : SITE_NAME,
     url: `${site}/`,
-    logo: { "@type": "ImageObject", url: `${site}/og-image.png` },
+    logo: { "@type": "ImageObject", url: brand.logoUrl || brand.ogImageUrl || `${site}/og-image.png` },
   };
   const byPerson = a.authorName && a.source?.type !== "ai";
   return {
@@ -232,14 +268,14 @@ async function sendSectionPage(res: Response, lang: "ne" | "en", slug?: string) 
   const url = lang === "en" ? alternates.en : alternates.ne;
 
   let title = HOME_TEXT[lang].title;
-  let description = HOME_TEXT[lang].description;
+  let description = brand.description[lang] || HOME_TEXT[lang].description;
   if (slug && slug !== "all") {
     const cat = await Category.findOne({ slug, isActive: true }).select("name nameEn description").lean();
     if (!cat) return res.status(404).send(html.replace(/<html lang="[^"]*"/i, `<html lang="${lang}"`));
     title = lang === "en" ? cat.nameEn || cat.name : cat.name;
     description =
       (lang === "ne" && cat.description) ||
-      (lang === "en" ? `${title}: the latest news from Nepal, in English.` : `${title} – हाम्रो नेपालका ताजा समाचार।`);
+      (lang === "en" ? `${title}: the latest news from Nepal, in English.` : `${title} – ${SITE_NAME}का ताजा समाचार।`);
   }
   res.send(injectArticleMeta(html, { title, description, url, lang, alternates, type: "website" }));
 }
@@ -314,6 +350,7 @@ seoRouter.get("/sitemap.xml", async (_req, res) => {
 
 // GET /news-sitemap.xml – Google News sitemap (last 48 hours only).
 seoRouter.get("/news-sitemap.xml", async (_req, res) => {
+  await refreshBrand();
   const since = new Date(Date.now() - 48 * 3600_000);
   const articles = await Article.find({ status: "published", publishedAt: { $gte: since } })
     .select("slug title publishedAt en.title")
@@ -322,7 +359,7 @@ seoRouter.get("/news-sitemap.xml", async (_req, res) => {
     .lean();
   const base = config.publicSiteUrl;
   const entry = (loc: string, name: string, lang: string, date: Date, title: string) =>
-    `<url><loc>${loc}</loc><news:news><news:publication><news:name>${name}</news:name><news:language>${lang}</news:language></news:publication><news:publication_date>${date.toISOString()}</news:publication_date><news:title>${escapeXml(title)}</news:title></news:news></url>`;
+    `<url><loc>${loc}</loc><news:news><news:publication><news:name>${escapeXml(name)}</news:name><news:language>${lang}</news:language></news:publication><news:publication_date>${date.toISOString()}</news:publication_date><news:title>${escapeXml(title)}</news:title></news:news></url>`;
   // Google allows 1000 URLs per news sitemap: up to 500 stories in each language.
   const items = articles.flatMap((a) => {
     const path = `/news/${encodeURIComponent(a.slug)}`;
@@ -339,6 +376,7 @@ seoRouter.get("/news-sitemap.xml", async (_req, res) => {
 
 // GET /rss.xml – latest 50 articles.
 seoRouter.get("/rss.xml", async (_req, res) => {
+  await refreshBrand();
   const articles = await Article.find({ status: "published" })
     .select("slug title excerpt publishedAt featuredImage")
     .sort({ publishedAt: -1 })
@@ -352,6 +390,6 @@ seoRouter.get("/rss.xml", async (_req, res) => {
   res.set("Content-Type", "application/rss+xml; charset=utf-8");
   res.set("Cache-Control", "public, max-age=0, s-maxage=300");
   res.send(
-    `<?xml version="1.0" encoding="UTF-8"?>\n<rss version="2.0"><channel><title>${SITE_NAME}</title><link>${base}/</link><description>नेपालको विश्वसनीय समाचार पोर्टल</description><language>ne</language>\n${items.join("\n")}\n</channel></rss>`
+    `<?xml version="1.0" encoding="UTF-8"?>\n<rss version="2.0"><channel><title>${escapeXml(SITE_NAME)}</title><link>${base}/</link><description>${escapeXml(brand.description.ne)}</description><language>ne</language>\n${items.join("\n")}\n</channel></rss>`
   );
 });

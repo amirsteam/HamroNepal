@@ -7,6 +7,7 @@
 import { useState } from "react";
 import { Outlet, NavLink, useNavigate, useLocation, ScrollRestoration } from "react-router-dom";
 import { useDocumentTitle } from "@/lib/useDocumentTitle";
+import { SiteLogo } from "@/components/layout/SiteLogo";
 import { useAuth } from "@/contexts/AuthContext";
 import { canManageCategories, isAdmin } from "@/services/auth.service";
 
@@ -151,8 +152,22 @@ export function DashboardLayout() {
     });
   }
 
-  // Advertisements are business settings: admins only.
+  // Site settings and advertisements are business settings: admins only.
   if (isAdmin(author)) {
+    navItems.push({
+      to: "/dashboard/settings",
+      label: "साइट सेटिङ",
+      icon: (
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={2}
+            d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065zM15 12a3 3 0 11-6 0 3 3 0 016 0z"
+          />
+        </svg>
+      ),
+    });
     navItems.push({
       to: "/dashboard/promotions",
       label: "विज्ञापन",
@@ -194,7 +209,7 @@ export function DashboardLayout() {
         {/* Logo */}
         <div className="flex items-center justify-between p-4 border-b border-white/10">
           <a href="/" className="flex items-center space-x-2">
-            <span className="text-xl font-bold">हाम्रो नेपाल</span>
+            <SiteLogo variant="sidebar" />
           </a>
           <button
             onClick={() => setSidebarOpen(false)}

@@ -7,7 +7,9 @@
  */
 
 import { useLocation } from "react-router-dom";
-import { localDigits } from "@hamronepal/shared";
+import { useMemo } from "react";
+import { aiDeskName, aiDeskNameEn, localDigits, type SiteSettings } from "@hamronepal/shared";
+import { useSettings } from "./settings";
 import type { Lang } from "@/types";
 
 export type { Lang };
@@ -74,9 +76,8 @@ const ne = {
   contact: "सम्पर्क",
   phone: "फोन",
   email: "इमेल",
+  regNo: "दर्ता नं.",
   rights: (year: string) => `© ${year} हाम्रो नेपाल। सर्वाधिकार सुरक्षित।`,
-  pexelsBefore: "केही प्रतीकात्मक तस्बिरहरू",
-  pexelsAfter: "बाट।",
 
   // home
   topStories: "मुख्य समाचार",
@@ -191,9 +192,8 @@ const en: Strings = {
   contact: "Contact",
   phone: "Phone",
   email: "Email",
+  regNo: "Reg. No.",
   rights: (year: string) => `© ${year} Hamro Nepal. All rights reserved.`,
-  pexelsBefore: "Some representative photos from",
-  pexelsAfter: ".",
 
   topStories: "Top stories",
   latestNews: "Latest news",
@@ -264,8 +264,41 @@ const en: Strings = {
 export const STRINGS: Record<Lang, Strings> = { ne, en };
 
 /** Author line: the AI desk has an English name; people's names are shown as written. */
-export function authorLabel(name: string | undefined, lang: Lang): string | undefined {
-  return lang === "en" && name === AI_DESK_NAME ? "Hamro Nepal AI Desk" : name;
+export function authorLabel(
+  name: string | undefined,
+  lang: Lang,
+  site: { ne: string; en: string } = { ne: "हाम्रो नेपाल", en: "Hamro Nepal" }
+): string | undefined {
+  // "<site> AI डेस्क" is the pipeline's byline. It is shown under the site's
+  // current name, so drafts saved before a rename follow the new name too.
+  if (!name || !(name === AI_DESK_NAME || / AI डेस्क$/.test(name))) return name;
+  return lang === "en" ? aiDeskNameEn(site.en) : aiDeskName(site.ne);
+}
+
+/**
+ * The site's own name, tagline and the lines built from them, from
+ * Dashboard → साइट सेटिङ (the tables above hold the default site's wording).
+ */
+function withBrand(base: Strings, s: SiteSettings, lang: Lang): Strings {
+  const name = s.name[lang];
+  const other = s.name[lang === "en" ? "ne" : "en"];
+  const [first, ...rest] = name.split(" ");
+  const tagline = s.tagline[lang];
+  return {
+    ...base,
+    siteName: name,
+    brand: [first, rest.join(" ")],
+    tagline,
+    // The footer's "about" line is the site's description.
+    about: s.description[lang] || base.about,
+    defaultTitle: `${name} - ${tagline}`,
+    homeHeading: lang === "en" ? `${name} – latest news in English` : `${name} – ताजा समाचार`,
+    homeLink: lang === "en" ? `${name} home` : `${name} गृहपृष्ठ`,
+    copyrightShort: `© ${name}`,
+    switchTitle: lang === "en" ? `${other} नेपालीमा पढ्नुहोस्` : `Read ${other} in English`,
+    rights: (year: string) =>
+      lang === "en" ? `© ${year} ${name}. All rights reserved.` : `© ${year} ${name}। सर्वाधिकार सुरक्षित।`,
+  };
 }
 
 /** The page's language from the URL. Only for components inside the router. */
@@ -276,9 +309,13 @@ export function useLang(): Lang {
 /** Everything a public component needs for the reader's language. */
 export function useT() {
   const lang = useLang();
+  const settings = useSettings();
+  const t = useMemo(() => withBrand(STRINGS[lang], settings, lang), [lang, settings]);
   return {
     lang,
-    t: STRINGS[lang],
+    t,
+    /** The byline in this language ("<site> AI डेस्क" → "<Site> AI Desk"). */
+    author: (name?: string) => authorLabel(name, lang, settings.name),
     /** A site path in this language. */
     to: (path: string) => localPath(path, lang),
     /** Digits in this language (१२ / 12). */
