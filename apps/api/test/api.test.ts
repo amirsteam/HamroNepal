@@ -143,6 +143,53 @@ describe("AI draft warnings", () => {
   });
 });
 
+describe("advertisements", () => {
+  const banner = (extra: Record<string, unknown> = {}) => ({
+    title: "नेपाल बैंक",
+    imageUrl: "https://res.cloudinary.com/x/image/upload/banner.jpg",
+    linkUrl: "https://bank.example.np/offer",
+    placement: "sidebar",
+    ...extra,
+  });
+
+  it("only lets admins manage ads, and refuses non-web links", async () => {
+    const editor = await loginAs("editor@test.np");
+    expect((await editor.post("/api/admin/promotions").send(banner())).status).toBe(403);
+
+    const admin = await loginAs("admin@test.np");
+    expect((await admin.post("/api/admin/promotions").send(banner({ linkUrl: "javascript:alert(1)" }))).status).toBe(400);
+    expect((await admin.post("/api/admin/promotions").send(banner({ endsAt: "2026-01-01", startsAt: "2026-02-01" }))).status).toBe(400);
+    expect((await admin.post("/api/admin/promotions").send(banner())).status).toBe(201);
+  });
+
+  it("shows only running ads, without their counts", async () => {
+    const admin = await loginAs("admin@test.np");
+    const day = 864e5;
+    await admin.post("/api/admin/promotions").send(banner({ title: "चलिरहेको" }));
+    await admin.post("/api/admin/promotions").send(banner({ title: "बन्द", isActive: false }));
+    await admin.post("/api/admin/promotions").send(banner({ title: "सकियो", endsAt: new Date(Date.now() - day).toISOString() }));
+    await admin.post("/api/admin/promotions").send(banner({ title: "आउँदै", startsAt: new Date(Date.now() + day).toISOString() }));
+
+    const res = await request(app).get("/api/promotions");
+    expect(res.body.map((p: { title: string }) => p.title)).toEqual(["चलिरहेको"]);
+    expect(res.body[0].clicks).toBeUndefined();
+  });
+
+  it("counts views and clicks, and sends clicks to the advertiser", async () => {
+    const admin = await loginAs("admin@test.np");
+    const created = await admin.post("/api/admin/promotions").send(banner());
+    const id = created.body.$id;
+
+    expect((await request(app).post(`/api/promotions/${id}/view`)).status).toBe(204);
+    const click = await request(app).get(`/api/promotions/${id}/click`);
+    expect(click.status).toBe(302);
+    expect(click.headers.location).toBe("https://bank.example.np/offer");
+
+    const list = await admin.get("/api/admin/promotions");
+    expect(list.body[0]).toMatchObject({ views: 1, clicks: 1 });
+  });
+});
+
 describe("content safety", () => {
   it("strips scripts and event handlers on save", async () => {
     const editor = await loginAs("editor@test.np");

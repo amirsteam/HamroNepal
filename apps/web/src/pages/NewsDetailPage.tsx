@@ -27,6 +27,7 @@ import { NewsCard } from "@/components/news/NewsCard";
 import { ArticleDetailSkeleton, SidebarSkeleton } from "@/components/ui";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { ImageCredit } from "@/components/news/ImageCredit";
+import { PromoSlot } from "@/components/promo";
 import { formatDualDate, toNepaliDigits } from "@/lib/bs-date";
 
 export function NewsDetailPage() {
@@ -213,6 +214,8 @@ export function NewsDetailPage() {
                   dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(article.content, { ADD_ATTR: ["target"] }) }}
                 />
 
+                <PromoSlot placement="article" className="px-6 pb-6" />
+
                 {article.source?.type === "ai" && (
                   <p className="px-6 pb-4 text-xs text-gray-500">
                     यो समाचार AI को सहायताले {article.source.name ? `${article.source.name}को` : "अन्य सञ्चारमाध्यमको"} रिपोर्टका आधारमा तयार पारी हाम्रो सम्पादकले जाँच गरेका हुन्।
@@ -310,6 +313,8 @@ export function NewsDetailPage() {
 
         {/* Sidebar */}
         <aside className="lg:col-span-1">
+          <PromoSlot placement="sidebar" className="mb-6" />
+
           {/* Related Articles */}
           <div className="bg-white rounded-lg p-4 shadow-sm sticky top-24">
             <h2 className="text-lg font-bold text-gray-900 mb-4 pb-2 border-b border-primary">

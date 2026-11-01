@@ -97,6 +97,10 @@ How it runs and is tested:
 - **Data access:** components never call `fetch`. Data goes through `src/services/*`, which use `src/lib/api.ts` (`credentials: "include"`, throws `ApiError`).
 - **Auth state:** `AuthContext` exposes `user` and `author`, which are the same object from `/auth/me`.
 - **Menus:** `Header.tsx` builds the topic links and the स्थानीय (province → district) menu from `/api/categories`.
+- **Advertisements:** banner ads are the `Promotion` model, managed by admins in `/dashboard/promotions` (विज्ञापन). They're called "promotions" in code and URLs so ad blockers don't hide slots by name.
+  - **Placements:** `header` (under the header, every page), `home` (two home slots, `nth` 0/1), `sidebar` (article + category pages), `article` (after the story text) and `popup` (once per browser session).
+  - **Data:** `PromoProvider` (in `Layout`) loads the running ads once from `GET /api/promotions`, and `<PromoSlot placement>` shows one, labelled "विज्ञापन". Clicks go through `/api/promotions/:id/click`, which counts the click and redirects; views are counted once a banner is half on screen.
+  - **Mobile:** the mobile app does not show ads.
 - **Secrets:** only `VITE_API_URL` belongs in `VITE_*`. All secrets live in `apps/api/.env`, and `EXPO_PUBLIC_*` follows the same rule.
 
 ### Deployment

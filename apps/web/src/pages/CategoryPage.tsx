@@ -17,6 +17,7 @@ import { NewsGridSkeleton, SidebarSkeleton } from "@/components/ui/Skeleton";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { toNepaliDigits } from "@/lib/bs-date";
 import { useDocumentTitle } from "@/lib/useDocumentTitle";
+import { PromoSlot } from "@/components/promo";
 
 /** "/category/all" lists every published article. */
 const ALL_NEWS: Category = {
@@ -201,6 +202,8 @@ export function CategoryPage() {
 
         {/* Sidebar */}
         <div className="lg:col-span-1">
+          <PromoSlot placement="sidebar" className="mb-6" />
+
           {/* Categories List */}
           <div className="bg-white rounded-lg p-4 shadow-sm sticky top-24">
             <h2 className="text-lg font-bold text-gray-900 mb-4 pb-2 border-b border-primary">

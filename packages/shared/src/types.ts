@@ -162,3 +162,21 @@ export interface ApiErrorBody {
   error: string;
   details?: unknown;
 }
+
+/** Where an advertisement appears on the website. */
+export type PromoPlacement = "header" | "home" | "sidebar" | "article" | "popup";
+
+/** An advertisement (banner) managed in the dashboard. */
+export interface Promotion extends BaseDocument {
+  title: string;
+  imageUrl: string;
+  mobileImageUrl?: string;
+  linkUrl?: string;
+  placement: PromoPlacement;
+  startsAt?: string | null;
+  endsAt?: string | null;
+  isActive: boolean;
+  /** Dashboard only. */
+  views?: number;
+  clicks?: number;
+}

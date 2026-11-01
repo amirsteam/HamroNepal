@@ -189,3 +189,29 @@ const ingestRunSchema = new Schema(
 );
 ingestRunSchema.index({ startedAt: -1 });
 export const IngestRun = mongoose.model("IngestRun", ingestRunSchema);
+
+// ---------------------------------------------------------------- promotions (advertisements)
+/** Where an advertisement can appear on the website. */
+export const PROMO_PLACEMENTS = ["header", "home", "sidebar", "article", "popup"] as const;
+
+const promotionSchema = new Schema(
+  {
+    /** Advertiser or campaign name (shown in the dashboard and as alt text). */
+    title: { type: String, required: true, trim: true },
+    imageUrl: { type: String, required: true },
+    /** Optional narrower banner for phones. */
+    mobileImageUrl: { type: String, default: "" },
+    /** Where a click goes (empty = image only). */
+    linkUrl: { type: String, default: "" },
+    placement: { type: String, enum: PROMO_PLACEMENTS, required: true },
+    /** Runs from/until these times; empty = no limit. */
+    startsAt: { type: Date, default: null },
+    endsAt: { type: Date, default: null },
+    isActive: { type: Boolean, default: true },
+    views: { type: Number, default: 0 },
+    clicks: { type: Number, default: 0 },
+  },
+  { timestamps: true }
+);
+promotionSchema.index({ placement: 1, isActive: 1 });
+export const Promotion = mongoose.model("Promotion", promotionSchema);

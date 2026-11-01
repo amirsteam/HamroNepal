@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/Skeleton";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { useDocumentTitle } from "@/lib/useDocumentTitle";
+import { PromoSlot } from "@/components/promo";
 
 interface HomeData {
   featured: Article[];
@@ -155,6 +156,8 @@ export function HomePage() {
         )}
       </section>
 
+      <PromoSlot placement="home" className="mb-10" />
+
       {/* Local News (priority locations such as Kavre / Panauti) */}
       {!isLoading &&
         data?.local.map(({ category, articles }) => (
@@ -215,6 +218,9 @@ export function HomePage() {
             </section>
           );
         })}
+
+      {/* A second home banner (a different ad, if there is more than one) */}
+      <PromoSlot placement="home" nth={1} className="mb-10" />
 
       {/* More Latest News */}
       {!isLoading && data?.latest && data.latest.length > 6 && (

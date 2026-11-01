@@ -8,7 +8,7 @@ import { useState } from "react";
 import { Outlet, NavLink, useNavigate, useLocation } from "react-router-dom";
 import { useDocumentTitle } from "@/lib/useDocumentTitle";
 import { useAuth } from "@/contexts/AuthContext";
-import { canManageCategories } from "@/services/auth.service";
+import { canManageCategories, isAdmin } from "@/services/auth.service";
 
 export function DashboardLayout() {
   const { author, logout } = useAuth();
@@ -127,6 +127,24 @@ export function DashboardLayout() {
             strokeLinejoin="round"
             strokeWidth={2}
             d="M6 5c7.18 0 13 5.82 13 13M6 11a7 7 0 017 7m-6 0a1 1 0 11-2 0 1 1 0 012 0z"
+          />
+        </svg>
+      ),
+    });
+  }
+
+  // Advertisements are business settings: admins only.
+  if (isAdmin(author)) {
+    navItems.push({
+      to: "/dashboard/promotions",
+      label: "विज्ञापन",
+      icon: (
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={2}
+            d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z"
           />
         </svg>
       ),

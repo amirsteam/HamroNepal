@@ -17,6 +17,8 @@ import { adminUploadsRouter } from "./routes/admin/uploads";
 import { adminAiRouter } from "./routes/admin/ai";
 import { adminIngestRouter, adminSourcesRouter } from "./routes/admin/sources";
 import { seoRouter } from "./routes/seo";
+import { promotionsRouter } from "./routes/promotions";
+import { adminPromotionsRouter } from "./routes/admin/promotions";
 
 export function createApp() {
   const app = express();
@@ -34,6 +36,7 @@ export function createApp() {
 
   app.get("/api/health", (_req, res) => res.json({ ok: true }));
 
+  app.use("/api/promotions", promotionsRouter);
   app.use("/api", publicRouter);
   app.use("/api/auth", authRouter);
 
@@ -45,6 +48,7 @@ export function createApp() {
   admin.use("/ai", adminAiRouter);
   admin.use("/sources", requireRole("admin", "editor"), adminSourcesRouter);
   admin.use("/ingest", requireRole("admin", "editor"), adminIngestRouter);
+  admin.use("/promotions", requireRole("admin"), adminPromotionsRouter);
   app.use("/api/admin", admin);
 
   app.use(seoRouter);
