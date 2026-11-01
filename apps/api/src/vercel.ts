@@ -1,5 +1,5 @@
 /**
- * Vercel serverless entry. `api/index.mjs` at the repo root re-exports this.
+ * Vercel entry: the `api` service in vercel.json runs the built dist/vercel.js.
  */
 
 import type { IncomingMessage, ServerResponse } from "node:http";
