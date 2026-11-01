@@ -172,6 +172,7 @@ A weekly press PDF: 318 × 483 mm trim plus 3 mm bleed, CMYK, and 6 pages, match
   - In services mode, build keys (`functions`, `buildCommand`, `outputDirectory`, …) belong inside a service, not at the top level. `vercel dev` runs both services together locally.
 - **Security headers** (`vercel.json`, every path except `/api/`): a CSP (scripts only from the site; styles/fonts also from Google Fonts; images from any https host; no frames), HSTS, `X-Frame-Options: DENY`, `nosniff`, Referrer-Policy and Permissions-Policy (geolocation for the weather's "मेरो स्थान"). If you add a script, embed or third-party service, add its host to the CSP. The API's headers come from helmet.
 - **Design source files** (e.g. `design/og-image.psd`) stay out of `apps/web/public`, which is published as is.
+- **Share images:** `apps/web/public/og-image.png` (1200 × 630, what Facebook/X/WhatsApp show for the home page) is a framed screenshot of the home page with the banner ad cut out; `design/social-square.png` (1080 × 1080) is the same for Instagram posts. The structured-data logo is `public/brand/logo-square.png`, not the share image. The share tags use `PUBLIC_SITE_URL`, so a wrong value there means no preview image.
 - **Database and images:** MongoDB Atlas and Cloudinary. Cloudinary is set either with `CLOUDINARY_URL` or with the three separate `CLOUDINARY_*` values.
 
 ## Conventions
