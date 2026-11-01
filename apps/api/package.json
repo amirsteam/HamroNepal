@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "tsx watch --env-file-if-exists=.env src/server.ts",
     "build": "tsup",
-    "start": "node --env-file-if-exists=.env dist/server.js",
+    "start": "node --env-file-if-exists=.env dist/start.mjs",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "ingest": "tsx --env-file-if-exists=.env src/ingest/cli.ts",

@@ -48,7 +48,7 @@ Lint (`npm run lint`) is not clean: `react-hooks/set-state-in-effect` is used th
 
 ### API (`apps/api`)
 
-- **Entry points:** `app.ts` builds the Express app. `server.ts` runs it locally. `vercel.ts` is the Vercel handler. The `api` service's entrypoint is the committed `apps/api/vercel-entry.mjs`, which re-exports the build `dist/vercel.js` (tsup, no code splitting). Vercel checks that the entrypoint exists before building, so it cannot point at `dist/` directly.
+- **Entry points:** `app.ts` builds the Express app. `server.ts` runs it locally. `vercel.ts` is the Vercel handler. `npm run build` (tsup, no code splitting) writes `dist/index.mjs` (the handler) and `dist/start.mjs` (the local server, `npm start`). Vercel's Express service runs the build's `index`/`app`/`server` file, so the local server must not be called `server.*`, and the `.mjs` ending keeps both ES modules wherever Vercel copies them (a `.js` file there is loaded as CommonJS and crashes). The `entrypoint` in `vercel.json` is the committed `apps/api/vercel-entry.mjs`, which re-exports `dist/index.mjs`; Vercel checks that path before building, so it cannot point into `dist/`.
 - **Response shape:** routes return documents through `toApi()`/`toApiList()` (`src/lib/http.ts`), which rename `_id`→`$id` and `createdAt/updatedAt`→`$createdAt/$updatedAt`. The shared types and every UI use these `$` names (left over from Appwrite), so keep the mapping.
 - **Auth:** a JWT is stored in the httpOnly cookie `hn_session`. `loadUser` re-reads the user on every request. `/auth/me` returns `null` (200) when signed out. Login compares against a dummy hash for unknown emails, so timing doesn't reveal accounts.
 - **Cross-site writes:** `middleware/origin.ts` refuses POST/PATCH/DELETE under `/api` whose `Origin` is not the site, `PUBLIC_SITE_URL` or `CORS_ORIGINS` (requests without `Origin`, such as scripts, pass).
@@ -165,7 +165,7 @@ A weekly press PDF: 318 × 483 mm trim plus 3 mm bleed, CMYK, and 6 pages, match
 ### Deployment
 
 - **Vercel** (`vercel.json`) uses [Vercel Services](https://vercel.com/docs/services) (beta): one project, one domain, two services.
-  - `api`: `apps/api`, framework `express`, entrypoint `vercel-entry.mjs` (loads `dist/vercel.js`, built by `npm run build`) (tsup bundles the shared TypeScript package; Vercel's Express mode does not bundle). It has one binding, `WEB_URL` → `web`, used only to read `index.html` for the SEO pages.
+  - `api`: `apps/api`, framework `express`, entrypoint `vercel-entry.mjs` (loads `dist/index.mjs`, built by `npm run build`) (tsup bundles the shared TypeScript package; Vercel's Express mode does not bundle). It has one binding, `WEB_URL` → `web`, used only to read `index.html` for the SEO pages.
   - `web`: `apps/web`, framework `vite`, output `dist`, with its own SPA fallback rewrite to `/index.html`.
   - Both install from the repo root (`cd ../.. && npm ci`) because of the npm workspaces.
   - Top-level rewrites send `/api/*`, `/news/:slug`, `/en/news/:slug`, `/en`, `/category/:slug`, `/en/category/:slug`, `/n/:id`, `/robots.txt`, the sitemaps and RSS to `api`; everything else goes to `web`. A new server-rendered path needs a rewrite here too.
