@@ -4,4 +4,4 @@
 // as the Express app for Vercel.
 import "express";
 
-export { default } from "./dist/vercel.js";
+export { default } from "./dist/index.mjs";

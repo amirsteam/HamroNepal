@@ -1,5 +1,5 @@
 /**
- * Vercel entry: the `api` service in vercel.json loads the built dist/vercel.js through apps/api/vercel-entry.mjs.
+ * Vercel entry, built to dist/index.mjs (the file the `api` service runs).
  */
 
 import type { IncomingMessage, ServerResponse } from "node:http";
