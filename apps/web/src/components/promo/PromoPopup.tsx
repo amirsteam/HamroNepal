@@ -9,6 +9,7 @@ import { AnimatePresence, m } from "motion/react";
 import { trackPromotionView } from "@/services/promotions.service";
 import { PromoImage } from "./PromoSlot";
 import { usePromotion } from "./PromoProvider";
+import { useT } from "@/lib/i18n";
 
 const SEEN_KEY = "hn_popup_seen";
 const SHOW_AFTER_MS = 1500;
@@ -32,6 +33,7 @@ function markSeen() {
 
 export function PromoPopup() {
   const promo = usePromotion("popup");
+  const { t } = useT();
   const [open, setOpen] = useState(false);
 
   // Open once the ad has loaded, unless already seen this session.
@@ -64,7 +66,7 @@ export function PromoPopup() {
           key="promo-popup"
           role="dialog"
           aria-modal="true"
-          aria-label={`विज्ञापन: ${promo.title}`}
+          aria-label={`${t.ad}: ${promo.title}`}
           className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 p-4"
           onClick={() => setOpen(false)}
           initial={{ opacity: 0 }}
@@ -81,14 +83,14 @@ export function PromoPopup() {
             transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
           >
             <div className="flex items-center justify-between mb-2 text-white text-sm">
-              <span>विज्ञापन</span>
+              <span>{t.ad}</span>
               <button
                 type="button"
                 autoFocus
                 onClick={() => setOpen(false)}
                 className="px-3 py-1 rounded bg-white/20 hover:bg-white/30 font-medium"
               >
-                ✕ बन्द गर्नुहोस्
+                ✕ {t.close}
               </button>
             </div>
             <div className="max-h-[80vh] overflow-auto rounded-lg bg-white">

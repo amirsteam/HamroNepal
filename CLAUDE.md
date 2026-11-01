@@ -2,7 +2,7 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-HamroNepal (हाम्रो नेपाल) is a Nepali news portal: a public site and `/dashboard` (web), an Expo app (mobile), one Express + MongoDB API, and an hourly AI pipeline that turns RSS news into **pending** drafts for editors. All UI text is Nepali. Dates are shown in both Bikram Sambat and AD.
+HamroNepal (हाम्रो नेपाल) is a Nepali news portal: a public site and `/dashboard` (web), an Expo app (mobile), one Express + MongoDB API, and an hourly AI pipeline that turns RSS news into **pending** drafts for editors. The site is Nepali, with an English edition under `/en` (AI-translated stories). Dates are shown in both Bikram Sambat and AD.
 
 ## Commands
 
@@ -26,6 +26,7 @@ npm run ingest -w apps/api -- --dry-run --max 2  # AI pipeline, nothing saved
 npm run ingest -w apps/api -- --max 5            # saves pending drafts
 npm run images:backfill -w apps/api -- --dry-run # stock photos for older AI drafts (needs PEXELS_API_KEY)
 npm run images:backfill -w apps/api -- --from-source --limit 50  # or link each outlet's own photo (demo only)
+npm run translate -w apps/api -- --dry-run      # English versions of published stories (the hourly job runs it after ingest)
 npm run print:issue -w apps/api -- --html        # weekly press PDF into apps/api/print/ (needs Chrome/Edge); --save to publish
 
 # mobile
@@ -93,6 +94,18 @@ How it runs and is tested:
 - **Drafts without images:** this happens when the hourly job runs with `INGEST_SOURCE_IMAGES=false` (repo variable) and no `PEXELS_API_KEY` secret. To repeat the photo fix, run `npm run images:backfill -w apps/api -- --from-source --limit 50` from a regular PC. It links each outlet's own photo, so it's for the demo only.
 - **Sites that block GitHub's servers:** eKantipur and Ukera return 403 to the hourly job but work from a regular PC.
 
+### English edition (`/en`)
+
+The same site in English at `/en`, `/en/news/<slug>`, `/en/category/<slug>`, `/en/search`. Stories are machine-translated; the dashboard stays Nepali.
+
+- **Storage:** `Article.en` holds `title/excerpt/content`, the `sourceHash` of the Nepali it was made from, `model` and `edited`. `Category.nameEn` holds English names (the seed fills topics and places).
+- **Translating:** `ai/translate.ts` translates faithfully and carries the "स्रोत:" credit over as "Source:". `services/translations.ts` (`npm run translate`, the last step of the hourly workflow) redoes stories that have no English, or whose Nepali changed since (hash differs). English a person edited (`edited: true`) is never replaced.
+- **Public API:** `?lang=en` swaps in the English title/excerpt/content and category names, and adds `lang` to each article. On the English site, lists hold only translated stories; a single untranslated story comes back in Nepali with `lang: "ne"`. English search matches `en.title`/`en.excerpt`.
+- **SEO:** `/en/news/:slug` gets English meta tags. Every article page links both languages with hreflang. An untranslated story's English page is canonical to the Nepali one. The sitemap lists translated stories under `/en`.
+- **Web:** `lib/i18n.ts` reads the language from the URL (`useT()` gives `lang`, the strings `t`, `to(path)` for local links and `num()` for digits). The router mounts the same pages under `/` and `/en`. Services take a `lang` argument and add `?lang=en` only for English, so Nepali URLs and caches are unchanged. Put new reader-facing text in both tables in `i18n.ts`, link with `to()`, and pass `lang` to services and to the shared date helpers. The header has a link to the same page in the other language. The Nepali tags are hidden on the English site.
+- **Dashboard:** the article editor has an "अंग्रेजी संस्करण" section with the English fields, the translation status and "AI ले अहिले अनुवाद गर्नुहोस्" (`POST /admin/articles/:id/translate`, which translates the saved Nepali). The form sends `en` only when someone changed it, because sending it marks the English as edited by a person. The categories form has the English name.
+- **Mobile:** the app is Nepali only.
+
 ### Print edition (`apps/api/src/print`)
 
 A weekly press PDF: 318 × 483 mm trim plus 3 mm bleed, CMYK, and 6 pages, matching the paper's existing weekly.
@@ -141,12 +154,12 @@ A weekly press PDF: 318 × 483 mm trim plus 3 mm bleed, CMYK, and 6 pages, match
 
 ### Deployment
 
-- **Vercel** (`vercel.json`): the static `apps/web/dist` plus one function, `api/index.mjs`. Rewrites send `/api/*`, `/news/:slug`, the sitemaps and RSS to the function; everything else goes to the SPA.
+- **Vercel** (`vercel.json`): the static `apps/web/dist` plus one function, `api/index.mjs`. Rewrites send `/api/*`, `/news/:slug`, `/en/news/:slug`, `/n/:id`, the sitemaps and RSS to the function; everything else goes to the SPA.
 - **Database and images:** MongoDB Atlas and Cloudinary. Cloudinary is set either with `CLOUDINARY_URL` or with the three separate `CLOUDINARY_*` values.
 
 ## Conventions
 
-- TypeScript only, functional React components, mobile-first UI. All UI text is in Nepali, and every screen handles its loading and error states (from `.github/copilot-instructions.md` and `.github/AGENTS.MD`).
+- TypeScript only, functional React components, mobile-first UI. All UI text is in Nepali (reader pages also in English, via `lib/i18n.ts`), and every screen handles its loading and error states (from `.github/copilot-instructions.md` and `.github/AGENTS.MD`).
 - **Design tokens** live in the `@theme` block of `apps/web/src/index.css`, not `:root`. Tailwind v4 only generates utilities (`text-primary`, `hover:bg-secondary-dark`, `bg-primary/10`) for `@theme` colours. Colours come from the Nepali flag: crimson `primary`, blue `secondary`, navy `ink` for headlines.
 - **Type:** headings use Anek Devanagari (semi-condensed); body text uses Mukta. Headings get no colour from the base styles, so they can inherit white on dark bars; add `text-ink` where needed. Don't use italics, because Devanagari has no true italic.
 - **The pennant** (`components/ui/Pennant.tsx`, inside `SectionTitle`) is the site's mark. Use `SectionTitle` for section headings.

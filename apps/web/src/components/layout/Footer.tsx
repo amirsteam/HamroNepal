@@ -3,7 +3,7 @@
  */
 
 import { Link } from "react-router-dom";
-import { toNepaliDigits } from "@/lib/bs-date";
+import { useT } from "@/lib/i18n";
 import { SITE_CONTACT } from "@/lib/site";
 import { NepalFlag } from "@/components/ui/NepalFlag";
 
@@ -15,7 +15,9 @@ const SOCIAL_ICONS: Record<keyof typeof SITE_CONTACT.social, { label: string; pa
 };
 
 export function Footer() {
-  const currentYear = toNepaliDigits(new Date().getFullYear());
+  const { lang, t, to, num } = useT();
+  const currentYear = num(new Date().getFullYear());
+  const address = lang === "en" ? SITE_CONTACT.addressEn : SITE_CONTACT.address;
   const socials = (Object.keys(SITE_CONTACT.social) as Array<keyof typeof SITE_CONTACT.social>).filter(
     (k) => SITE_CONTACT.social[k]
   );
@@ -31,36 +33,33 @@ export function Footer() {
               <span className="inline-flex rounded-md bg-white p-1">
                 <NepalFlag className="h-7 w-auto" />
               </span>
-              हाम्रो नेपाल
+              {t.siteName}
             </h2>
-            <p className="text-gray-300 text-sm leading-relaxed">
-              नेपालको विश्वसनीय समाचार पोर्टल। राजनीति, अर्थतन्त्र, खेलकुद,
-              मनोरञ्जन र अन्य विविध समाचारहरू।
-            </p>
+            <p className="text-gray-300 text-sm leading-relaxed">{t.about}</p>
           </div>
 
           {/* Quick Links */}
           <div>
-            <h2 className="text-lg font-semibold mb-4">द्रुत लिङ्कहरू</h2>
+            <h2 className="text-lg font-semibold mb-4">{t.quickLinks}</h2>
             <ul className="space-y-2 text-sm">
               <li>
-                <Link to="/" className="text-gray-300 hover:text-white">
-                  गृहपृष्ठ
+                <Link to={to("/")} className="text-gray-300 hover:text-white">
+                  {t.home}
                 </Link>
               </li>
               <li>
-                <Link to="/category/all" className="text-gray-300 hover:text-white">
-                  सबै समाचार
+                <Link to={to("/category/all")} className="text-gray-300 hover:text-white">
+                  {t.allNews}
                 </Link>
               </li>
               <li>
-                <Link to="/search" className="text-gray-300 hover:text-white">
-                  खोज्नुहोस्
+                <Link to={to("/search")} className="text-gray-300 hover:text-white">
+                  {t.search}
                 </Link>
               </li>
               <li>
                 <a href="/rss.xml" className="text-gray-300 hover:text-white">
-                  RSS फिड
+                  {t.rssFeed}
                 </a>
               </li>
             </ul>
@@ -68,56 +67,31 @@ export function Footer() {
 
           {/* Categories */}
           <div>
-            <h2 className="text-lg font-semibold mb-4">समाचार श्रेणीहरू</h2>
+            <h2 className="text-lg font-semibold mb-4">{t.newsCategories}</h2>
             <ul className="space-y-2 text-sm">
-              <li>
-                <Link
-                  to="/category/rajniti"
-                  className="text-gray-300 hover:text-white"
-                >
-                  राजनीति
-                </Link>
-              </li>
-              <li>
-                <Link
-                  to="/category/arthatantra"
-                  className="text-gray-300 hover:text-white"
-                >
-                  अर्थतन्त्र
-                </Link>
-              </li>
-              <li>
-                <Link
-                  to="/category/khelkud"
-                  className="text-gray-300 hover:text-white"
-                >
-                  खेलकुद
-                </Link>
-              </li>
-              <li>
-                <Link
-                  to="/category/manoranjan"
-                  className="text-gray-300 hover:text-white"
-                >
-                  मनोरञ्जन
-                </Link>
-              </li>
+              {t.footerTopics.map(([slug, name]) => (
+                <li key={slug}>
+                  <Link to={to(`/category/${slug}`)} className="text-gray-300 hover:text-white">
+                    {name}
+                  </Link>
+                </li>
+              ))}
             </ul>
           </div>
 
           {/* Contact (only details that are filled in lib/site.ts) */}
           <div>
-            <h2 className="text-lg font-semibold mb-4">सम्पर्क</h2>
+            <h2 className="text-lg font-semibold mb-4">{t.contact}</h2>
             <ul className="space-y-2 text-sm text-gray-300">
-              {SITE_CONTACT.address && <li>{SITE_CONTACT.address}</li>}
+              {address && <li>{address}</li>}
               {SITE_CONTACT.phone && (
                 <li>
-                  फोन: <a href={`tel:${SITE_CONTACT.phone.replace(/[^+\d]/g, "")}`} className="hover:text-white">{SITE_CONTACT.phone}</a>
+                  {t.phone}: <a href={`tel:${SITE_CONTACT.phone.replace(/[^+\d]/g, "")}`} className="hover:text-white">{SITE_CONTACT.phone}</a>
                 </li>
               )}
               {SITE_CONTACT.email && (
                 <li>
-                  इमेल: <a href={`mailto:${SITE_CONTACT.email}`} className="hover:text-white">{SITE_CONTACT.email}</a>
+                  {t.email}: <a href={`mailto:${SITE_CONTACT.email}`} className="hover:text-white">{SITE_CONTACT.email}</a>
                 </li>
               )}
             </ul>
@@ -145,13 +119,13 @@ export function Footer() {
 
         {/* Copyright */}
         <div className="border-t border-gray-600 mt-8 pt-6 text-center text-sm text-gray-300">
-          <p>© {currentYear} हाम्रो नेपाल। सर्वाधिकार सुरक्षित।</p>
+          <p>{t.rights(currentYear)}</p>
           <p className="mt-1 text-xs">
-            केही प्रतीकात्मक तस्बिरहरू{" "}
+            {t.pexelsBefore}{" "}
             <a href="https://www.pexels.com" target="_blank" rel="noopener noreferrer" className="underline hover:text-white">
               Pexels
-            </a>{" "}
-            बाट।
+            </a>
+            {lang === "en" ? t.pexelsAfter : ` ${t.pexelsAfter}`}
           </p>
         </div>
       </div>

@@ -6,7 +6,7 @@
  */
 
 import { useState, useEffect } from "react";
-import { Link, NavLink } from "react-router-dom";
+import { Link, NavLink, useLocation } from "react-router-dom";
 import { AnimatePresence, m } from "motion/react";
 import { NepalFlag } from "@/components/ui/NepalFlag";
 import type { Category, Article } from "@/types";
@@ -18,11 +18,27 @@ import {
 } from "@/services/categories.service";
 import { getBreakingNews } from "@/services/news.service";
 import { WeatherCompact, WeatherFull, useWeather } from "./WeatherWidget";
-import {
-  getCurrentBSDate,
-  formatBSDate,
-  BS_WEEKDAYS,
-} from "@/lib/bs-date";
+import { getCurrentBSDate, formatBSDate, formatADDate, getWeekdayNepali } from "@/lib/bs-date";
+import { otherLanguagePath, useT } from "@/lib/i18n";
+
+/** "English" on the Nepali site, "नेपाली" on the English one: the same page in the other language. */
+function LanguageSwitch({ className = "", onClick }: { className?: string; onClick?: () => void }) {
+  const { lang, t } = useT();
+  const { pathname, search } = useLocation();
+  const other = lang === "en" ? "ne" : "en";
+  return (
+    <Link
+      to={otherLanguagePath(pathname, search, other)}
+      lang={other}
+      hrefLang={other}
+      title={t.switchTitle}
+      onClick={onClick}
+      className={className}
+    >
+      {t.switchLabel}
+    </Link>
+  );
+}
 
 // Hamburger icon component
 function HamburgerIcon({ isOpen }: { isOpen: boolean }) {
@@ -42,14 +58,15 @@ export function Header() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const weather = useWeather();
+  const { lang, t, to } = useT();
 
   useEffect(() => {
     async function loadData() {
       try {
         const [cats, breaking, locations] = await Promise.all([
-          getCategories(),
-          getBreakingNews(5),
-          getLocationCategories().catch(() => [] as Category[]),
+          getCategories(lang),
+          getBreakingNews(5, lang),
+          getLocationCategories(lang).catch(() => [] as Category[]),
         ]);
         setCategories(cats);
         setProvinces(buildLocationTree(locations.filter((l) => l.showInMenu !== false)));
@@ -61,7 +78,7 @@ export function Header() {
       }
     }
     loadData();
-  }, []);
+  }, [lang]);
 
   // While the mobile menu is open: no page scroll behind it, and Escape closes it.
   useEffect(() => {
@@ -78,13 +95,9 @@ export function Header() {
   // Get current dates
   const now = new Date();
   const bsDate = getCurrentBSDate();
-  const bsDateFormatted = formatBSDate(bsDate);
-  const bsWeekday = BS_WEEKDAYS[now.getDay()];
-  const adDateFormatted = now.toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
+  const bsDateFormatted = formatBSDate(bsDate, "full", lang) + (lang === "en" ? " BS" : "");
+  const bsWeekday = getWeekdayNepali(now, lang);
+  const adDateFormatted = formatADDate(now, "en");
 
   return (
     <>
@@ -97,27 +110,31 @@ export function Header() {
             <button
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
               className="p-2 -ml-2 text-gray-700 hover:text-primary transition-colors"
-              aria-label={mobileMenuOpen ? "मेनु बन्द गर्नुहोस्" : "मेनु खोल्नुहोस्"}
+              aria-label={mobileMenuOpen ? t.closeMenu : t.openMenu}
               aria-expanded={mobileMenuOpen}
             >
               <HamburgerIcon isOpen={mobileMenuOpen} />
             </button>
 
             {/* Logo */}
-            <Link to="/" className="absolute left-1/2 -translate-x-1/2" aria-label="हाम्रो नेपाल गृहपृष्ठ">
-              <span className="flex items-center gap-1.5 font-display text-2xl font-extrabold tracking-tight">
+            <Link to={to("/")} className="absolute left-1/2 -translate-x-1/2" aria-label={t.homeLink}>
+              {/* The English name is wider: one size smaller so it clears the language switch. */}
+              <span className={`flex items-center gap-1.5 font-display ${lang === "en" ? "text-xl" : "text-2xl"} font-extrabold tracking-tight`}>
                 <NepalFlag className="h-7 w-auto -mt-0.5" />
-                <span className="text-primary">हाम्रो</span>
-                <span className="text-secondary ml-0.5">नेपाल</span>
+                <span className="text-primary">{t.brand[0]}</span>
+                <span className="text-secondary ml-0.5">{t.brand[1]}</span>
               </span>
             </Link>
 
-            {/* Search Icon */}
-            <Link to="/search" className="p-2 -mr-2 text-gray-700 hover:text-primary transition-colors" aria-label="खोज्नुहोस्">
+            {/* Language and search */}
+            <div className="flex items-center gap-1 -mr-2">
+            <LanguageSwitch className="px-1.5 py-1 text-xs font-semibold text-secondary border border-secondary/30 rounded hover:bg-secondary hover:text-white transition-colors" />
+            <Link to={to("/search")} className="p-2 text-gray-700 hover:text-primary transition-colors" aria-label={t.search}>
               <svg aria-hidden="true" className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
               </svg>
             </Link>
+            </div>
           </div>
 
           {/* Date and Weather bar */}
@@ -143,13 +160,13 @@ export function Header() {
 
                 {/* CENTER: Logo */}
                 <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
-                  <Link to="/" className="block text-center group">
+                  <Link to={to("/")} className="block text-center group">
                     <span className="flex items-center justify-center gap-3 font-display text-5xl xl:text-6xl font-extrabold tracking-tight">
                       <NepalFlag animated className="h-14 xl:h-16 w-auto -mt-1" />
-                      <span className="text-primary transition-colors group-hover:text-primary/80">हाम्रो</span>
-                      <span className="text-secondary transition-colors group-hover:text-secondary/80 ml-2">नेपाल</span>
+                      <span className="text-primary transition-colors group-hover:text-primary/80">{t.brand[0]}</span>
+                      <span className="text-secondary transition-colors group-hover:text-secondary/80 ml-2">{t.brand[1]}</span>
                     </span>
-                    <p className="text-sm text-gray-500 mt-1">तपाईंको ठाउँको, देशभरको समाचार</p>
+                    <p className="text-sm text-gray-500 mt-1">{t.tagline}</p>
                   </Link>
                 </div>
 
@@ -162,25 +179,26 @@ export function Header() {
           </div>
 
           {/* Desktop Navigation */}
-          <nav className="bg-secondary text-white" aria-label="मुख्य मेनु">
+          <nav className="bg-secondary text-white" aria-label={t.mainMenu}>
             <div className="container mx-auto px-4">
               <div className="relative flex items-center justify-between">
                 <div className="flex items-center">
                   <NavLink
-                    to="/"
+                    to={to("/")}
+                    end
                     className={({ isActive }) =>
                       `relative px-5 py-3 font-medium transition-colors after:absolute after:inset-x-3 after:bottom-0 after:h-[3px] after:rounded-t after:bg-primary after:origin-left after:transition-transform after:duration-300 motion-reduce:after:transition-none hover:bg-secondary-dark hover:after:scale-x-100 ${
                         isActive ? "bg-secondary-dark after:scale-x-100" : "after:scale-x-0"
                       }`
                     }
                   >
-                    गृहपृष्ठ
+                    {t.home}
                   </NavLink>
                   {!isLoading &&
                     categories.slice(0, 7).map((category) => (
                       <NavLink
                         key={category.$id}
-                        to={`/category/${category.slug}`}
+                        to={to(`/category/${category.slug}`)}
                         className={({ isActive }) =>
                           `relative px-4 py-3 font-medium transition-colors after:absolute after:inset-x-3 after:bottom-0 after:h-[3px] after:rounded-t after:bg-primary after:origin-left after:transition-transform after:duration-300 motion-reduce:after:transition-none hover:bg-secondary-dark hover:after:scale-x-100 ${
                             isActive ? "bg-secondary-dark after:scale-x-100" : "after:scale-x-0"
@@ -197,7 +215,7 @@ export function Header() {
                         className="px-4 py-3 font-medium transition-colors hover:bg-secondary-dark flex items-center gap-1"
                         aria-haspopup="true"
                       >
-                        स्थानीय
+                        {t.local}
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                         </svg>
@@ -207,7 +225,7 @@ export function Header() {
                           {provinces.map((province) => (
                             <div key={province.$id}>
                               <Link
-                                to={`/category/${province.slug}`}
+                                to={to(`/category/${province.slug}`)}
                                 className="block font-bold text-secondary hover:text-primary mb-2 pb-1 border-b"
                               >
                                 {province.name}
@@ -215,13 +233,13 @@ export function Header() {
                               <ul className="space-y-1 text-sm">
                                 {province.children.map((district) => (
                                   <li key={district.$id}>
-                                    <Link to={`/category/${district.slug}`} className="hover:text-primary">
+                                    <Link to={to(`/category/${district.slug}`)} className="hover:text-primary">
                                       {district.name}
                                     </Link>
                                     {district.children.map((muni) => (
                                       <Link
                                         key={muni.$id}
-                                        to={`/category/${muni.slug}`}
+                                        to={to(`/category/${muni.slug}`)}
                                         className="block pl-3 text-gray-500 hover:text-primary"
                                       >
                                         ↳ {muni.name}
@@ -237,11 +255,14 @@ export function Header() {
                     </div>
                   )}
                 </div>
-                <Link to="/search" className="p-3 hover:bg-secondary-dark transition-colors" aria-label="खोज्नुहोस्">
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                  </svg>
-                </Link>
+                <div className="flex items-center">
+                  <LanguageSwitch className="px-4 py-3 font-semibold hover:bg-secondary-dark transition-colors" />
+                  <Link to={to("/search")} className="p-3 hover:bg-secondary-dark transition-colors" aria-label={t.search}>
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                    </svg>
+                  </Link>
+                </div>
               </div>
             </div>
           </nav>
@@ -256,14 +277,14 @@ export function Header() {
                   <span className="absolute inline-flex w-full h-full rounded-full bg-white opacity-75 motion-safe:animate-ping" />
                   <span className="relative inline-flex w-2 h-2 rounded-full bg-white" />
                 </span>
-                ब्रेकिङ
+                {t.breaking}
               </span>
               <div className="ticker-track overflow-hidden flex-1">
                 <div className="animate-ticker flex whitespace-nowrap py-1.5">
                   {[...breakingNews, ...breakingNews].map((news, index) => (
                     <Link
                       key={`${news.$id}-${index}`}
-                      to={`/news/${news.slug}`}
+                      to={to(`/news/${news.slug}`)}
                       className="mx-6 hover:underline text-xs sm:text-sm"
                     >
                       {news.title}
@@ -297,7 +318,7 @@ export function Header() {
             key="menu-panel"
             role="dialog"
             aria-modal="true"
-            aria-label="मेनु"
+            aria-label={t.menu}
             className="fixed top-0 left-0 h-full w-72 bg-white z-50 lg:hidden shadow-2xl overflow-y-auto"
             initial={{ x: "-100%" }}
             animate={{ x: 0 }}
@@ -306,11 +327,11 @@ export function Header() {
           >
             {/* Menu Header */}
             <div className="flex items-center justify-between p-4 border-b border-gray-100 bg-secondary text-white">
-              <h2 className="text-lg font-bold">मेनु</h2>
+              <h2 className="text-lg font-bold">{t.menu}</h2>
               <button
                 onClick={() => setMobileMenuOpen(false)}
                 className="p-2 hover:bg-secondary-dark rounded-lg transition-colors"
-                aria-label="मेनु बन्द गर्नुहोस्"
+                aria-label={t.closeMenu}
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -319,9 +340,10 @@ export function Header() {
             </div>
 
             {/* Menu Items */}
-            <nav className="py-2" aria-label="मोबाइल मेनु">
+            <nav className="py-2" aria-label={t.mobileMenu}>
               <NavLink
-                to="/"
+                to={to("/")}
+                end
                 onClick={() => setMobileMenuOpen(false)}
                 className={({ isActive }) =>
                   `flex items-center gap-3 px-4 py-3 text-gray-800 font-medium transition-colors ${
@@ -332,17 +354,17 @@ export function Header() {
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
                 </svg>
-                गृहपृष्ठ
+                {t.home}
               </NavLink>
 
               <div className="px-4 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                श्रेणीहरू
+                {t.categories}
               </div>
 
               {categories.map((category) => (
                 <NavLink
                   key={category.$id}
-                  to={`/category/${category.slug}`}
+                  to={to(`/category/${category.slug}`)}
                   onClick={() => setMobileMenuOpen(false)}
                   className={({ isActive }) =>
                     `flex items-center gap-3 px-4 py-3 text-gray-700 font-medium transition-colors ${
@@ -360,7 +382,7 @@ export function Header() {
               {provinces.length > 0 && (
                 <>
                   <div className="px-4 pt-4 pb-2 text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                    स्थानीय समाचार
+                    {t.localNews}
                   </div>
                   {provinces.map((province) => (
                     <details key={province.$id} className="group">
@@ -372,16 +394,16 @@ export function Header() {
                       </summary>
                       <div className="pb-2">
                         <Link
-                          to={`/category/${province.slug}`}
+                          to={to(`/category/${province.slug}`)}
                           onClick={() => setMobileMenuOpen(false)}
                           className="block pl-8 pr-4 py-2 text-sm text-secondary font-medium hover:bg-gray-50"
                         >
-                          सबै {province.name}
+                          {t.allOf(province.name)}
                         </Link>
                         {province.children.map((district) => (
                           <div key={district.$id}>
                             <Link
-                              to={`/category/${district.slug}`}
+                              to={to(`/category/${district.slug}`)}
                               onClick={() => setMobileMenuOpen(false)}
                               className="block pl-8 pr-4 py-2 text-sm text-gray-600 hover:bg-gray-50"
                             >
@@ -390,7 +412,7 @@ export function Header() {
                             {district.children.map((muni) => (
                               <Link
                                 key={muni.$id}
-                                to={`/category/${muni.slug}`}
+                                to={to(`/category/${muni.slug}`)}
                                 onClick={() => setMobileMenuOpen(false)}
                                 className="block pl-12 pr-4 py-2 text-sm text-gray-500 hover:bg-gray-50"
                               >
@@ -406,15 +428,19 @@ export function Header() {
               )}
 
               <div className="border-t border-gray-100 mt-2 pt-2">
+                <LanguageSwitch
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="flex items-center gap-3 px-4 py-3 text-secondary font-semibold hover:bg-gray-50 transition-colors"
+                />
                 <Link
-                  to="/search"
+                  to={to("/search")}
                   onClick={() => setMobileMenuOpen(false)}
                   className="flex items-center gap-3 px-4 py-3 text-gray-700 font-medium hover:bg-gray-50 transition-colors"
                 >
                   <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                   </svg>
-                  खोज्नुहोस्
+                  {t.search}
                 </Link>
               </div>
             </nav>
@@ -422,7 +448,7 @@ export function Header() {
             {/* Footer */}
             <div className="p-4 border-t border-gray-100 bg-gray-50">
               <p className="text-xs text-gray-500 text-center">
-                © हाम्रो नेपाल न्युज पोर्टल
+                {t.copyrightShort}
               </p>
             </div>
           </m.div>

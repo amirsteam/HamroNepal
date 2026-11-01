@@ -3,64 +3,72 @@
  */
 
 import { api } from "@/lib/api";
-import type { Article, HomeData, PaginatedResponse, PaginationParams } from "@/types";
+import { langQuery } from "@/lib/i18n";
+import type { Article, HomeData, Lang, PaginatedResponse, PaginationParams } from "@/types";
 
-export async function getHomeData(): Promise<HomeData> {
-  return api.get<HomeData>("/home");
+// Every read takes the reader's language: "en" returns the English versions
+// (lists then hold only translated stories; one story falls back to Nepali, lang: "ne").
+
+export async function getHomeData(lang?: Lang): Promise<HomeData> {
+  return api.get<HomeData>("/home", { lang: langQuery(lang) });
 }
 
 export async function getPublishedArticles(
-  pagination?: PaginationParams
+  pagination?: PaginationParams,
+  lang?: Lang
 ): Promise<PaginatedResponse<Article>> {
-  return api.get("/articles", { limit: pagination?.limit ?? 20, offset: pagination?.offset });
+  return api.get("/articles", { limit: pagination?.limit ?? 20, offset: pagination?.offset, lang: langQuery(lang) });
 }
 
-export async function getArticleBySlug(slug: string): Promise<Article | null> {
+export async function getArticleBySlug(slug: string, lang?: Lang): Promise<Article | null> {
   try {
-    return await api.get<Article>(`/articles/${encodeURIComponent(slug)}`);
+    return await api.get<Article>(`/articles/${encodeURIComponent(slug)}`, { lang: langQuery(lang) });
   } catch (err) {
     if ((err as { status?: number }).status === 404) return null;
     throw err;
   }
 }
 
-export async function getFeaturedArticles(limit = 5): Promise<Article[]> {
-  const res = await api.get<PaginatedResponse<Article>>("/articles", { featured: true, limit });
+export async function getFeaturedArticles(limit = 5, lang?: Lang): Promise<Article[]> {
+  const res = await api.get<PaginatedResponse<Article>>("/articles", { featured: true, limit, lang: langQuery(lang) });
   return res.documents;
 }
 
-export async function getBreakingNews(limit = 10): Promise<Article[]> {
-  const res = await api.get<PaginatedResponse<Article>>("/articles", { breaking: true, limit });
+export async function getBreakingNews(limit = 10, lang?: Lang): Promise<Article[]> {
+  const res = await api.get<PaginatedResponse<Article>>("/articles", { breaking: true, limit, lang: langQuery(lang) });
   return res.documents;
 }
 
 /** Works for topic categories and location categories (id or slug). */
 export async function getArticlesByCategory(
   categoryId: string,
-  pagination?: PaginationParams
+  pagination?: PaginationParams,
+  lang?: Lang
 ): Promise<PaginatedResponse<Article>> {
   return api.get("/articles", {
     category: categoryId,
     limit: pagination?.limit ?? 20,
     offset: pagination?.offset,
+    lang: langQuery(lang),
   });
 }
 
-export async function getRelatedArticles(articleId: string, _categoryId?: string, limit = 5): Promise<Article[]> {
+export async function getRelatedArticles(articleId: string, _categoryId?: string, limit = 5, lang?: Lang): Promise<Article[]> {
   void _categoryId;
-  return api.get(`/articles/${articleId}/related`, { limit });
+  return api.get(`/articles/${articleId}/related`, { limit, lang: langQuery(lang) });
 }
 
-export async function getLatestArticles(limit = 10): Promise<Article[]> {
-  const res = await getPublishedArticles({ limit });
+export async function getLatestArticles(limit = 10, lang?: Lang): Promise<Article[]> {
+  const res = await getPublishedArticles({ limit }, lang);
   return res.documents;
 }
 
 export async function searchArticles(
   q: string,
-  pagination?: PaginationParams
+  pagination?: PaginationParams,
+  lang?: Lang
 ): Promise<PaginatedResponse<Article>> {
-  return api.get("/search", { q, limit: pagination?.limit ?? 20, offset: pagination?.offset });
+  return api.get("/search", { q, limit: pagination?.limit ?? 20, offset: pagination?.offset, lang: langQuery(lang) });
 }
 
 /** Fire and forget; the server increments atomically. */

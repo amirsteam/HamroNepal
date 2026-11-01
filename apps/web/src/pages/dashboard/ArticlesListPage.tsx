@@ -292,6 +292,14 @@ export function ArticlesListPage() {
                             >
                               {article.title}
                             </Link>
+                            {article.en?.title && (
+                              <span
+                                className="inline-block mt-1 text-[11px] font-semibold px-1.5 py-0.5 rounded bg-secondary/10 text-secondary"
+                                title={`अंग्रेजी संस्करण: ${article.en.title}`}
+                              >
+                                EN{article.en.edited ? " ✓" : ""}
+                              </span>
+                            )}
                           </div>
                         </div>
                       </td>

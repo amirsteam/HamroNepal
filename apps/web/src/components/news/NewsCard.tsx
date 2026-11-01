@@ -8,6 +8,7 @@ import { Link } from "react-router-dom";
 import { m } from "motion/react";
 import type { Article } from "@/types";
 import { getRelativeTimeNepali } from "@/lib/bs-date";
+import { authorLabel, useT } from "@/lib/i18n";
 import { getArticleImageUrl } from "@/services/news.service";
 import { FadeImage } from "@/components/ui/FadeImage";
 
@@ -19,31 +20,35 @@ interface NewsCardProps {
 const EASE = [0.16, 1, 0.3, 1] as const;
 
 function BreakingTag({ className = "" }: { className?: string }) {
+  const { t } = useT();
   return (
     <span className={`inline-flex items-center gap-1.5 bg-primary text-white text-xs font-bold px-2 py-0.5 rounded ${className}`}>
       <span className="w-1.5 h-1.5 rounded-full bg-white" aria-hidden="true" />
-      ब्रेकिङ
+      {t.breaking}
     </span>
   );
 }
 
 function When({ article, className = "" }: { article: Article; className?: string }) {
   const iso = article.publishedAt || article.$createdAt;
+  const { lang } = useT();
   return (
     <time dateTime={iso} className={className}>
-      {getRelativeTimeNepali(iso)}
+      {getRelativeTimeNepali(iso, lang)}
     </time>
   );
 }
 
 export function NewsCard({ article, variant = "default" }: NewsCardProps) {
+  const { lang, to } = useT();
   const imageUrl = getArticleImageUrl(article.featuredImage || "", 400, 250);
+  const href = to(`/news/${article.slug}`);
 
   if (variant === "featured") {
     // The page's one load moment: the photo settles, then the headline rises in.
     return (
-      <article className="group relative overflow-hidden rounded-xl bg-ink">
-        <Link to={`/news/${article.slug}`} className="block">
+      <article lang={article.lang} className="group relative overflow-hidden rounded-xl bg-ink">
+        <Link to={href} className="block">
           <m.div
             className="aspect-[16/10] md:aspect-video overflow-hidden"
             initial={{ scale: 1.06 }}
@@ -70,7 +75,7 @@ export function NewsCard({ article, variant = "default" }: NewsCardProps) {
             </h2>
             <p className="text-white/80 text-sm md:text-base mt-2 line-clamp-2 max-w-2xl">{article.excerpt}</p>
             <div className="flex items-center gap-3 mt-3 text-white/70 text-sm">
-              {article.authorName && <span>{article.authorName}</span>}
+              {article.authorName && <span>{authorLabel(article.authorName, lang)}</span>}
               <When article={article} />
             </div>
           </m.div>
@@ -81,8 +86,8 @@ export function NewsCard({ article, variant = "default" }: NewsCardProps) {
 
   if (variant === "horizontal") {
     return (
-      <article className="group flex gap-4">
-        <Link to={`/news/${article.slug}`} className="flex-shrink-0 overflow-hidden rounded-lg" tabIndex={-1} aria-hidden="true">
+      <article lang={article.lang} className="group flex gap-4">
+        <Link to={href} className="flex-shrink-0 overflow-hidden rounded-lg" tabIndex={-1} aria-hidden="true">
           <FadeImage
             src={getArticleImageUrl(article.featuredImage || "", 200, 130)}
             alt=""
@@ -91,7 +96,7 @@ export function NewsCard({ article, variant = "default" }: NewsCardProps) {
           />
         </Link>
         <div className="flex-1 min-w-0 py-0.5">
-          <Link to={`/news/${article.slug}`}>
+          <Link to={href}>
             <h3 className="text-ink font-semibold text-[1.05rem] line-clamp-2 transition-colors group-hover:text-primary">{article.title}</h3>
           </Link>
           <p className="text-gray-600 text-sm mt-1 line-clamp-2 hidden md:block">{article.excerpt}</p>
@@ -103,8 +108,8 @@ export function NewsCard({ article, variant = "default" }: NewsCardProps) {
 
   if (variant === "compact") {
     return (
-      <article className="group flex gap-3 py-3 border-b border-gray-100 last:border-0">
-        <Link to={`/news/${article.slug}`} className="flex-shrink-0 overflow-hidden rounded-md" tabIndex={-1} aria-hidden="true">
+      <article lang={article.lang} className="group flex gap-3 py-3 border-b border-gray-100 last:border-0">
+        <Link to={href} className="flex-shrink-0 overflow-hidden rounded-md" tabIndex={-1} aria-hidden="true">
           <FadeImage
             src={getArticleImageUrl(article.featuredImage || "", 120, 80)}
             alt=""
@@ -113,7 +118,7 @@ export function NewsCard({ article, variant = "default" }: NewsCardProps) {
           />
         </Link>
         <div className="flex-1 min-w-0">
-          <Link to={`/news/${article.slug}`}>
+          <Link to={href}>
             <h3 className="text-ink text-[0.95rem] font-semibold line-clamp-2 transition-colors group-hover:text-primary">{article.title}</h3>
           </Link>
           <When article={article} className="block text-gray-500 text-xs mt-1" />
@@ -124,8 +129,8 @@ export function NewsCard({ article, variant = "default" }: NewsCardProps) {
 
   // Default variant
   return (
-    <article className="group bg-white rounded-lg overflow-hidden ring-1 ring-gray-200/80">
-      <Link to={`/news/${article.slug}`} tabIndex={-1} aria-hidden="true" className="block">
+    <article lang={article.lang} className="group bg-white rounded-lg overflow-hidden ring-1 ring-gray-200/80">
+      <Link to={href} tabIndex={-1} aria-hidden="true" className="block">
         <div className="aspect-video overflow-hidden">
           <FadeImage
             src={imageUrl}
@@ -137,7 +142,7 @@ export function NewsCard({ article, variant = "default" }: NewsCardProps) {
       </Link>
       <div className="p-4">
         {article.isBreaking && <BreakingTag className="mb-2" />}
-        <Link to={`/news/${article.slug}`}>
+        <Link to={href}>
           <h3 className="text-ink font-bold text-lg line-clamp-2 transition-colors group-hover:text-primary">{article.title}</h3>
         </Link>
         <p className="text-gray-600 text-sm mt-2 line-clamp-2">{article.excerpt}</p>

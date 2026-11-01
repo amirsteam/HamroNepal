@@ -5,6 +5,8 @@
  */
 
 import { useState, useEffect } from "react";
+import { Link } from "react-router-dom";
+import { useT } from "@/lib/i18n";
 import type { Article, Category } from "@/types";
 import { getHomeData } from "@/services/news.service";
 import { NewsCard } from "@/components/news/NewsCard";
@@ -33,13 +35,14 @@ export function HomePage() {
   const [data, setData] = useState<HomeData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const { lang, t, to } = useT();
 
   async function loadData() {
     setIsLoading(true);
     setError(null);
 
     try {
-      const home = await getHomeData();
+      const home = await getHomeData(lang);
       const sections = home.sections.slice(0, 3);
       const categoryArticles: Record<string, Article[]> = {};
       for (const s of sections) categoryArticles[s.category.$id] = s.articles;
@@ -67,7 +70,7 @@ export function HomePage() {
       });
     } catch (err) {
       console.error("Failed to load home page:", err);
-      setError("गृहपृष्ठ लोड गर्न सकिएन।");
+      setError(t.homeError);
     } finally {
       setIsLoading(false);
     }
@@ -75,7 +78,7 @@ export function HomePage() {
 
   useEffect(() => {
     loadData();
-  }, []);
+  }, [lang]);
 
   useDocumentTitle();
 
@@ -89,7 +92,19 @@ export function HomePage() {
 
   return (
     <div className="container mx-auto px-4 py-6">
-      <h1 className="sr-only">हाम्रो नेपाल – ताजा नेपाली समाचार</h1>
+      <h1 className="sr-only">{t.homeHeading}</h1>
+
+      {/* The English site before any story has been translated. */}
+      {!isLoading && data && data.latest.length === 0 && (
+        <div className="bg-white rounded-xl p-10 ring-1 ring-gray-200/80 text-center text-gray-600 mb-8">
+          <p>{t.homeEmpty}</p>
+          {t.homeEmptyLink && (
+            <Link to="/" lang="ne" className="inline-block mt-3 font-semibold text-primary hover:text-primary-dark">
+              {t.homeEmptyLink}
+            </Link>
+          )}
+        </div>
+      )}
 
       {/* Featured Section */}
       <section className="mb-8">
@@ -114,7 +129,7 @@ export function HomePage() {
               {/* Side list (hidden when there is nothing else to show) */}
               {data.side.length > 0 && (
               <div className="bg-white rounded-xl p-4 ring-1 ring-gray-200/80">
-                <SectionTitle title="मुख्य समाचार" size="small" />
+                <SectionTitle title={t.topStories} size="small" />
                 <div className="space-y-0">
                   {data.side.map((article) => (
                     <NewsCard
@@ -132,8 +147,9 @@ export function HomePage() {
       </section>
 
       {/* Latest News Section */}
+      {(isLoading || !!data?.latest.length) && (
       <section className="mb-10">
-        <SectionTitle title="ताजा समाचार" to="/category/all" linkLabel="सबै हेर्नुहोस्" />
+        <SectionTitle title={t.latestNews} to={to("/category/all")} linkLabel={t.seeAll} />
 
         {isLoading ? (
           <NewsGridSkeleton count={6} />
@@ -143,6 +159,7 @@ export function HomePage() {
           )
         )}
       </section>
+      )}
 
       <PromoSlot placement="home" className="mb-10" />
 
@@ -150,7 +167,7 @@ export function HomePage() {
       {!isLoading &&
         data?.local.map(({ category, articles }) => (
           <section key={category.$id} className="mb-10">
-            <SectionTitle title={`स्थानीय: ${category.name}`} to={`/category/${category.slug}`} />
+            <SectionTitle title={t.localPrefix(category.name)} to={to(`/category/${category.slug}`)} />
             <NewsGrid articles={articles.slice(0, 4)} columns={4} />
           </section>
         ))}
@@ -163,7 +180,7 @@ export function HomePage() {
 
           return (
             <section key={category.$id} className="mb-10">
-              <SectionTitle title={category.name} to={`/category/${category.slug}`} />
+              <SectionTitle title={category.name} to={to(`/category/${category.slug}`)} />
 
               <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
                 {/* Main article */}
@@ -194,7 +211,7 @@ export function HomePage() {
       {/* More Latest News */}
       {!isLoading && data?.latest && data.latest.length > 6 && (
         <section className="mb-10">
-          <SectionTitle title="अन्य समाचार" />
+          <SectionTitle title={t.moreNews} />
           <NewsGrid articles={data.latest.slice(6)} columns={4} />
         </section>
       )}

@@ -3,15 +3,16 @@
  */
 
 import { api } from "@/lib/api";
-import type { WeatherData } from "@/types";
+import { langQuery } from "@/lib/i18n";
+import type { Lang, WeatherData } from "@/types";
 export { WEATHER_CITIES, OFFICIAL_WEATHER_URL, nearestWeatherCity, findWeatherCity } from "@hamronepal/shared";
 
 export type { WeatherData };
 
-/** Weather for a listed city (slug), or the site's default place (Panauti). */
-export async function getWeather(city?: string): Promise<WeatherData | null> {
+/** Weather for a listed city (slug), or the site's default place (Panauti). "en": English place and summary. */
+export async function getWeather(city?: string, lang?: Lang): Promise<WeatherData | null> {
   try {
-    return await api.get<WeatherData | null>("/weather", { city });
+    return await api.get<WeatherData | null>("/weather", { city, lang: langQuery(lang) });
   } catch {
     return null;
   }

@@ -19,34 +19,21 @@ import {
   PrintPage,
 } from "@/pages/dashboard";
 
+/** The reader pages; the language comes from the URL (lib/i18n.ts). */
+function publicPages() {
+  return [
+    { index: true, element: <HomePage /> },
+    { path: "category/:slug", element: <CategoryPage /> },
+    { path: "news/:slug", element: <NewsDetailPage /> },
+    { path: "search", element: <SearchPage /> },
+    { path: "*", element: <NotFoundPage /> },
+  ];
+}
+
 export const router = createBrowserRouter([
-  // Public routes
-  {
-    path: "/",
-    element: <Layout />,
-    children: [
-      {
-        index: true,
-        element: <HomePage />,
-      },
-      {
-        path: "category/:slug",
-        element: <CategoryPage />,
-      },
-      {
-        path: "news/:slug",
-        element: <NewsDetailPage />,
-      },
-      {
-        path: "search",
-        element: <SearchPage />,
-      },
-      {
-        path: "*",
-        element: <NotFoundPage />,
-      },
-    ],
-  },
+  // Public routes: the Nepali site at /, the English site at /en (same pages).
+  { path: "/", element: <Layout />, children: publicPages() },
+  { path: "/en", element: <Layout />, children: publicPages() },
 
   // Dashboard login (public)
   {

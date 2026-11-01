@@ -7,6 +7,8 @@ import type { Category, CategoryType } from "@/types";
 
 export interface CreateCategoryInput {
   name: string;
+  /** English name for the English site (/en). */
+  nameEn?: string;
   slug?: string;
   description?: string;
   icon?: string;

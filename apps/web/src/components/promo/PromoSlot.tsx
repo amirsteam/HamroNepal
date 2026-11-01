@@ -7,6 +7,7 @@ import { useEffect, useRef } from "react";
 import type { Promotion, WebPromoPlacement } from "@/types";
 import { promotionClickUrl, promotionImageUrl, trackPromotionView } from "@/services/promotions.service";
 import { usePromotion } from "./PromoProvider";
+import { STRINGS, useLang } from "@/lib/i18n";
 
 /** Count a view when at least half the banner has been visible. */
 function useViewOnce(promo: Promotion | undefined) {
@@ -35,12 +36,13 @@ function useViewOnce(promo: Promotion | undefined) {
 
 /** The banner image, with the phone version below 768px when there is one. */
 export function PromoImage({ promo, eager = false, className = "" }: { promo: Promotion; eager?: boolean; className?: string }) {
+  const t = STRINGS[useLang()];
   const img = (
     <picture>
       {promo.mobileImageUrl && <source media="(max-width: 767px)" srcSet={promotionImageUrl(promo.mobileImageUrl)} />}
       <img
         src={promotionImageUrl(promo.imageUrl)}
-        alt={`विज्ञापन: ${promo.title}`}
+        alt={`${t.ad}: ${promo.title}`}
         loading={eager ? "eager" : "lazy"}
         className={`block w-full h-auto ${className}`}
       />
@@ -64,12 +66,13 @@ export function PromoSlot({
   className?: string;
 }) {
   const promo = usePromotion(placement, nth);
+  const lang = useLang();
   const ref = useViewOnce(promo);
   if (!promo) return null;
   const narrow = placement === "sidebar";
   return (
     <div ref={ref} className={`${narrow ? "max-w-[300px] mx-auto" : ""} ${className}`}>
-      <p className="text-[11px] leading-none text-gray-500 mb-1 text-center">विज्ञापन</p>
+      <p className="text-[11px] leading-none text-gray-500 mb-1 text-center">{STRINGS[lang].ad}</p>
       <PromoImage promo={promo} eager={placement === "header"} className="rounded" />
     </div>
   );

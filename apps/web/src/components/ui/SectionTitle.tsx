@@ -4,11 +4,12 @@
 
 import { Link } from "react-router-dom";
 import { Pennant } from "./Pennant";
+import { useT } from "@/lib/i18n";
 
 export function SectionTitle({
   title,
   to,
-  linkLabel = "थप हेर्नुहोस्",
+  linkLabel,
   size = "large",
   className = "",
 }: {
@@ -19,6 +20,7 @@ export function SectionTitle({
   size?: "large" | "small";
   className?: string;
 }) {
+  const { t } = useT();
   const large = size === "large";
   return (
     <div className={`flex items-center justify-between gap-4 ${large ? "mb-5" : "mb-3"} ${className}`}>
@@ -31,7 +33,7 @@ export function SectionTitle({
           to={to}
           className="group/more inline-flex items-center gap-1 text-sm font-semibold text-primary hover:text-primary-dark"
         >
-          {linkLabel}
+          {linkLabel ?? t.seeMore}
           <svg
             className="w-4 h-4 transition-transform duration-200 group-hover/more:translate-x-0.5 motion-reduce:transition-none"
             fill="none"

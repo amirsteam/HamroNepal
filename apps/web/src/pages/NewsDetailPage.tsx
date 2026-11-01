@@ -29,7 +29,9 @@ import { ErrorState } from "@/components/ui/ErrorState";
 import { ImageCredit } from "@/components/news/ImageCredit";
 import { PromoSlot } from "@/components/promo";
 import { SectionTitle } from "@/components/ui/SectionTitle";
-import { formatDualDate, toNepaliDigits } from "@/lib/bs-date";
+import { formatDualDate } from "@/lib/bs-date";
+import { STRINGS, authorLabel, useT } from "@/lib/i18n";
+import { useDocumentTitle } from "@/lib/useDocumentTitle";
 
 export function NewsDetailPage() {
   const { slug } = useParams<{ slug: string }>();
@@ -38,6 +40,7 @@ export function NewsDetailPage() {
   const [relatedArticles, setRelatedArticles] = useState<Article[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const { lang, t, to, num } = useT();
 
   async function loadArticle() {
     if (!slug) return;
@@ -46,31 +49,30 @@ export function NewsDetailPage() {
     setError(null);
 
     try {
-      const art = await getArticleBySlug(slug);
+      const art = await getArticleBySlug(slug, lang);
 
       if (!art) {
-        setError("समाचार भेटिएन।");
+        setError(t.articleNotFound);
         setIsLoading(false);
         return;
       }
 
       setArticle(art);
-      document.title = `${art.title} - हाम्रो नेपाल`;
 
       // Increment view count (fire and forget)
       incrementViewCount(art.$id);
 
       // Load category and related articles
       const [cat, related] = await Promise.all([
-        getCategoryById(art.categoryId),
-        getRelatedArticles(art.$id, art.categoryId, 5),
+        getCategoryById(art.categoryId, lang),
+        getRelatedArticles(art.$id, art.categoryId, 5, lang),
       ]);
 
       setCategory(cat);
       setRelatedArticles(related);
     } catch (err) {
       console.error("Failed to load article:", err);
-      setError("समाचार लोड गर्न सकिएन।");
+      setError(t.articleError);
     } finally {
       setIsLoading(false);
     }
@@ -79,7 +81,9 @@ export function NewsDetailPage() {
   // Scrolling to the top on a new article is done by <ScrollRestoration /> in Layout.
   useEffect(() => {
     loadArticle();
-  }, [slug]);
+  }, [slug, lang]);
+
+  useDocumentTitle(article?.title);
 
   if (error) {
     return (
@@ -90,8 +94,10 @@ export function NewsDetailPage() {
   }
 
   const dates = article?.publishedAt
-    ? formatDualDate(article.publishedAt)
+    ? formatDualDate(article.publishedAt, lang)
     : null;
+  // On the English site, a story not translated yet comes back in Nepali.
+  const untranslated = lang === "en" && article?.lang === "ne";
 
   return (
     <div className="container mx-auto px-4 py-6">
@@ -102,13 +108,22 @@ export function NewsDetailPage() {
             <ArticleDetailSkeleton />
           ) : (
             article && (
-              <div className="bg-white rounded-xl ring-1 ring-gray-200/80 overflow-hidden">
+              <div lang={article.lang} className="bg-white rounded-xl ring-1 ring-gray-200/80 overflow-hidden">
+                {untranslated && (
+                  <p lang="en" className="px-6 py-3 bg-secondary/10 text-sm text-secondary-dark border-b border-secondary/20">
+                    {t.notTranslated}{" "}
+                    <Link to={`/news/${article.slug}`} className="font-semibold underline underline-offset-2">
+                      {t.readInNepali}
+                    </Link>
+                  </p>
+                )}
                 {/* Article Header */}
                 <div className="p-6 pb-0">
                   {/* Category Badge */}
                   {category && (
                     <Link
-                      to={`/category/${category.slug}`}
+                      to={to(`/category/${category.slug}`)}
+                      lang={lang}
                       className="inline-block bg-primary text-white text-sm font-medium px-3 py-1 rounded mb-4"
                     >
                       {category.name}
@@ -136,7 +151,7 @@ export function NewsDetailPage() {
                           d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
                         />
                       </svg>
-                      {article.authorName}
+                      {authorLabel(article.authorName, lang)}
                     </div>
 
                     {dates && (
@@ -182,7 +197,7 @@ export function NewsDetailPage() {
                           d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
                         />
                       </svg>
-                      {toNepaliDigits(article.viewCount)} पटक हेरिएको
+                      {t.views(num(article.viewCount))}
                     </div>
                   </div>
                 </div>
@@ -217,16 +232,16 @@ export function NewsDetailPage() {
                 <PromoSlot placement="article" className="px-6 pb-6" />
 
                 {article.source?.type === "ai" && (
-                  <p className="px-6 pb-4 text-xs text-gray-500">
-                    यो समाचार AI को सहायताले {article.source.name ? `${article.source.name}को` : "अन्य सञ्चारमाध्यमको"} रिपोर्टका आधारमा तयार पारी हाम्रो सम्पादकले जाँच गरेका हुन्।
+                  <p lang={untranslated ? "ne" : lang} className="px-6 pb-4 text-xs text-gray-500">
+                    {(untranslated ? STRINGS.ne : t).aiNote(article.source.name)}
                   </p>
                 )}
 
-                {/* Tags */}
-                {article.tags && article.tags.length > 0 && (
+                {/* Tags (Nepali words: shown on the Nepali site only) */}
+                {lang === "ne" && article.tags && article.tags.length > 0 && (
                   <div className="px-6 pb-6 pt-4 border-t">
                     <span className="text-gray-500 text-sm mr-2">
-                      ट्यागहरू:
+                      {t.tags}
                     </span>
                     {article.tags.map((tag) => (
                       <Link
@@ -242,8 +257,8 @@ export function NewsDetailPage() {
 
                 {/* Share Buttons */}
                 <div className="px-6 py-4 bg-gray-50 border-t flex items-center gap-4">
-                  <span className="text-gray-600 font-medium">
-                    सेयर गर्नुहोस्:
+                  <span lang={lang} className="text-gray-600 font-medium">
+                    {t.share}
                   </span>
                   <button
                     onClick={() =>
@@ -317,7 +332,7 @@ export function NewsDetailPage() {
 
           {/* Related Articles */}
           <div className="bg-white rounded-xl p-4 ring-1 ring-gray-200/80 sticky top-24">
-            <SectionTitle title="सम्बन्धित समाचार" size="small" />
+            <SectionTitle title={t.related} size="small" />
 
             {isLoading ? (
               <SidebarSkeleton />
@@ -329,7 +344,7 @@ export function NewsDetailPage() {
               </div>
             ) : (
               <p className="text-gray-500 text-sm">
-                कुनै सम्बन्धित समाचार भेटिएन।
+                {t.noRelated}
               </p>
             )}
           </div>
