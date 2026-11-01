@@ -1,63 +1,107 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "framework": null,
-  "installCommand": "npm ci",
-  "buildCommand": "npm run build",
-  "outputDirectory": "apps/web/dist",
-  "functions": {
-    "api/index.mjs": {
-      "maxDuration": 60,
-      "includeFiles": "apps/web/dist/index.html"
+  "services": {
+    "api": {
+      "root": "apps/api",
+      "framework": "express",
+      "installCommand": "cd ../.. && npm ci",
+      "buildCommand": "npm run build",
+      "entrypoint": "dist/vercel.js",
+      "bindings": [
+        {
+          "type": "service",
+          "service": "web",
+          "format": "url",
+          "env": "WEB_URL"
+        }
+      ]
+    },
+    "web": {
+      "root": "apps/web",
+      "framework": "vite",
+      "installCommand": "cd ../.. && npm ci",
+      "buildCommand": "npm run build",
+      "outputDirectory": "dist",
+      "rewrites": [
+        {
+          "source": "/(.*)",
+          "destination": "/index.html"
+        }
+      ]
     }
   },
   "rewrites": [
     {
       "source": "/api/(.*)",
-      "destination": "/api"
+      "destination": {
+        "service": "api"
+      }
     },
     {
       "source": "/news/:slug",
-      "destination": "/api"
+      "destination": {
+        "service": "api"
+      }
     },
     {
       "source": "/en/news/:slug",
-      "destination": "/api"
+      "destination": {
+        "service": "api"
+      }
     },
     {
       "source": "/n/:id",
-      "destination": "/api"
+      "destination": {
+        "service": "api"
+      }
     },
     {
       "source": "/sitemap.xml",
-      "destination": "/api"
+      "destination": {
+        "service": "api"
+      }
     },
     {
       "source": "/news-sitemap.xml",
-      "destination": "/api"
+      "destination": {
+        "service": "api"
+      }
     },
     {
       "source": "/rss.xml",
-      "destination": "/api"
+      "destination": {
+        "service": "api"
+      }
     },
     {
       "source": "/robots.txt",
-      "destination": "/api"
+      "destination": {
+        "service": "api"
+      }
     },
     {
       "source": "/en",
-      "destination": "/api"
+      "destination": {
+        "service": "api"
+      }
     },
     {
       "source": "/category/:slug",
-      "destination": "/api"
+      "destination": {
+        "service": "api"
+      }
     },
     {
       "source": "/en/category/:slug",
-      "destination": "/api"
+      "destination": {
+        "service": "api"
+      }
     },
     {
       "source": "/(.*)",
-      "destination": "/index.html"
+      "destination": {
+        "service": "web"
+      }
     }
   ],
   "headers": [

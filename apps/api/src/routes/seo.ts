@@ -74,10 +74,19 @@ async function getIndexHtml(): Promise<string> {
       break;
     }
   }
-  if (!html) {
-    const res = await fetch(`${config.publicSiteUrl}/index.html`, { signal: AbortSignal.timeout(5000) });
-    html = await res.text();
+  // Deployed: fetch it from the web service. On Vercel services the binding
+  // WEB_URL reaches it internally (also on protected previews); else the public site.
+  const bases = [process.env.WEB_URL, config.publicSiteUrl].filter(Boolean) as string[];
+  for (const base of bases) {
+    if (html) break;
+    try {
+      const res = await fetch(new URL("index.html", base.endsWith("/") ? base : `${base}/`), { signal: AbortSignal.timeout(5000) });
+      if (res.ok) html = await res.text();
+    } catch {
+      // try the next one
+    }
   }
+  if (!html) throw new Error("index.html could not be loaded");
   template = { html, at: Date.now() };
   return brandTemplate(html, b);
 }

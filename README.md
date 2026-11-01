@@ -11,7 +11,7 @@ apps/
   mobile/   Expo (React Native) app – read-only, uses the same API
 packages/
   shared/   Shared types + Bikram Sambat (BS) date utilities
-api/index.mjs              Vercel serverless entry (re-exports apps/api)
+vercel.json                Vercel services: api (apps/api) + web (apps/web)
 .github/workflows/ci.yml   Typecheck, tests, build
 .github/workflows/ingest.yml  Hourly AI news run
 ```
