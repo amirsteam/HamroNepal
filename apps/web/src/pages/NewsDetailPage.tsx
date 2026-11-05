@@ -35,6 +35,19 @@ import { STRINGS, useT } from "@/lib/i18n";
 import { useDocumentTitle } from "@/lib/useDocumentTitle";
 import { setCanonical } from "@/lib/seo";
 
+/**
+ * Whole months since publishing, for the notice on a retired story. Measured
+ * from publishedAt rather than retiredAt so the number keeps growing with the
+ * story's real age.
+ */
+function monthsSince(publishedAt: string): number {
+  const then = new Date(publishedAt);
+  const now = new Date();
+  const months =
+    (now.getFullYear() - then.getFullYear()) * 12 + (now.getMonth() - then.getMonth());
+  return Math.max(1, now.getDate() < then.getDate() ? months - 1 : months);
+}
+
 export function NewsDetailPage() {
   const { slug } = useParams<{ slug: string }>();
   const [article, setArticle] = useState<Article | null>(null);
@@ -208,6 +221,19 @@ export function NewsDetailPage() {
                     </div>
                   </div>
                 </div>
+
+                {/* Retired by the monthly archive job: say so, so an old story
+                    arriving from a search result isn't mistaken for today's news. */}
+                {article.retiredAt && article.publishedAt && (
+                  <div className="px-6 mb-4">
+                    <p
+                      role="note"
+                      className="border-l-4 border-gray-300 bg-gray-50 px-4 py-3 text-sm text-gray-600"
+                    >
+                      {t.olderStory(num(monthsSince(article.publishedAt)))}
+                    </p>
+                  </div>
+                )}
 
                 {/* Featured Image */}
                 {article.featuredImage && (

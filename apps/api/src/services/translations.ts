@@ -45,7 +45,8 @@ export async function translatePending(
   const log = opts.log ?? (() => {});
   const limit = opts.limit ?? 15;
   // Missing, or machine-made (may be outdated); human-edited ones are skipped.
-  const filter: FilterQuery<unknown> = { status: "published", "en.edited": { $ne: true } };
+  // retiredAt: no point paying for a translation no English list will ever show.
+  const filter: FilterQuery<unknown> = { status: "published", retiredAt: null, "en.edited": { $ne: true } };
   const candidates = await Article.find(filter).sort({ publishedAt: -1 }).limit(limit * 10);
   const todo = candidates.filter(needsTranslation).slice(0, limit);
 
