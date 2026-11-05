@@ -186,7 +186,13 @@ const viewLimiter = rateLimit({
 publicRouter.post("/articles/:id/view", viewLimiter, async (req, res) => {
   if (isObjectId(req.params.id)) {
     // `readable`: a retired story's page still counts views, since it still loads.
-    await Article.updateOne(readable("ne", { _id: req.params.id }), { $inc: { viewCount: 1 } });
+    // No timestamps: a view is not an edit, and `updatedAt` is the sitemap's
+    // <lastmod> and the JSON-LD dateModified.
+    await Article.updateOne(
+      readable("ne", { _id: req.params.id }),
+      { $inc: { viewCount: 1 } },
+      { timestamps: false }
+    );
   }
   res.status(204).end();
 });

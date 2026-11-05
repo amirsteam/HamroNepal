@@ -136,11 +136,13 @@ const articleSchema = new Schema(
   },
   { timestamps: true }
 );
-articleSchema.index({ status: 1, publishedAt: -1 });
-articleSchema.index({ status: 1, categoryId: 1, publishedAt: -1 });
-articleSchema.index({ status: 1, locationIds: 1, publishedAt: -1 });
-articleSchema.index({ status: 1, isFeatured: 1, publishedAt: -1 });
-articleSchema.index({ status: 1, isBreaking: 1, publishedAt: -1 });
+// Lists sort { publishedAt: -1, _id: -1 }. The index must end in both, or
+// MongoDB loads every matching story and sorts them in memory.
+articleSchema.index({ status: 1, publishedAt: -1, _id: -1 });
+articleSchema.index({ status: 1, categoryId: 1, publishedAt: -1, _id: -1 });
+articleSchema.index({ status: 1, locationIds: 1, publishedAt: -1, _id: -1 });
+articleSchema.index({ status: 1, isFeatured: 1, publishedAt: -1, _id: -1 });
+articleSchema.index({ status: 1, isBreaking: 1, publishedAt: -1, _id: -1 });
 // The monthly archive job: oldest live stories first.
 articleSchema.index({ status: 1, retiredAt: 1, publishedAt: 1 });
 articleSchema.index({ authorId: 1, createdAt: -1 });
@@ -199,6 +201,20 @@ const ingestedItemSchema = new Schema({
 });
 export const IngestedItem = 
   mongoose.model("IngestedItem", ingestedItemSchema);
+
+// ---------------------------------------------------------------- rate-limit counters
+// Shared by every running copy of the API (see lib/rateLimitStore.ts). `_id` is
+// "<limiter>:<client>". Expired rows are removed by MongoDB about a minute late;
+// the store itself treats them as expired at once.
+const rateLimitHitSchema = new Schema(
+  {
+    _id: { type: String, required: true },
+    hits: { type: Number, default: 0 },
+    expiresAt: { type: Date, required: true, expires: 0 },
+  },
+  { versionKey: false }
+);
+export const RateLimitHit = mongoose.model("RateLimitHit", rateLimitHitSchema);
 
 // ---------------------------------------------------------------- ingest runs
 const ingestRunSchema = new Schema(

@@ -272,6 +272,32 @@ describe("public API", () => {
     expect(stored!.viewCount).toBe(50);
   });
 
+  it("doesn't count a view as an edit (sitemap lastmod, dateModified)", async () => {
+    const art = await publishedArticle();
+    const before = await Article.findById(art.$id).lean();
+    await new Promise((r) => setTimeout(r, 20));
+    await request(app).post(`/api/articles/${art.$id}/view`);
+    const after = await Article.findById(art.$id).lean();
+    expect(after!.viewCount).toBe(1);
+    expect(after!.updatedAt!.getTime()).toBe(before!.updatedAt!.getTime());
+  });
+
+  it("sorts article lists from an index, not in memory", async () => {
+    await publishedArticle();
+    const cat = await Category.findOne({ type: "topic" }).lean();
+    const filters = [
+      { status: "published", retiredAt: null },
+      { status: "published", retiredAt: null, categoryId: cat!._id },
+      { status: "published", retiredAt: null, isBreaking: true },
+    ];
+    for (const filter of filters) {
+      const plan = (await Article.find(filter).sort({ publishedAt: -1, _id: -1 }).limit(4).explain()) as unknown as {
+        queryPlanner: { winningPlan: unknown };
+      };
+      expect(JSON.stringify(plan.queryPlanner.winningPlan)).not.toContain('"SORT"');
+    }
+  });
+
   it("searches titles", async () => {
     await publishedArticle({ title: "काभ्रेमा नयाँ सडक" });
     const res = await request(app).get(`/api/search?q=${encodeURIComponent("सडक")}`);
