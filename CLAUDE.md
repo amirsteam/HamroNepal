@@ -20,7 +20,7 @@ npx vitest run test/ingest.test.ts
 npx vitest run -t "only lets admins delete"
 
 # API scripts (read apps/api/.env via --env-file-if-exists; real env vars win over .env)
-npm run seed -w apps/api                         # idempotent: topics, 7 provinces/77 districts/municipalities, RSS sources
+npm run seed -w apps/api                         # idempotent: topics, 7 provinces/77 districts/municipalities, RSS sources; syncs indexes
 npm run user:set -w apps/api -- --email x@y.np --name "नाम" --role admin   # prints a password if none given
 npm run ingest -w apps/api -- --dry-run --max 2  # AI pipeline, nothing saved
 npm run ingest -w apps/api -- --max 5            # saves pending drafts
@@ -50,7 +50,7 @@ Lint (`npm run lint`) is not clean: `react-hooks/set-state-in-effect` is used th
 
 - **Entry points:** `app.ts` builds the Express app. `server.ts` runs it locally. `vercel.ts` is the Vercel handler. `npm run build` (tsup, no code splitting) writes `dist/index.mjs` (the handler) and `dist/start.mjs` (the local server, `npm start`). Vercel's Express service runs the build's `index`/`app`/`server` file, so the local server must not be called `server.*`, and the `.mjs` ending keeps both ES modules wherever Vercel copies them (a `.js` file there is loaded as CommonJS and crashes). Vercel's function loader refuses `require()` of an ES-module-only package (Node 22+ allows it locally), so `sanitize-html` (CommonJS, requires the ESM-only `htmlparser2`) is bundled in through tsup's `noExternal`; CI checks the bundle with `node --no-experimental-require-module`. If Vercel logs `ERR_REQUIRE_ESM` for another package, add it to `noExternal` too. The `entrypoint` in `vercel.json` is the committed `apps/api/vercel-entry.mjs`, which re-exports `dist/index.mjs`; Vercel checks that path before building, so it cannot point into `dist/`.
 - **Response shape:** routes return documents through `toApi()`/`toApiList()` (`src/lib/http.ts`), which rename `_id`→`$id` and `createdAt/updatedAt`→`$createdAt/$updatedAt`. The shared types and every UI use these `$` names (left over from Appwrite), so keep the mapping.
-- **Auth:** a JWT is stored in the httpOnly cookie `hn_session`. `loadUser` re-reads the user on every request. `/auth/me` returns `null` (200) when signed out. Login compares against a dummy hash for unknown emails, so timing doesn't reveal accounts.
+- **Auth:** a JWT is stored in the httpOnly cookie `hn_session`. `loadUser` re-reads the user on every request. `/auth/me` returns `null` (200) when signed out. Login compares against a dummy hash for unknown emails, so timing doesn't reveal accounts. The login and dashboard-AI rate limits count in MongoDB (`lib/rateLimitStore.ts`, `RateLimitHit` with a TTL), so they hold across Vercel instances; the view/click limiters stay in memory.
 - **Cross-site writes:** `middleware/origin.ts` refuses POST/PATCH/DELETE under `/api` whose `Origin` is not the site, `PUBLIC_SITE_URL` or `CORS_ORIGINS` (requests without `Origin`, such as scripts, pass).
 - **Roles are enforced on the server.** Most rules are in `buildUpdate` in `routes/admin/articles.ts`:
   - reporter: a "published" request becomes "pending"; cannot set featured/breaking; edits only their own unpublished articles.
@@ -61,6 +61,9 @@ Lint (`npm run lint`) is not clean: `react-hooks/set-state-in-effect` is used th
 - **SEO:** `routes/seo.ts` serves `/news/:slug` by injecting that article's OG/Twitter tags, canonical/hreflang links and `NewsArticle` JSON-LD (`newsArticleJsonLd`; AI-desk stories are credited to the organisation) into the built `apps/web/dist/index.html`. Deployed, it fetches `index.html` from the web service through the `WEB_URL` binding, else from `PUBLIC_SITE_URL`. Section pages (`/category/:slug`, `/en/category/:slug`) and `/en` get their title, description and canonical the same way. The same file serves `/robots.txt` (absolute sitemap URLs; `/search` disallowed), `/sitemap.xml`, `/news-sitemap.xml` (both languages) and `/rss.xml`. `index.html` itself carries the site's Organization/WebSite JSON-LD.
 - **Static index.html:** `apps/web/index.html` uses `%SITE_URL%`, which a plugin in `vite.config.ts` replaces with `PUBLIC_SITE_URL` at build time.
 - **Mongoose gotchas:** `errors` is a reserved path name (the ingest run model uses `errorLog`). The article text index uses `default_language: "none"` for Devanagari.
+  - Counters (`viewCount`, promotion views/clicks) update with `{ timestamps: false }`: Mongoose otherwise bumps `updatedAt`, which is the sitemap `<lastmod>` and JSON-LD `dateModified`.
+  - Lists sort `{ publishedAt: -1, _id: -1 }`, so the list indexes end in both; without `_id` MongoDB sorts every match in memory (a test checks the query plan).
+  - Mongoose only creates indexes on connect and never drops old ones. After changing an index, run `npm run seed -w apps/api`, which calls `syncIndexes()` on every model.
 
 ### AI (`apps/api/src/ai`)
 

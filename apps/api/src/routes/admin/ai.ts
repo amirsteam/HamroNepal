@@ -19,6 +19,7 @@ import {
 } from "../../ai/prompts";
 import { sanitizeArticleHtml, toPlainText } from "../../lib/sanitize";
 import { HttpError } from "../../lib/http";
+import { MongoRateLimitStore } from "../../lib/rateLimitStore";
 
 export const adminAiRouter = Router();
 
@@ -30,6 +31,7 @@ const aiLimiter = rateLimit({
   windowMs: 60_000,
   limit: 15,
   keyGenerator: (req) => req.user?.id ?? "anon",
+  store: new MongoRateLimitStore("ai"),
   standardHeaders: "draft-7",
   legacyHeaders: false,
   message: { error: "धेरै AI अनुरोध भयो। एक मिनेटपछि प्रयास गर्नुहोस्।" },

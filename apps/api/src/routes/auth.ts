@@ -6,6 +6,7 @@ import { User } from "../models";
 import { config } from "../config";
 import { badRequest, toApi, unauthorized } from "../lib/http";
 import { clearSession, issueSession, requireAuth } from "../middleware/auth";
+import { MongoRateLimitStore } from "../lib/rateLimitStore";
 
 export const authRouter = Router();
 
@@ -13,6 +14,8 @@ const loginLimiter = rateLimit({
   windowMs: 15 * 60_000,
   limit: config.rateLimits.loginPer15Min,
   skipSuccessfulRequests: true,
+  // Shared by every running copy of the API, so the limit holds on Vercel.
+  store: new MongoRateLimitStore("login"),
   standardHeaders: "draft-7",
   legacyHeaders: false,
   message: { error: "धेरै पटक प्रयास भयो। १५ मिनेटपछि पुन: प्रयास गर्नुहोस्।" },

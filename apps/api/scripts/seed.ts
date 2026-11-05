@@ -5,8 +5,10 @@
  *  - default topic categories, only if the database has none yet
  *  - 7 provinces, 77 districts and priority municipalities (location menus)
  *  - RSS news sources, enabled only if the feed answers
+ *  - database indexes: builds new ones, drops ones the models no longer define
  */
 
+import mongoose from "mongoose";
 import { connectDB, disconnectDB } from "../src/db";
 import { Category, NewsSource } from "../src/models";
 import { fetchFeed } from "../src/ingest/fetch";
@@ -132,6 +134,16 @@ for (const s of SOURCES) {
   await NewsSource.create({ ...fields, locationId: place?._id ?? null, isActive });
   console.log(`  source ${s.name}: ${note}${place ? ` (स्थान: ${location})` : ""}`);
 }
+
+// ---------------------------------------------------------------- indexes
+// Mongoose only adds indexes on connect and never drops ones the schema no
+// longer has, so a changed index would otherwise sit beside its replacement
+// and slow every write. syncIndexes builds the new ones, then drops the old.
+for (const name of mongoose.modelNames()) {
+  const dropped = await mongoose.model(name).syncIndexes();
+  if (dropped.length) console.log(`  ${name}: dropped old indexes ${dropped.join(", ")}`);
+}
+console.log("Indexes in sync.");
 
 console.log("Seed complete.");
 await disconnectDB();

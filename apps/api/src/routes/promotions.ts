@@ -45,7 +45,7 @@ promotionsRouter.get("/", async (_req, res) => {
 // GET /api/promotions/:id/click – count the click, then go to the advertiser.
 promotionsRouter.get("/:id/click", countLimiter, async (req, res) => {
   if (!isObjectId(req.params.id)) throw notFound();
-  const doc = await Promotion.findOneAndUpdate({ _id: req.params.id }, { $inc: { clicks: 1 } }, { new: true })
+  const doc = await Promotion.findOneAndUpdate({ _id: req.params.id }, { $inc: { clicks: 1 } }, { new: true, timestamps: false })
     .select("linkUrl")
     .lean();
   if (!doc?.linkUrl) throw notFound("विज्ञापन भेटिएन।");
@@ -56,7 +56,7 @@ promotionsRouter.get("/:id/click", countLimiter, async (req, res) => {
 // POST /api/promotions/:id/view – the ad was shown on screen.
 promotionsRouter.post("/:id/view", countLimiter, async (req, res) => {
   if (isObjectId(req.params.id)) {
-    await Promotion.updateOne({ _id: req.params.id, ...runningNow() }, { $inc: { views: 1 } });
+    await Promotion.updateOne({ _id: req.params.id, ...runningNow() }, { $inc: { views: 1 } }, { timestamps: false });
   }
   res.status(204).end();
 });
