@@ -193,8 +193,13 @@ adminArticlesRouter.get("/", async (req, res) => {
   else if (q.retired === "false") filter.retiredAt = null;
   if (typeof q.categoryId === "string" && isObjectId(q.categoryId)) filter.categoryId = q.categoryId;
   if (q.source === "ai" || q.source === "manual") filter["source.type"] = q.source;
-  if (typeof q.search === "string" && q.search.trim()) {
-    filter.title = { $regex: escapeRegex(q.search.trim().slice(0, 100)), $options: "i" };
+  // Both headlines, because an editor may remember either language. Two or more
+  // characters, like the public search: a single letter just scans everything.
+  // NOTE: authorId below must stay a top-level key. Folding it into this $or
+  // would let every reporter see other people's articles.
+  if (typeof q.search === "string" && q.search.trim().length >= 2) {
+    const words = { $regex: escapeRegex(q.search.trim().slice(0, 100)), $options: "i" };
+    filter.$or = [{ title: words }, { "en.title": words }];
   }
   // Reporters only ever see their own work.
   if (!isEditorOrAdmin(req.user) || q.mine === "true") {

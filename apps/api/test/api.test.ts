@@ -286,3 +286,71 @@ describe("public API", () => {
     expect(rss.text).toContain("<rss");
   });
 });
+
+describe("dashboard article search", () => {
+  /** A story with a Nepali headline, optionally given an English one too. */
+  async function story(title: string, en?: string, extra: Record<string, unknown> = {}) {
+    const agent = await loginAs("editor@test.np");
+    const res = await agent.post("/api/admin/articles").send({ ...base(), title, ...extra });
+    if (en) {
+      await agent.patch(`/api/admin/articles/${res.body.$id}`).send({ en: { title: en } });
+    }
+    return res.body;
+  }
+
+  it("finds a story by its Nepali headline", async () => {
+    const wanted = await story("काभ्रेमा नयाँ सडक");
+    await story("खेलकुद समाचार");
+    const agent = await loginAs("editor@test.np");
+
+    const res = await agent.get("/api/admin/articles?search=सडक").expect(200);
+
+    expect(res.body.total).toBe(1);
+    expect(res.body.documents[0].$id).toBe(wanted.$id);
+  });
+
+  it("finds a story by its English headline", async () => {
+    // The whole point of the dual-language match: the Nepali title holds no
+    // Latin characters, so only en.title can match an English word.
+    const wanted = await story("पनौतीमा बाढी", "Flood in Panauti");
+    await story("खेलकुद समाचार");
+    const agent = await loginAs("editor@test.np");
+
+    const res = await agent.get("/api/admin/articles?search=flood").expect(200);
+
+    expect(res.body.total).toBe(1);
+    expect(res.body.documents[0].$id).toBe(wanted.$id);
+  });
+
+  it("ignores a one-character query instead of scanning", async () => {
+    await story("काभ्रेमा नयाँ सडक");
+    await story("खेलकुद समाचार");
+    const agent = await loginAs("editor@test.np");
+
+    const res = await agent.get("/api/admin/articles?search=स").expect(200);
+
+    expect(res.body.total).toBe(2);
+  });
+
+  it("combines with the status filter", async () => {
+    await story("काभ्रेमा नयाँ सडक", undefined, { status: "published" });
+    const draft = await story("काभ्रेमा नयाँ पुल", undefined, { status: "draft" });
+    const agent = await loginAs("editor@test.np");
+
+    const res = await agent.get("/api/admin/articles?search=काभ्रेमा&status=draft").expect(200);
+
+    expect(res.body.documents.map((a: { $id: string }) => a.$id)).toEqual([draft.$id]);
+  });
+
+  it("never lets a reporter search up someone else's story", async () => {
+    // Guards the $or: authorId must stay a top-level filter key.
+    await story("काभ्रेमा नयाँ सडक", "Road in Kavre");
+    const agent = await loginAs("reporter@test.np");
+
+    const ne = await agent.get("/api/admin/articles?search=सडक").expect(200);
+    const en = await agent.get("/api/admin/articles?search=road").expect(200);
+
+    expect(ne.body.total).toBe(0);
+    expect(en.body.total).toBe(0);
+  });
+});
