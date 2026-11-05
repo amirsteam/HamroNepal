@@ -121,6 +121,16 @@ const articleSchema = new Schema(
     publishedAt: Date,
     publishedAtBS: String,
     createdAtBS: String,
+    /**
+     * Aged out of the live site by the monthly archive job. The story is still
+     * published and still readable at /news/<slug> (and through the QR links
+     * printed in the paper); it is only dropped from the home page, lists,
+     * search, the sitemaps and RSS. null, or absent, means live.
+     *
+     * Not the same as status "archived", which means an editor rejected or took
+     * the story down and is never public.
+     */
+    retiredAt: { type: Date, default: null },
     source: { type: sourceSchema, default: () => ({ type: "manual" }) },
     en: { type: translationSchema, default: undefined },
   },
@@ -131,6 +141,8 @@ articleSchema.index({ status: 1, categoryId: 1, publishedAt: -1 });
 articleSchema.index({ status: 1, locationIds: 1, publishedAt: -1 });
 articleSchema.index({ status: 1, isFeatured: 1, publishedAt: -1 });
 articleSchema.index({ status: 1, isBreaking: 1, publishedAt: -1 });
+// The monthly archive job: oldest live stories first.
+articleSchema.index({ status: 1, retiredAt: 1, publishedAt: 1 });
 articleSchema.index({ authorId: 1, createdAt: -1 });
 articleSchema.index({ "source.type": 1, status: 1, createdAt: -1 });
 articleSchema.index(

@@ -10,6 +10,7 @@ import {
   getMyArticles,
   deleteArticle,
   updateArticleStatus,
+  unretireArticle,
   getImagePreviewUrl,
 } from "@/services/admin.service";
 import { useAuth } from "@/contexts/AuthContext";
@@ -69,6 +70,20 @@ export function ArticlesListPage() {
       alert("समाचार मेटाउन सकिएन।");
     } finally {
       setDeleting(null);
+    }
+  };
+
+  /** Put a story the monthly archive job retired back on the live site. */
+  const handleUnretire = async (articleId: string) => {
+    setStatusUpdating(articleId);
+    try {
+      await unretireArticle(articleId);
+      setArticles((prev) => prev.map((a) => (a.$id === articleId ? { ...a, retiredAt: null } : a)));
+    } catch (error) {
+      console.error("Failed to un-retire article:", error);
+      alert("लाइभमा फिर्ता गर्न सकिएन।");
+    } finally {
+      setStatusUpdating(null);
     }
   };
 
@@ -299,6 +314,19 @@ export function ArticlesListPage() {
                               >
                                 EN{article.en.edited ? " ✓" : ""}
                               </span>
+                            )}
+                            {/* Retired by the monthly job: still published and
+                                still readable, just off the live listings. A
+                                different word from संग्रहित on purpose. */}
+                            {article.retiredAt && (
+                              <button
+                                type="button"
+                                onClick={() => handleUnretire(article.$id)}
+                                title="पुरानो भएर सूचीबाट हटेको। लाइभमा फिर्ता गर्न क्लिक गर्नुहोस्।"
+                                className="inline-block mt-1 ml-1 text-[11px] font-semibold px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 hover:bg-amber-200"
+                              >
+                                पुरानो ↩
+                              </button>
                             )}
                           </div>
                         </div>

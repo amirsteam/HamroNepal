@@ -41,6 +41,8 @@ const articleInput = z.object({
   status: statusEnum.optional(),
   isFeatured: z.boolean().optional(),
   isBreaking: z.boolean().optional(),
+  /** false puts a story the monthly archive job retired back on the live site. */
+  retired: z.boolean().optional(),
   /** English version typed or corrected by a person; null removes it. */
   en: z
     .object({
@@ -98,6 +100,8 @@ async function buildUpdate(
   if (privileged) {
     if (input.isFeatured !== undefined) update.isFeatured = input.isFeatured;
     if (input.isBreaking !== undefined) update.isBreaking = input.isBreaking;
+    // Note the next monthly run retires it again unless publishedAt also moves.
+    if (input.retired !== undefined) update.retiredAt = input.retired ? new Date() : null;
   }
 
   if (input.status !== undefined) {
@@ -152,7 +156,9 @@ const PUBLISH_TRANSLATE_MS = 40_000;
  * job. English a person edited is left alone. A failure never blocks publishing.
  */
 async function translateIfPublished(article: InstanceType<typeof Article>) {
-  if (article.status !== "published" || !isAIConfigured() || !needsTranslation(article)) return;
+  // retiredAt: don't make an editor wait up to PUBLISH_TRANSLATE_MS translating a
+  // story that has aged off /en anyway.
+  if (article.status !== "published" || article.retiredAt || !isAIConfigured() || !needsTranslation(article)) return;
   let timer: NodeJS.Timeout | undefined;
   try {
     await Promise.race([
@@ -181,6 +187,10 @@ adminArticlesRouter.get("/", async (req, res) => {
   const q = req.query;
 
   if (typeof q.status === "string" && statusEnum.safeParse(q.status).success) filter.status = q.status;
+  // A second axis, not a status: retired stories are still published, just aged
+  // off the live site. retired=false therefore also matches drafts and pending.
+  if (q.retired === "true") filter.retiredAt = { $ne: null };
+  else if (q.retired === "false") filter.retiredAt = null;
   if (typeof q.categoryId === "string" && isObjectId(q.categoryId)) filter.categoryId = q.categoryId;
   if (q.source === "ai" || q.source === "manual") filter["source.type"] = q.source;
   if (typeof q.search === "string" && q.search.trim()) {
@@ -206,7 +216,7 @@ adminArticlesRouter.get("/stats", async (req, res) => {
   if (!isEditorOrAdmin(req.user) || req.query.mine === "true") {
     match.authorId = new Types.ObjectId(req.user!.id);
   }
-  const [byStatus, aiPending] = await Promise.all([
+  const [byStatus, aiPending, retiredArticles] = await Promise.all([
     Article.aggregate<{ _id: string; count: number; views: number }>([
       { $match: match },
       { $group: { _id: "$status", count: { $sum: 1 }, views: { $sum: "$viewCount" } } },
@@ -214,6 +224,9 @@ adminArticlesRouter.get("/stats", async (req, res) => {
     isEditorOrAdmin(req.user)
       ? Article.countDocuments({ status: "pending", "source.type": "ai" })
       : Promise.resolve(0),
+    // Can't come from the $status grouping: retired is a separate axis. These
+    // stories stay inside publishedArticles, because they are still published.
+    Article.countDocuments({ ...match, retiredAt: { $ne: null } }),
   ]);
   const get = (s: string) => byStatus.find((b) => b._id === s)?.count ?? 0;
   res.json({
@@ -222,6 +235,7 @@ adminArticlesRouter.get("/stats", async (req, res) => {
     draftArticles: get("draft"),
     pendingArticles: get("pending"),
     archivedArticles: get("archived"),
+    retiredArticles,
     totalViews: byStatus.reduce((n, b) => n + b.views, 0),
     aiPending,
   });

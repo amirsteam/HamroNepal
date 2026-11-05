@@ -317,6 +317,10 @@ seoRouter.get("/robots.txt", (_req, res) => {
 });
 
 // GET /n/:id – short link printed as a QR code in the print edition.
+// No `retiredAt` filter on purpose: these codes are ink on paper and cannot be
+// reissued, so they must keep resolving once a story ages out. This has to match
+// /news/:slug above — if one excluded retired stories and the other didn't, a
+// reader scanning a back issue would be redirected straight into a 404.
 seoRouter.get("/n/:id", async (req, res) => {
   const article = isObjectId(req.params.id)
     ? await Article.findOne({ _id: req.params.id, status: "published" }).select("slug").lean()
@@ -328,7 +332,7 @@ seoRouter.get("/n/:id", async (req, res) => {
 // GET /sitemap.xml
 seoRouter.get("/sitemap.xml", async (_req, res) => {
   const [articles, categories] = await Promise.all([
-    Article.find({ status: "published" }).select("slug updatedAt en.title").sort({ publishedAt: -1 }).limit(5000).lean(),
+    Article.find({ status: "published", retiredAt: null }).select("slug updatedAt en.title").sort({ publishedAt: -1 }).limit(5000).lean(),
     Category.find({ isActive: true }).select("slug updatedAt").lean(),
   ]);
   const base = config.publicSiteUrl;
@@ -361,7 +365,7 @@ seoRouter.get("/sitemap.xml", async (_req, res) => {
 seoRouter.get("/news-sitemap.xml", async (_req, res) => {
   await refreshBrand();
   const since = new Date(Date.now() - 48 * 3600_000);
-  const articles = await Article.find({ status: "published", publishedAt: { $gte: since } })
+  const articles = await Article.find({ status: "published", retiredAt: null, publishedAt: { $gte: since } })
     .select("slug title publishedAt en.title")
     .sort({ publishedAt: -1 })
     .limit(500)
@@ -386,7 +390,7 @@ seoRouter.get("/news-sitemap.xml", async (_req, res) => {
 // GET /rss.xml – latest 50 articles.
 seoRouter.get("/rss.xml", async (_req, res) => {
   await refreshBrand();
-  const articles = await Article.find({ status: "published" })
+  const articles = await Article.find({ status: "published", retiredAt: null })
     .select("slug title excerpt publishedAt featuredImage")
     .sort({ publishedAt: -1 })
     .limit(50)

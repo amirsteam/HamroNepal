@@ -14,7 +14,8 @@
     "user:set": "tsx --env-file-if-exists=.env scripts/set-user.ts",
     "images:backfill": "tsx --env-file-if-exists=.env scripts/backfill-images.ts",
     "print:issue": "tsx --env-file-if-exists=.env scripts/print-issue.ts",
-    "translate": "tsx --env-file-if-exists=.env scripts/translate.ts"
+    "translate": "tsx --env-file-if-exists=.env scripts/translate.ts",
+    "archive": "tsx --env-file-if-exists=.env scripts/archive-old.ts"
   },
   "dependencies": {
     "@hamronepal/shared": "*",

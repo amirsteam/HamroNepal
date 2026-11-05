@@ -142,6 +142,16 @@ A weekly press PDF: 318 × 483 mm trim plus 3 mm bleed, CMYK, and 6 pages, match
   - Dashboard → प्रिन्ट संस्करण lists issues and opens `/api/admin/print/preview`, which is the same HTML without PDF mode. Vercel has no browser, so it never makes PDFs itself.
 - **Settings:** `PRINT_*` env vars (registration no., price, email, pages, first issue date, issue offset).
 
+### Monthly archive (`apps/api/src/services/archive.ts`)
+
+Old news is retired from the live site once a month, so listings and the sitemap don't grow without limit (`/sitemap.xml` is capped at 5000 URLs and would otherwise start truncating current stories off its tail).
+
+- **What it does:** `retireOldArticles` stamps `Article.retiredAt` on published stories older than `ARCHIVE_AFTER_MONTHS` (default 12). A retired story drops out of `/api/home`, the lists, search, both sitemaps and RSS, and out of the translation queue and the print window — but **stays readable** at `/news/<slug>` and through the `/n/<id>` QR links printed in the paper, so no inbound link or search result breaks. The reader sees a short "this story is about N months old" notice.
+- **`retiredAt` is not `status: "archived"`.** `archived` means an editor rejected an AI draft or took a story down, and is never public. Keeping the two separate is what stops retirement from exposing rejected drafts; the public single-article routes still filter `status: "published"` and were deliberately left unchanged. `public.ts` has two helpers: `readable()` for a story at its own URL, `published()` (which adds `retiredAt: null`) for every list and feed.
+- **Two details that look optional but aren't:** the job's filter needs `publishedAt: { $type: "date", … }`, because BSON sorts Null before Date and a bare `$lt` would retire a published story that has no `publishedAt`; and the `updateMany` passes `{ timestamps: false }`, because `seo.ts` uses `updatedAt` as sitemap `<lastmod>` and JSON-LD `dateModified`, so bumping it would tell Google every one of those old stories was edited that day.
+- **Running it:** `npm run archive -w apps/api -- --dry-run` lists what is due; `--months N` and `--limit N` override the cutoff and the batch cap (`ARCHIVE_MAX_PER_RUN`, default 2000, which only bites on a first run with a backlog). Safe to re-run: already-retired stories are skipped. `.github/workflows/archive.yml` runs it on the 1st at 18:00 NPT, and takes `dry_run`/`months`/`limit` via `workflow_dispatch`.
+- **Undo:** Dashboard → लेखहरू shows a "पुरानो" chip on a retired story; clicking it sends `PATCH /admin/articles/:id { retired: false }` (editors and admins). The next monthly run retires it again unless its `publishedAt` also moves. `?retired=true|false` filters the admin list, and `/admin/articles/stats` adds `retiredArticles` (counted inside `publishedArticles`, since retired stories are still published).
+
 ### Web (`apps/web`)
 
 - **Performance:** the dashboard pages are lazy-loaded in `router.tsx`, so readers never download them. Cards and the article photo use `srcset` (`getArticleImageSrcSet`) for Cloudinary/Pexels images.

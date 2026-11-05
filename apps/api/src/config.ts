@@ -113,6 +113,14 @@ export const config = {
     iccProfile: str("PRINT_ICC_PROFILE"),
   },
 
+  /** Retiring old stories (the monthly archive job). */
+  archive: {
+    /** How long after publishing a story drops off the live site; it stays readable at its URL. */
+    months: num("ARCHIVE_AFTER_MONTHS", 12),
+    /** Most stories one run retires. Only bites on the first run, which may have a backlog. */
+    maxPerRun: num("ARCHIVE_MAX_PER_RUN", 2000),
+  },
+
   weather: {
     apiKey: str("OPENWEATHER_API_KEY"),
     lat: num("WEATHER_LAT", 27.5846),

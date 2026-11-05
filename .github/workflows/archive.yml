@@ -1,0 +1,54 @@
+name: Archive old news
+
+# On the 1st of each month, stories published more than 12 months ago drop off
+# the home page, the lists, search, the sitemaps and RSS. They stay readable at
+# /news/<slug> — and through the QR short links printed in the paper — so no
+# link or search result breaks.
+#
+# Readers may still see a retired story for up to a few minutes afterwards:
+# /api/home and /api/articles are cached for 60s, /rss.xml 300s and
+# /sitemap.xml 900s. That is expected for a monthly job; nothing needs purging.
+
+on:
+  schedule:
+    - cron: "15 12 1 * *" # 1st of the month, 18:00 Nepal time
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Dry run (list what is due, retire nothing)"
+        type: boolean
+        default: false
+      months:
+        description: "Retire stories older than this many months. Empty = 12."
+        default: ""
+      limit:
+        description: "Most stories this run. Empty = 2000 (raise for the first run)."
+        default: ""
+
+concurrency:
+  group: archive
+  cancel-in-progress: false
+
+jobs:
+  archive:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+
+      - name: Retire old stories
+        env:
+          MONGODB_URI: ${{ secrets.MONGODB_URI }}
+          ARCHIVE_AFTER_MONTHS: ${{ vars.ARCHIVE_AFTER_MONTHS || '12' }}
+          ARCHIVE_MAX_PER_RUN: ${{ vars.ARCHIVE_MAX_PER_RUN || '2000' }}
+        run: >
+          npm run archive -w apps/api --
+          --trigger cron
+          ${{ inputs.months && format('--months {0}', inputs.months) || '' }}
+          ${{ inputs.limit && format('--limit {0}', inputs.limit) || '' }}
+          ${{ inputs.dry_run && '--dry-run' || '' }}

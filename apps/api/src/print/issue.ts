@@ -50,7 +50,8 @@ export async function buildIssue(
 
   const [articles, categories, lastIssue, adDocs] = await Promise.all([
     // Published only: print cannot be corrected after it goes to the press.
-    Article.find({ status: "published", publishedAt: { $gte: since, $lt: until } })
+    // retiredAt: a wide --days window must not pull aged-out stories into print.
+    Article.find({ status: "published", retiredAt: null, publishedAt: { $gte: since, $lt: until } })
       .sort({ publishedAt: -1 })
       .limit(200)
       .lean(),

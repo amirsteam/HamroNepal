@@ -26,10 +26,23 @@ const langOf = (req: Request): Lang => (req.query.lang === "en" ? "en" : "ne");
 /** Has an English version (lists on the English site show only these). */
 const EN_READY = { "en.title": { $nin: [null, ""] } };
 
-/** Published, and on the English site translated. */
-const published = (lang: Lang, extra: FilterQuery<unknown> = {}) => ({
+/** Not aged out by the monthly archive job. `null` also matches a missing field. */
+const LIVE = { retiredAt: null };
+
+/**
+ * One story at its own URL: published, retired or not. Retired stories stay
+ * readable here on purpose, so links, shares and printed QR codes keep working.
+ */
+const readable = (lang: Lang, extra: FilterQuery<unknown> = {}) => ({
   status: "published",
   ...(lang === "en" ? EN_READY : {}),
+  ...extra,
+});
+
+/** Every list, feed and search: published, still live, and on the English site translated. */
+const published = (lang: Lang, extra: FilterQuery<unknown> = {}) => ({
+  ...readable(lang),
+  ...LIVE,
   ...extra,
 });
 
@@ -139,7 +152,8 @@ publicRouter.get("/articles/:slug", async (req, res) => {
   const key = req.params.slug;
   const match = isObjectId(key) ? { $or: [{ _id: key }, { slug: key }] } : { slug: key };
   // Not filtered by translation: an untranslated story comes back in Nepali (lang: "ne").
-  const article = await Article.findOne(published("ne", match))
+  // `readable`, not `published`: a retired story still opens at its own URL.
+  const article = await Article.findOne(readable("ne", match))
     .select("-featuredImagePublicId -en.sourceHash")
     .lean();
   if (!article) throw notFound("समाचार भेटिएन।");
@@ -171,7 +185,8 @@ const viewLimiter = rateLimit({
 });
 publicRouter.post("/articles/:id/view", viewLimiter, async (req, res) => {
   if (isObjectId(req.params.id)) {
-    await Article.updateOne(published("ne", { _id: req.params.id }), { $inc: { viewCount: 1 } });
+    // `readable`: a retired story's page still counts views, since it still loads.
+    await Article.updateOne(readable("ne", { _id: req.params.id }), { $inc: { viewCount: 1 } });
   }
   res.status(204).end();
 });

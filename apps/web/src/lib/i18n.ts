@@ -104,6 +104,8 @@ const ne = {
   articleNotFound: "समाचार भेटिएन।",
   articleError: "समाचार लोड गर्न सकिएन।",
   views: (n: string) => `${n} पटक हेरिएको`,
+  /** Shown on a story the monthly archive job has retired from the live site. */
+  olderStory: (months: string) => `यो समाचार करिब ${months} महिना पुरानो छ। यसमा उल्लेख भएका विवरण अद्यावधिक नहुन सक्छन्।`,
   aiNote: (source?: string) =>
     `यो समाचार AI को सहायताले ${source ? `${source}को` : "अन्य सञ्चारमाध्यमको"} रिपोर्टका आधारमा तयार पारी हाम्रो सम्पादकले जाँच गरेका हुन्।`,
   tags: "ट्यागहरू:",
@@ -217,6 +219,7 @@ const en: Strings = {
   articleNotFound: "Story not found.",
   articleError: "Could not load this story.",
   views: (n: string) => `${n} ${n === "1" ? "view" : "views"}`,
+  olderStory: (months: string) => `This story is about ${months} months old. Some details may no longer be up to date.`,
   aiNote: (source?: string) =>
     `This story was prepared with the help of AI from ${source ? `a report by ${source}` : "other outlets' reports"}, checked by our editors and translated into English.`,
   tags: "Tags:",

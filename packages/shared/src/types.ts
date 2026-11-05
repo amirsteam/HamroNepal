@@ -83,6 +83,12 @@ export interface Article extends BaseDocument {
   publishedAt?: string;
   publishedAtBS?: string;
   createdAtBS: string;
+  /**
+   * Aged out of the live site: still readable at its own URL, but gone from
+   * lists, search, the sitemaps and RSS. null/absent while live. Distinct from
+   * status "archived", which means rejected or taken down.
+   */
+  retiredAt?: string | null;
   source?: ArticleSource;
   /** English version (dashboard only; the public API returns it in place on the English site). */
   en?: ArticleTranslation;

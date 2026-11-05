@@ -18,6 +18,8 @@ export interface ArticleInput {
   status?: ArticleStatus;
   isFeatured?: boolean;
   isBreaking?: boolean;
+  /** false puts a story the monthly archive job retired back on the live site. */
+  retired?: boolean;
   /**
    * The English version, as an editor typed or corrected it (null removes it).
    * Send it only when someone changed it: the API then marks it as edited by a
@@ -36,6 +38,8 @@ export interface ArticleFilters {
   search?: string;
   source?: "ai" | "manual";
   mine?: boolean;
+  /** "true" = only retired (aged-out) stories, "false" = only live ones. */
+  retired?: "true" | "false";
 }
 
 export interface DashboardStats {
@@ -44,6 +48,8 @@ export interface DashboardStats {
   draftArticles: number;
   pendingArticles: number;
   archivedArticles: number;
+  /** Published but aged off the live site. Counted inside publishedArticles too. */
+  retiredArticles: number;
   totalViews: number;
   aiPending: number;
 }
@@ -104,6 +110,9 @@ export const publishArticle = (id: string) => updateArticleStatus(id, "published
 export const unpublishArticle = (id: string) => updateArticleStatus(id, "draft");
 export const submitForReview = (id: string) => updateArticleStatus(id, "pending");
 export const archiveArticle = (id: string) => updateArticleStatus(id, "archived");
+
+/** Put a story the monthly archive job retired back on the live site. */
+export const unretireArticle = (id: string) => updateArticle(id, { retired: false });
 
 export async function getDashboardStats(_authorId?: string, mine = false): Promise<DashboardStats> {
   void _authorId;
