@@ -46,9 +46,14 @@ jobs:
           MONGODB_URI: ${{ secrets.MONGODB_URI }}
           ARCHIVE_AFTER_MONTHS: ${{ vars.ARCHIVE_AFTER_MONTHS || '12' }}
           ARCHIVE_MAX_PER_RUN: ${{ vars.ARCHIVE_MAX_PER_RUN || '2000' }}
-        run: >
-          npm run archive -w apps/api --
-          --trigger cron
-          ${{ inputs.months && format('--months {0}', inputs.months) || '' }}
-          ${{ inputs.limit && format('--limit {0}', inputs.limit) || '' }}
-          ${{ inputs.dry_run && '--dry-run' || '' }}
+          # The manual inputs are free text, so they go in as variables, never
+          # pasted into the command line (where they could run as shell code).
+          INPUT_MONTHS: ${{ inputs.months }}
+          INPUT_LIMIT: ${{ inputs.limit }}
+          INPUT_DRY_RUN: ${{ inputs.dry_run }}
+        run: |
+          args=(--trigger cron)
+          if [ -n "$INPUT_MONTHS" ]; then args+=(--months "$INPUT_MONTHS"); fi
+          if [ -n "$INPUT_LIMIT" ]; then args+=(--limit "$INPUT_LIMIT"); fi
+          if [ "$INPUT_DRY_RUN" = "true" ]; then args+=(--dry-run); fi
+          npm run archive -w apps/api -- "${args[@]}"

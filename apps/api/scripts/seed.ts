@@ -138,9 +138,12 @@ for (const s of SOURCES) {
 // ---------------------------------------------------------------- indexes
 // Mongoose only adds indexes on connect and never drops ones the schema no
 // longer has, so a changed index would otherwise sit beside its replacement
-// and slow every write. syncIndexes builds the new ones, then drops the old.
+// and slow every write. Build the new ones first, then drop the old, so lists
+// are never left without an index (syncIndexes() does it the other way round).
 for (const name of mongoose.modelNames()) {
-  const dropped = await mongoose.model(name).syncIndexes();
+  const model = mongoose.model(name);
+  await model.createIndexes();
+  const dropped = await model.cleanIndexes();
   if (dropped.length) console.log(`  ${name}: dropped old indexes ${dropped.join(", ")}`);
 }
 console.log("Indexes in sync.");

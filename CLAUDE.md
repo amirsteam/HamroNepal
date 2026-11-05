@@ -63,7 +63,7 @@ Lint (`npm run lint`) is not clean: `react-hooks/set-state-in-effect` is used th
 - **Mongoose gotchas:** `errors` is a reserved path name (the ingest run model uses `errorLog`). The article text index uses `default_language: "none"` for Devanagari.
   - Counters (`viewCount`, promotion views/clicks) update with `{ timestamps: false }`: Mongoose otherwise bumps `updatedAt`, which is the sitemap `<lastmod>` and JSON-LD `dateModified`.
   - Lists sort `{ publishedAt: -1, _id: -1 }`, so the list indexes end in both; without `_id` MongoDB sorts every match in memory (a test checks the query plan).
-  - Mongoose only creates indexes on connect and never drops old ones. After changing an index, run `npm run seed -w apps/api`, which calls `syncIndexes()` on every model.
+  - Mongoose only creates indexes on connect and never drops old ones. After changing an index, run `npm run seed -w apps/api`, which builds every model's new indexes and then drops the old ones (in that order, unlike `syncIndexes()`). No workflow runs the seed, so after an index change run it once against production yourself.
 
 ### AI (`apps/api/src/ai`)
 

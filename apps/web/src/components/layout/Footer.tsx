@@ -1,5 +1,8 @@
 /**
  * Footer Component
+ *
+ * Phones: the about text and the contact block take the full width, and the
+ * two short link lists sit side by side between them. md and up: four columns.
  */
 
 import { Link } from "react-router-dom";
@@ -7,6 +10,10 @@ import { useT } from "@/lib/i18n";
 import { useSettings } from "@/lib/settings";
 import { SiteLogo } from "./SiteLogo";
 import { SocialLinks, useRegNo } from "./SocialLinks";
+
+// py-1 on phones gives each link a tap target of about 32px.
+const LINK = "inline-block py-1 md:py-0 text-gray-300 hover:text-white";
+const HEADING = "text-base md:text-lg font-semibold mb-3 md:mb-4";
 
 export function Footer() {
   const { lang, t, to, num } = useT();
@@ -19,9 +26,9 @@ export function Footer() {
   return (
     <footer className="bg-secondary text-white mt-12">
       <div className="container mx-auto px-4 py-8">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-x-6 gap-y-8">
           {/* About */}
-          <div>
+          <div className="col-span-2 md:col-span-1">
             <h2 className="mb-4">
               <SiteLogo variant="footer" />
             </h2>
@@ -30,25 +37,25 @@ export function Footer() {
 
           {/* Quick Links */}
           <div>
-            <h2 className="text-lg font-semibold mb-4">{t.quickLinks}</h2>
+            <h2 className={HEADING}>{t.quickLinks}</h2>
             <ul className="space-y-2 text-sm">
               <li>
-                <Link to={to("/")} className="text-gray-300 hover:text-white">
+                <Link to={to("/")} className={LINK}>
                   {t.home}
                 </Link>
               </li>
               <li>
-                <Link to={to("/category/all")} className="text-gray-300 hover:text-white">
+                <Link to={to("/category/all")} className={LINK}>
                   {t.allNews}
                 </Link>
               </li>
               <li>
-                <Link to={to("/search")} className="text-gray-300 hover:text-white">
+                <Link to={to("/search")} className={LINK}>
                   {t.search}
                 </Link>
               </li>
               <li>
-                <a href="/rss.xml" className="text-gray-300 hover:text-white">
+                <a href="/rss.xml" className={LINK}>
                   {t.rssFeed}
                 </a>
               </li>
@@ -57,11 +64,11 @@ export function Footer() {
 
           {/* Categories */}
           <div>
-            <h2 className="text-lg font-semibold mb-4">{t.newsCategories}</h2>
+            <h2 className={HEADING}>{t.newsCategories}</h2>
             <ul className="space-y-2 text-sm">
               {t.footerTopics.map(([slug, name]) => (
                 <li key={slug}>
-                  <Link to={to(`/category/${slug}`)} className="text-gray-300 hover:text-white">
+                  <Link to={to(`/category/${slug}`)} className={LINK}>
                     {name}
                   </Link>
                 </li>
@@ -69,10 +76,11 @@ export function Footer() {
             </ul>
           </div>
 
-          {/* Contact (only details that are filled in) */}
-          <div>
-            <h2 className="text-lg font-semibold mb-4">{t.contact}</h2>
-            <ul className="space-y-2 text-sm text-gray-300">
+          {/* Contact (only details that are filled in). A rule above it on phones
+              separates it from the two link columns. */}
+          <div className="col-span-2 md:col-span-1 border-t border-white/15 pt-6 md:border-0 md:pt-0">
+            <h2 className={HEADING}>{t.contact}</h2>
+            <ul className="space-y-2 text-sm text-gray-300 break-words">
               {address && <li>{address}</li>}
               {regNo && <li>{regNo}</li>}
               {contact.phone && (

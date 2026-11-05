@@ -33,6 +33,9 @@ export function ArticlesListPage() {
   const statusFilter = (searchParams.get("status") as StatusFilter) || "all";
   const page = parseInt(searchParams.get("page") || "1", 10);
   const query = searchParams.get("q")?.trim() ?? "";
+  // The API ignores a search under two characters, so the page must too, or it
+  // reports the whole list as "results" for one letter.
+  const activeQuery = query.length >= 2 ? query : "";
   const limit = 10;
 
   // Typing fires several overlapping requests; only the newest may set state,
@@ -48,8 +51,7 @@ export function ArticlesListPage() {
       const result = await getArticlesAdmin(
         {
           status: statusFilter === "all" ? undefined : statusFilter,
-          // Two characters minimum, matching the API.
-          search: query.length >= 2 ? query : undefined,
+          search: activeQuery || undefined,
         },
         { limit, offset: (page - 1) * limit }
       );
@@ -61,7 +63,7 @@ export function ArticlesListPage() {
     } finally {
       if (mine === requestId.current) setLoading(false);
     }
-  }, [author, page, statusFilter, query]);
+  }, [author, page, statusFilter, activeQuery]);
 
   useEffect(() => {
     loadArticles();
@@ -301,9 +303,9 @@ export function ArticlesListPage() {
             </button>
           )}
         </div>
-        {query && !loading && (
+        {activeQuery && !loading && (
           <p className="mt-2 text-sm text-gray-500">
-            "{query}" का लागि {toNepaliDigits(total)} समाचार भेटियो
+            "{activeQuery}" का लागि {toNepaliDigits(total)} समाचार भेटियो
           </p>
         )}
       </form>
@@ -341,9 +343,9 @@ export function ArticlesListPage() {
               />
             </svg>
             {/* A search that missed needs a way out, not a blank editor. */}
-            {query ? (
+            {activeQuery ? (
               <>
-                <p className="text-lg mb-2">"{query}" सँग मिल्ने समाचार भेटिएन</p>
+                <p className="text-lg mb-2">"{activeQuery}" सँग मिल्ने समाचार भेटिएन</p>
                 <p className="text-sm mb-4">
                   अर्को शब्द प्रयास गर्नुहोस्, वा सबै स्थिति हेर्नुहोस्।
                 </p>
