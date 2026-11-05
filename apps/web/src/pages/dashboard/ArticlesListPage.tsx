@@ -4,10 +4,10 @@
  * List and manage articles with filtering.
  */
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import {
-  getMyArticles,
+  getArticlesAdmin,
   deleteArticle,
   updateArticleStatus,
   unretireArticle,
@@ -16,6 +16,7 @@ import {
 import { useAuth } from "@/contexts/AuthContext";
 import type { Article } from "@/types";
 import { toNepaliDigits, formatBSDate, adToBS } from "@/lib/bs-date";
+import { useDebouncedValue } from "@/lib/useDebouncedValue";
 
 type StatusFilter = "all" | "pending" | "published" | "draft" | "archived";
 
@@ -31,31 +32,75 @@ export function ArticlesListPage() {
 
   const statusFilter = (searchParams.get("status") as StatusFilter) || "all";
   const page = parseInt(searchParams.get("page") || "1", 10);
+  const query = searchParams.get("q")?.trim() ?? "";
   const limit = 10;
+
+  // Typing fires several overlapping requests; only the newest may set state,
+  // or a slow early reply can land on top of a newer one.
+  const requestId = useRef(0);
 
   const loadArticles = useCallback(async () => {
     if (!author) return;
+    const mine = ++requestId.current;
 
     setLoading(true);
     try {
-      const result = await getMyArticles(
-        author.$id,
-        limit,
-        (page - 1) * limit,
-        statusFilter === "all" ? undefined : statusFilter
+      const result = await getArticlesAdmin(
+        {
+          status: statusFilter === "all" ? undefined : statusFilter,
+          // Two characters minimum, matching the API.
+          search: query.length >= 2 ? query : undefined,
+        },
+        { limit, offset: (page - 1) * limit }
       );
-      setArticles(result.articles);
+      if (mine !== requestId.current) return;
+      setArticles(result.documents);
       setTotal(result.total);
     } catch (error) {
       console.error("Failed to load articles:", error);
     } finally {
-      setLoading(false);
+      if (mine === requestId.current) setLoading(false);
     }
-  }, [author, page, statusFilter]);
+  }, [author, page, statusFilter, query]);
 
   useEffect(() => {
     loadArticles();
   }, [loadArticles]);
+
+  // The box types freely; the URL — which drives the request — only follows once
+  // the typing settles. `replace` keeps one history entry per search instead of
+  // one per keystroke. `committed` is the query we last put in the URL, which is
+  // what tells an outside change (back/forward) apart from our own.
+  const [searchInput, setSearchInput] = useState(query);
+  const debouncedSearch = useDebouncedValue(searchInput);
+  const committed = useRef(query);
+
+  // Back/forward moved q: put it back in the box.
+  useEffect(() => {
+    if (query === committed.current) return;
+    committed.current = query;
+    setSearchInput(query);
+  }, [query]);
+
+  // Typing settled: commit it. The first check matters — right after a
+  // back/forward the box has already been reset while the debounced value is
+  // still the old text, and writing that would undo the navigation.
+  useEffect(() => {
+    if (debouncedSearch !== searchInput) return;
+    const next = debouncedSearch.trim();
+    if (next === committed.current) return;
+    committed.current = next;
+    setSearchParams(
+      { status: statusFilter, page: "1", ...(next ? { q: next } : {}) },
+      { replace: true }
+    );
+  }, [debouncedSearch, searchInput, statusFilter, setSearchParams]);
+
+  const clearSearch = () => {
+    setSearchInput("");
+    committed.current = "";
+    setSearchParams({ status: statusFilter, page: "1" }, { replace: true });
+  };
 
   const handleDelete = async (articleId: string, title: string) => {
     if (!confirm(`"${title}" मेटाउने हो?`)) return;
@@ -109,12 +154,18 @@ export function ArticlesListPage() {
     }
   };
 
+  // Both setters build the whole query string, so every param has to be carried
+  // through here or it is dropped — the search query included.
   const setFilter = (status: StatusFilter) => {
-    setSearchParams({ status, page: "1" });
+    setSearchParams({ status, page: "1", ...(query ? { q: query } : {}) });
   };
 
   const setPage = (newPage: number) => {
-    setSearchParams({ status: statusFilter, page: String(newPage) });
+    setSearchParams({
+      status: statusFilter,
+      page: String(newPage),
+      ...(query ? { q: query } : {}),
+    });
   };
 
   const totalPages = Math.ceil(total / limit);
@@ -204,6 +255,59 @@ export function ArticlesListPage() {
         )}
       </div>
 
+      {/* Search: matches the Nepali headline and the English one */}
+      <form role="search" onSubmit={(e) => e.preventDefault()}>
+        <label htmlFor="article-search" className="sr-only">
+          समाचार खोज्नुहोस्
+        </label>
+        <div className="relative">
+          <svg
+            className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+            aria-hidden="true"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+            />
+          </svg>
+          <input
+            id="article-search"
+            type="search"
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
+            placeholder="शीर्षकबाट खोज्नुहोस् (नेपाली वा अंग्रेजी)"
+            className="w-full pl-9 pr-9 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none text-sm"
+          />
+          {searchInput && (
+            <button
+              type="button"
+              onClick={clearSearch}
+              aria-label="खोज हटाउनुहोस्"
+              className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded-full text-gray-400 hover:text-gray-700 hover:bg-gray-100"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M6 18L18 6M6 6l12 12"
+                />
+              </svg>
+            </button>
+          )}
+        </div>
+        {query && !loading && (
+          <p className="mt-2 text-sm text-gray-500">
+            "{query}" का लागि {toNepaliDigits(total)} समाचार भेटियो
+          </p>
+        )}
+      </form>
+
       {/* Articles list */}
       <div className="bg-white rounded-lg shadow-sm overflow-hidden">
         {loading ? (
@@ -236,13 +340,32 @@ export function ArticlesListPage() {
                 d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2m-4-3H9M7 16h6M7 8h6v4H7V8z"
               />
             </svg>
-            <p className="text-lg mb-2">कुनै समाचार फेला परेन</p>
-            <Link
-              to="/dashboard/articles/new"
-              className="inline-block px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition"
-            >
-              नयाँ समाचार थप्नुहोस्
-            </Link>
+            {/* A search that missed needs a way out, not a blank editor. */}
+            {query ? (
+              <>
+                <p className="text-lg mb-2">"{query}" सँग मिल्ने समाचार भेटिएन</p>
+                <p className="text-sm mb-4">
+                  अर्को शब्द प्रयास गर्नुहोस्, वा सबै स्थिति हेर्नुहोस्।
+                </p>
+                <button
+                  type="button"
+                  onClick={clearSearch}
+                  className="inline-block px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition"
+                >
+                  खोज हटाउनुहोस्
+                </button>
+              </>
+            ) : (
+              <>
+                <p className="text-lg mb-2">कुनै समाचार फेला परेन</p>
+                <Link
+                  to="/dashboard/articles/new"
+                  className="inline-block px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition"
+                >
+                  नयाँ समाचार थप्नुहोस्
+                </Link>
+              </>
+            )}
           </div>
         ) : (
           <>
