@@ -27,6 +27,7 @@ npm run ingest -w apps/api -- --max 5            # saves pending drafts
 npm run images:backfill -w apps/api -- --dry-run # stock photos for older AI drafts (needs PEXELS_API_KEY)
 npm run images:backfill -w apps/api -- --from-source --limit 50  # or link each outlet's own photo (demo only)
 npm run translate -w apps/api -- --dry-run      # English versions of published stories (the hourly job runs it after ingest)
+npm run keypoints:backfill -w apps/api -- --dry-run --limit 3  # "मुख्य बुँदा" for stories without them (phone article page)
 npm run print:issue -w apps/api -- --html        # weekly press PDF into apps/api/print/ (needs Chrome/Edge); --save to publish
 
 # mobile
@@ -84,7 +85,7 @@ Lint (`npm run lint`) is not clean: `react-hooks/set-state-in-effect` is used th
 4. Classify in AI batches; the topic and location must come from the allowed lists.
 5. Write priority locations first (`PRIORITY_DISTRICTS`, Kavre/Panauti), then let topics take turns (best story of each topic, then the second best…) so local news can't crowd out national topics such as politics; capped per topic.
 6. Extract the full page with Readability.
-7. AI writes a 150–300 word summary.
+7. AI writes a 150–300 word summary, plus 3 key points (`keyPoints`, full sentences that don't repeat the title). A point with a figure the source lacks is dropped on its own.
 8. Reject unsupported numbers (हजार/लाख/करोड rewrites of source figures count as supported). Leftover English words and other-script letters are saved as `source.aiWarnings`, shown on the AI समीक्षा card and rechecked when an editor saves.
 9. Code adds the "स्रोत:" credit line.
 10. With `INGEST_SOURCE_IMAGES=true` (demo only: the photos are the outlets' copyright), link the outlet's own photo (article page `og:image`, else the feed's `media:*`; logos/posters skipped, image must load) credited to the outlet (`src/ingest/images.ts`). The photo is uploaded to Cloudinary with the draft (`services/imageStore.ts`, ≤1600 px, `featuredImagePublicId` set), so it no longer depends on the outlet's server; if the upload fails the draft links to the outlet's photo instead. Otherwise, or if none loads, pick a symbolic Pexels stock photo from the writer's English `imageQuery` (`src/services/stockPhoto.ts`, skips photos used in the last 14 days). The photo is saved with `imageCredit`, which the web and mobile apps show as a caption (Pexels requires the credit). Changing the image in the dashboard clears the credit.
@@ -98,6 +99,13 @@ How it runs and is tested:
 - **"अहिले समाचार ल्याउनुहोस्"** on AI समीक्षा (`POST /admin/ingest/start`, editors and admins) runs the job now instead of waiting for the schedule (GitHub often starts the "hourly" cron only every few hours). With `GITHUB_DISPATCH_TOKEN` (fine-grained, Actions read/write) it starts the GitHub workflow via `workflow_dispatch` (`services/ingestTrigger.ts`; the repo comes from `GITHUB_REPO` or Vercel's `VERCEL_GIT_REPO_*`), and the page checks every 30 s and reloads when the run finishes. Without a token it runs a small batch in the request (2 drafts on Vercel, 5 elsewhere). It refuses (409) while an unfinished run started in the last 15 min.
 - **Drafts without images:** this happens when the hourly job runs with `INGEST_SOURCE_IMAGES=false` (repo variable) and no `PEXELS_API_KEY` secret. To repeat the photo fix, run `npm run images:backfill -w apps/api -- --from-source --limit 50` from a regular PC. It links each outlet's own photo, so it's for the demo only.
 - **Sites that block GitHub's servers:** eKantipur and Ukera return 403 to the hourly job but work from a regular PC.
+
+### Phone article page (key points)
+
+Below 768 px (`PHONE_QUERY` in `lib/useMediaQuery.ts`) the article page swaps only its excerpt + body for `components/news/MobileArticleBody.tsx`: the story's `keyPoints` (or its excerpt, until it has them) in a light blue box, then "पूरा लेख पढ्नुहोस्", which opens the full text on a warm `bg-reading` panel. The text stays in the DOM while closed (height 0, `inert`), so it is still indexed. Once the reader has scrolled into the story, scrolling back up to the key points closes it. `NextStoryPull.tsx` ends the article with a link to the next story (`GET /articles/:id/next`: the next older live story in feed order, wrapping to the newest); at the very bottom of the page a fresh upward pull (90 px) or wheel-down (250 px, only after the page has sat at the bottom 350 ms, so a fast scroll doesn't fly through) opens it, and the arriving story slides in (`location.state.next`). Desktop and the Expo app are unchanged.
+
+- **Where the points come from:** the AI writer for new drafts; `npm run keypoints:backfill` (`services/keyPoints.ts`) for older and dashboard-written stories, saved with `{ timestamps: false }`. Editors can't edit them in the dashboard yet.
+- **English:** `translateArticle` translates them into `en.keyPoints` (they are not part of `sourceHash`); the backfill translates them for stories already in English. The public API never shows Nepali points on the English site; an editor's English edit keeps the existing ones.
 
 ### English edition (`/en`)
 

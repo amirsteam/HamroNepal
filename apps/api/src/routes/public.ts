@@ -46,7 +46,9 @@ const published = (lang: Lang, extra: FilterQuery<unknown> = {}) => ({
   ...extra,
 });
 
-type Translated = { en?: { title?: string | null; excerpt?: string | null; content?: string | null } | null };
+type Translated = {
+  en?: { title?: string | null; excerpt?: string | null; content?: string | null; keyPoints?: string[] | null } | null;
+};
 
 /**
  * An article in the reader's language. On the English site the English
@@ -57,7 +59,8 @@ function localArticle<T extends Translated>(doc: T, lang: Lang) {
   const { en, ...rest } = doc;
   if (lang === "en" && en?.title) {
     const body = "content" in rest ? { content: en.content || (rest as { content?: string }).content } : {};
-    return { ...rest, title: en.title, excerpt: en.excerpt ?? "", ...body, lang: "en" as const };
+    // Never the Nepali key points on the English site: none until they're translated.
+    return { ...rest, title: en.title, excerpt: en.excerpt ?? "", keyPoints: en.keyPoints ?? [], ...body, lang: "en" as const };
   }
   return { ...rest, lang: "ne" as const };
 }
@@ -174,6 +177,27 @@ publicRouter.get("/articles/:id/related", async (req, res) => {
   );
   cache(res, 300);
   res.json(localArticles(docs, lang));
+});
+
+// GET /articles/:id/next – the next older live story in feed order (phone reader's
+// "next story"); after the oldest it starts again at the newest. null if none.
+publicRouter.get("/articles/:id/next", async (req, res) => {
+  if (!isObjectId(req.params.id)) throw notFound();
+  const article = await Article.findById(req.params.id).select("publishedAt").lean();
+  if (!article) throw notFound();
+  const lang = langOf(req);
+  const older = article.publishedAt
+    ? {
+        $or: [
+          { publishedAt: { $lt: article.publishedAt } },
+          { publishedAt: article.publishedAt, _id: { $lt: article._id } },
+        ],
+      }
+    : null;
+  let [next] = older ? await listArticles(published(lang, older), 1) : [];
+  if (!next) [next] = await listArticles(published(lang, { _id: { $ne: article._id } }), 1);
+  cache(res, 60);
+  res.json(next ? toApi(localArticle(next, lang)) : null);
 });
 
 // POST /articles/:id/view – atomic view counter.

@@ -311,9 +311,15 @@ export async function runIngest(opts: IngestOptions = {}, deps: IngestDeps = {})
         }
         if (invented.length) confidence = Math.round(confidence * 50) / 100;
 
+        // A key point with a figure the source doesn't have is dropped on its own;
+        // the story keeps the points that check out (or shows its excerpt instead).
+        const keyPoints = written.keyPoints
+          .filter((p) => unsupportedNumbers(p, `${item.title} ${source.text}`).length === 0)
+          .slice(0, 3);
+
         // Leftovers from translation (e.g. "रु the युक्रेन", "सफਾ") are flagged
         // for the editor rather than dropped; the story itself is usually fine.
-        const warnings = draftWarnings(`${ownText} ${written.tags.join(" ")}`, invented);
+        const warnings = draftWarnings(`${ownText} ${keyPoints.join(" ")} ${written.tags.join(" ")}`, invented);
 
         let photo: StockPhoto | null = null;
         let photoPublicId: string | undefined;
@@ -363,6 +369,7 @@ export async function runIngest(opts: IngestOptions = {}, deps: IngestDeps = {})
           slug: await uniqueSlug(Article, written.title),
           excerpt: written.excerpt,
           content: written.content,
+          keyPoints: keyPoints.length ? keyPoints : undefined,
           featuredImage: photo?.url ?? (topic.defaultImage || undefined),
           featuredImagePublicId: photoPublicId,
           imageCredit: photo?.credit,

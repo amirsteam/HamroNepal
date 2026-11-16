@@ -53,6 +53,18 @@ jobs:
           --trigger cron
           --max ${{ inputs.max || '10' }}
           ${{ inputs.dry_run && '--dry-run' || '' }}
+      # Key points for the phone article page, for stories written in the
+      # dashboard (AI drafts get theirs from the writer). Before the English
+      # step, so stories translated next carry their points over too.
+      - name: Key points for stories without them
+        if: ${{ always() && !inputs.dry_run }}
+        env:
+          MONGODB_URI: ${{ secrets.MONGODB_URI }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          AI_PRIMARY_MODEL: ${{ vars.AI_PRIMARY_MODEL || 'gemini-flash-lite-latest' }}
+          AI_FALLBACK_MODEL: ${{ vars.AI_FALLBACK_MODEL || 'openai/gpt-oss-120b' }}
+        run: npm run keypoints:backfill -w apps/api -- --limit 20
       # English site: translate newly published (or since-edited) stories.
       # Runs even if the news step failed, so translations never fall behind.
       - name: Translate published stories to English

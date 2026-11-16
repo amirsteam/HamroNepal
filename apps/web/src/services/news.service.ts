@@ -72,6 +72,11 @@ export async function getRelatedArticles(articleId: string, _categoryId?: string
   return api.get(`/articles/${articleId}/related`, { limit, lang: langQuery(lang) });
 }
 
+/** The next older story in feed order (wraps to the newest); null if there is none. */
+export async function getNextArticle(articleId: string, lang?: Lang): Promise<Article | null> {
+  return api.get<Article | null>(`/articles/${articleId}/next`, { lang: langQuery(lang) });
+}
+
 export async function getLatestArticles(limit = 10, lang?: Lang): Promise<Article[]> {
   const res = await getPublishedArticles({ limit }, lang);
   return res.documents;

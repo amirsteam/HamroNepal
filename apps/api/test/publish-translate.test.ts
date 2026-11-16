@@ -57,6 +57,28 @@ describe("English version on publish", () => {
     expect(translate).toHaveBeenCalledTimes(2);
   });
 
+  it("translates the key points, and keeps them when an editor rewrites the English", async () => {
+    translate.mockImplementation(async (a: { title: string; keyPoints?: string[] }) => ({
+      title: `EN ${a.title}`,
+      excerpt: "Summary",
+      content: "<p>English</p>",
+      keyPoints: (a.keyPoints ?? []).map((_, i) => `Point ${i + 1}`),
+      model: "fake",
+    }));
+    const editor = await loginAs("editor@test.np");
+    const draft = await editor.post("/api/admin/articles").send({ title: "मस्यौदा", content: "<p>पाठ</p>", categoryId: topicId });
+    await Article.updateOne({ _id: draft.body.$id }, { keyPoints: ["पहिलो बुँदा", "दोस्रो बुँदा"] });
+
+    await editor.patch(`/api/admin/articles/${draft.body.$id}`).send({ status: "published" });
+    expect((await Article.findById(draft.body.$id))!.en!.keyPoints).toEqual(["Point 1", "Point 2"]);
+
+    await editor.patch(`/api/admin/articles/${draft.body.$id}`).send({ en: { title: "Hand written" } });
+    const stored = await Article.findById(draft.body.$id);
+    expect(stored!.en!.title).toBe("Hand written");
+    expect(stored!.en!.keyPoints).toEqual(["Point 1", "Point 2"]);
+    expect(stored!.keyPoints).toEqual(["पहिलो बुँदा", "दोस्रो बुँदा"]); // an edit never drops the Nepali ones
+  });
+
   it("still publishes when the translation fails", async () => {
     translate.mockRejectedValue(new Error("rate limited"));
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});

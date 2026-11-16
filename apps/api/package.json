@@ -15,6 +15,7 @@
     "images:backfill": "tsx --env-file-if-exists=.env scripts/backfill-images.ts",
     "print:issue": "tsx --env-file-if-exists=.env scripts/print-issue.ts",
     "translate": "tsx --env-file-if-exists=.env scripts/translate.ts",
+    "keypoints:backfill": "tsx --env-file-if-exists=.env scripts/backfill-keypoints.ts",
     "archive": "tsx --env-file-if-exists=.env scripts/archive-old.ts"
   },
   "dependencies": {

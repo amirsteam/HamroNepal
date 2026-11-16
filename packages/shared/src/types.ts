@@ -69,6 +69,8 @@ export interface Article extends BaseDocument {
   slug: string;
   excerpt: string;
   content: string;
+  /** Up to 3 AI-written key points (phone article page). In the reader's language. */
+  keyPoints?: string[];
   featuredImage?: string;
   imageCredit?: ImageCredit | null;
   categoryId: string;
@@ -102,6 +104,7 @@ export interface ArticleTranslation {
   title?: string;
   excerpt?: string;
   content?: string;
+  keyPoints?: string[];
   translatedAt?: string;
   /** AI model, or "editor" after a person edited it. */
   model?: string;

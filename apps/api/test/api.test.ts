@@ -304,6 +304,57 @@ describe("public API", () => {
     expect(res.body.total).toBe(1);
   });
 
+  describe("phone reader: key points and the next story", () => {
+    async function story(slug: string, minutesAgo: number, extra: Record<string, unknown> = {}) {
+      const author = await Article.db.model("User").findOne().lean<{ _id: unknown }>();
+      return Article.create({
+        title: `समाचार ${slug}`,
+        slug,
+        content: "<p>सामग्री</p>",
+        categoryId: topicId,
+        authorId: author!._id,
+        authorName: "सम्पादक",
+        status: "published",
+        publishedAt: new Date(Date.now() - minutesAgo * 60_000),
+        ...extra,
+      });
+    }
+
+    it("goes to the next older story, then wraps to the newest", async () => {
+      const a = await story("a", 1);
+      const b = await story("b", 2);
+      await story("draft", 3, { status: "pending" });
+      await story("old", 4, { retiredAt: new Date() });
+      const c = await story("c", 5);
+
+      const next = async (id: unknown, q = "") => (await request(app).get(`/api/articles/${id}/next${q}`)).body;
+      expect((await next(a._id)).slug).toBe("b");
+      expect((await next(b._id)).slug).toBe("c"); // skips the draft and the retired story
+      expect((await next(c._id)).slug).toBe("a"); // wraps
+      expect(await next(a._id)).not.toHaveProperty("content");
+    });
+
+    it("on the English site, uses translated stories and English key points only", async () => {
+      const a = await story("a", 1, { keyPoints: ["नेपाली बुँदा"] });
+      await story("b", 2, { keyPoints: ["अर्को बुँदा"] }); // not translated
+      await story("c", 3, {
+        keyPoints: ["तेस्रो बुँदा"],
+        en: { title: "Story c", excerpt: "c", content: "<p>c</p>", keyPoints: ["English point"] },
+      });
+
+      const next = await request(app).get(`/api/articles/${a._id}/next?lang=en`);
+      expect(next.body.slug).toBe("c");
+      expect(next.body.keyPoints).toEqual(["English point"]);
+
+      const ne = await request(app).get("/api/articles/a");
+      expect(ne.body.keyPoints).toEqual(["नेपाली बुँदा"]);
+      // Translated before key points existed: none, never the Nepali ones.
+      await Article.updateOne({ slug: "a" }, { en: { title: "Story a", excerpt: "a", content: "<p>a</p>" } });
+      const en = await request(app).get("/api/articles/a?lang=en");
+      expect(en.body.keyPoints).toEqual([]);
+    });
+  });
+
   it("serves sitemap and RSS", async () => {
     const art = await publishedArticle();
     const sitemap = await request(app).get("/sitemap.xml");

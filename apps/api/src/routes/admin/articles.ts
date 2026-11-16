@@ -137,6 +137,8 @@ function applyEnglish(article: InstanceType<typeof Article>, en: z.infer<typeof 
     title: toPlainText(en.title),
     excerpt: toPlainText(en.excerpt ?? ""),
     content: sanitizeArticleHtml(en.content ?? ""),
+    // The form has no key points field: keep the English ones already made.
+    keyPoints: article.en?.keyPoints?.length ? [...article.en.keyPoints] : undefined,
     sourceHash: sourceHash(article),
     translatedAt: new Date(),
     model: "editor",

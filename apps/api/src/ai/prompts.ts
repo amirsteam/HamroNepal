@@ -162,8 +162,29 @@ export const writeSchema = z.object({
   tags: z.array(z.string()).max(8).default([]),
   /** 2–4 English words to find a symbolic stock photo. */
   imageQuery: z.string().max(100).default(""),
+  /** 3 key points for the phone article page; optional so a reply without them still saves. */
+  keyPoints: z.array(z.string().max(300)).max(6).default([]),
 });
 export type WrittenArticle = z.infer<typeof writeSchema>;
+
+const KEY_POINTS_RULE = `keyPoints: समाचारका ३ मुख्य बुँदा। हरेक बुँदा क्रियापदसहितको छोटो पूरा वाक्य (१०-२० शब्द) होस्; शीर्षक नदोहोर्याउनुहोस्, शीर्षकभन्दा बढी जानकारी दिनुहोस्; स्रोतमा भएका तथ्य मात्र।`;
+
+export const keyPointsSchema = z.object({ keyPoints: z.array(z.string().max(300)).max(6) });
+
+/** Key points for a story that has none yet (backfill). */
+export function keyPointsPrompt(title: string, excerpt: string, text: string): string {
+  return `समाचार शीर्षक: ${title}
+सारांश: ${excerpt}
+
+पूरा समाचार:
+"""
+${text}
+"""
+
+${KEY_POINTS_RULE}
+नयाँ नाम, संख्या वा मिति नथप्नुहोस्।
+JSON मात्र: {"keyPoints": ["...", "...", "..."]}`;
+}
 
 const IMAGE_QUERY_RULE = `imageQuery: स्टक फोटो खोज्न समाचारको दृश्य जनाउने २-४ अंग्रेजी शब्द (व्यक्तिको नाम, पार्टी वा ब्रान्ड होइन; सामान्य दृश्य), जस्तै "electric power lines", "cricket stadium", "hospital ward", "mountain road landslide"।`;
 
@@ -200,6 +221,8 @@ ${input.sourceText}
 
 ${IMAGE_QUERY_RULE}
 
+${KEY_POINTS_RULE}
+
 JSON फर्म्याटमा मात्र उत्तर दिनुहोस्:
-{"title": "नयाँ शीर्षक", "excerpt": "२ वाक्यको सारांश", "content": "<p>...</p><p>...</p>", "tags": ["ट्याग१", "ट्याग२", "ट्याग३"], "imageQuery": "english words"}`;
+{"title": "नयाँ शीर्षक", "excerpt": "२ वाक्यको सारांश", "keyPoints": ["पहिलो बुँदा।", "दोस्रो बुँदा।", "तेस्रो बुँदा।"], "content": "<p>...</p><p>...</p>", "tags": ["ट्याग१", "ट्याग२", "ट्याग३"], "imageQuery": "english words"}`;
 }
