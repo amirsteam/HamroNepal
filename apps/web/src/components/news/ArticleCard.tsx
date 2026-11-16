@@ -51,129 +51,9 @@ export function ArticleCard({ article, category, isPhone }: Props) {
   const untranslated = lang === "en" && article.lang === "ne";
   const dates = article.publishedAt ? formatDualDate(article.publishedAt, lang) : null;
 
-  return (
-    <div lang={article.lang} className="bg-white rounded-xl ring-1 ring-gray-200/80 overflow-hidden">
-      {untranslated && (
-        <p lang="en" className="px-6 py-3 bg-secondary/10 text-sm text-secondary-dark border-b border-secondary/20">
-          {t.notTranslated}{" "}
-          <Link to={`/news/${article.slug}`} className="font-semibold underline underline-offset-2">
-            {t.readInNepali}
-          </Link>
-        </p>
-      )}
-      {/* Article Header */}
-      <div className="p-6 pb-0 text-center">
-        {/* Category Badge. tracking-wide, not uppercase: Devanagari has no case. */}
-        {category && (
-          <Link
-            to={to(`/category/${category.slug}`)}
-            lang={lang}
-            className="inline-block bg-primary text-white text-xs font-bold tracking-wide px-4 py-1.5 rounded-full mb-4"
-          >
-            {category.name}
-          </Link>
-        )}
-
-        {/* Title. font-extrabold is 800, the top of the Anek 87.5% range;
-            the width itself comes from the base h1 rule, so don't set it here. */}
-        <h1 className="text-3xl md:text-4xl lg:text-5xl font-extrabold text-ink leading-tight mb-5">
-          {article.title}
-        </h1>
-
-        {/* Byline: the site's mark, the writer, and when it ran */}
-        <div className="flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-sm text-gray-500 mb-6">
-          <div className="flex items-center gap-2">
-            <span className="flex items-center justify-center w-8 h-8 rounded-full ring-2 ring-primary/15 bg-white overflow-hidden">
-              {settings.logoUrl ? (
-                <img src={settings.logoUrl} alt="" className="w-full h-full object-contain p-1" />
-              ) : (
-                <Pennant className="w-3.5 h-4" />
-              )}
-            </span>
-            <span className="font-medium text-ink">{author(article.authorName)}</span>
-          </div>
-
-          {dates && (
-            <div className="flex items-center flex-wrap justify-center gap-x-1">
-              <svg
-                className="w-4 h-4 mr-1"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-                aria-hidden="true"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M12 8v4l3 2m6-2a9 9 0 11-18 0 9 9 0 0118 0z"
-                />
-              </svg>
-              <span className="font-medium text-gray-800">
-                {dates.weekday}, {dates.bs}
-              </span>
-              <span className="text-gray-400 mx-1">•</span>
-              <span className="text-gray-500">{dates.ad}</span>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Retired by the monthly archive job: say so, so an old story
-          arriving from a search result isn't mistaken for today's news. */}
-      {article.retiredAt && article.publishedAt && (
-        <div className="px-6 mb-4">
-          <p
-            role="note"
-            className="border-l-4 border-gray-300 bg-gray-50 px-4 py-3 text-sm text-gray-600"
-          >
-            {t.olderStory(num(monthsSince(article.publishedAt)))}
-          </p>
-        </div>
-      )}
-
-      {/* Featured Image */}
-      {article.featuredImage && (
-        <figure className="px-6">
-          <img
-            src={getArticleImageUrl(article.featuredImage, 800, 450)}
-            srcSet={getArticleImageSrcSet(article.featuredImage, [480, 800, 1200], 0.5625)}
-            sizes="(min-width: 1024px) 760px, 100vw"
-            fetchPriority="high"
-            decoding="async"
-            alt={article.title}
-            width={800}
-            height={450}
-            className="w-full h-auto aspect-video object-cover rounded-lg bg-gray-100"
-          />
-          <ImageCredit credit={article.imageCredit} className="mt-2" />
-        </figure>
-      )}
-
-      {isPhone ? (
-        // Phones: key points first, the full story on request.
-        <MobileArticleBody
-          key={article.$id}
-          article={article}
-          html={DOMPurify.sanitize(article.content, { ADD_ATTR: ["target"] })}
-        />
-      ) : (
-        <>
-          {/* Excerpt */}
-          <div className="px-6 py-4">
-            <p className="text-lg md:text-xl leading-relaxed text-ink font-medium border-l-4 border-primary pl-4">
-              {article.excerpt}
-            </p>
-          </div>
-
-          {/* Content */}
-          <div
-            className="px-6 pb-6 article-content"
-            dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(article.content, { ADD_ATTR: ["target"] }) }}
-          />
-        </>
-      )}
-
+  // Ad, AI note, tags and share bar. On phones they open with the full story.
+  const afterBody = (
+    <>
       <PromoSlot placement="article" className="px-6 pb-6" />
 
       {article.source?.type === "ai" && (
@@ -292,6 +172,134 @@ export function ArticleCard({ article, category, isPhone }: Props) {
           {t.views(num(article.viewCount))}
         </div>
       </div>
+    </>
+  );
+
+  return (
+    <div lang={article.lang} className="bg-white rounded-xl ring-1 ring-gray-200/80 overflow-hidden">
+      {untranslated && (
+        <p lang="en" className="px-6 py-3 bg-secondary/10 text-sm text-secondary-dark border-b border-secondary/20">
+          {t.notTranslated}{" "}
+          <Link to={`/news/${article.slug}`} className="font-semibold underline underline-offset-2">
+            {t.readInNepali}
+          </Link>
+        </p>
+      )}
+      {/* Article Header */}
+      <div className="p-6 pb-0 text-center">
+        {/* Category Badge. tracking-wide, not uppercase: Devanagari has no case. */}
+        {category && (
+          <Link
+            to={to(`/category/${category.slug}`)}
+            lang={lang}
+            className="inline-block bg-primary text-white text-xs font-bold tracking-wide px-4 py-1.5 rounded-full mb-4"
+          >
+            {category.name}
+          </Link>
+        )}
+
+        {/* Title. font-extrabold is 800, the top of the Anek 87.5% range;
+            the width itself comes from the base h1 rule, so don't set it here. */}
+        <h1 className="text-3xl md:text-4xl lg:text-5xl font-extrabold text-ink leading-tight mb-5">
+          {article.title}
+        </h1>
+
+        {/* Byline: the site's mark, the writer, and when it ran */}
+        <div className="flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-sm text-gray-500 mb-6">
+          <div className="flex items-center gap-2">
+            <span className="flex items-center justify-center w-8 h-8 rounded-full ring-2 ring-primary/15 bg-white overflow-hidden">
+              {settings.logoUrl ? (
+                <img src={settings.logoUrl} alt="" className="w-full h-full object-contain p-1" />
+              ) : (
+                <Pennant className="w-3.5 h-4" />
+              )}
+            </span>
+            <span className="font-medium text-ink">{author(article.authorName)}</span>
+          </div>
+
+          {dates && (
+            <div className="flex items-center flex-wrap justify-center gap-x-1">
+              <svg
+                className="w-4 h-4 mr-1"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+                aria-hidden="true"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M12 8v4l3 2m6-2a9 9 0 11-18 0 9 9 0 0118 0z"
+                />
+              </svg>
+              <span className="font-medium text-gray-800">
+                {dates.weekday}, {dates.bs}
+              </span>
+              <span className="text-gray-400 mx-1">•</span>
+              <span className="text-gray-500">{dates.ad}</span>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Retired by the monthly archive job: say so, so an old story
+          arriving from a search result isn't mistaken for today's news. */}
+      {article.retiredAt && article.publishedAt && (
+        <div className="px-6 mb-4">
+          <p
+            role="note"
+            className="border-l-4 border-gray-300 bg-gray-50 px-4 py-3 text-sm text-gray-600"
+          >
+            {t.olderStory(num(monthsSince(article.publishedAt)))}
+          </p>
+        </div>
+      )}
+
+      {/* Featured Image */}
+      {article.featuredImage && (
+        <figure className="px-6">
+          <img
+            src={getArticleImageUrl(article.featuredImage, 800, 450)}
+            srcSet={getArticleImageSrcSet(article.featuredImage, [480, 800, 1200], 0.5625)}
+            sizes="(min-width: 1024px) 760px, 100vw"
+            fetchPriority="high"
+            decoding="async"
+            alt={article.title}
+            width={800}
+            height={450}
+            className="w-full h-auto aspect-video object-cover rounded-lg bg-gray-100"
+          />
+          <ImageCredit credit={article.imageCredit} className="mt-2" />
+        </figure>
+      )}
+
+      {isPhone ? (
+        // Phones: key points first, the full story on request.
+        <MobileArticleBody
+          key={article.$id}
+          article={article}
+          html={DOMPurify.sanitize(article.content, { ADD_ATTR: ["target"] })}
+          footer={afterBody}
+        />
+      ) : (
+        <>
+          {/* Excerpt */}
+          <div className="px-6 py-4">
+            <p className="text-lg md:text-xl leading-relaxed text-ink font-medium border-l-4 border-primary pl-4">
+              {article.excerpt}
+            </p>
+          </div>
+
+          {/* Content */}
+          <div
+            className="px-6 pb-6 article-content"
+            dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(article.content, { ADD_ATTR: ["target"] }) }}
+          />
+          {afterBody}
+        </>
+      )}
+
     </div>
   );
 }
