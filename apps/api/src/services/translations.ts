@@ -30,6 +30,7 @@ export async function translateAndSave(article: ArticleDoc, generate?: GenerateJ
     title: t.title,
     excerpt: t.excerpt,
     content: t.content,
+    keyPoints: t.keyPoints?.length ? t.keyPoints : undefined,
     sourceHash: sourceHash(article),
     translatedAt: new Date(),
     model: t.model,

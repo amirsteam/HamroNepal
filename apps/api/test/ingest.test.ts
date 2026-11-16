@@ -178,6 +178,35 @@ describe("runIngest (fake feeds + fake AI)", () => {
     expect(article!.imageCredit?.symbolic).toBe(true);
   });
 
+  it("saves the writer's key points, dropping one with a figure the source lacks", async () => {
+    const withPoints: GenerateJSON = async (args) => {
+      const r = await fakeAI(args);
+      if (!args.prompt.includes("वर्गीकरण")) {
+        (r.data as { keyPoints: string[] }).keyPoints = [
+          "• पनौतीमा आगलागी हुँदा तीन घर जलेका छन्।",
+          "आगलागीमा कोही हताहत भएका छैनन्।",
+          "आगलागीमा ५० लाख बराबरको क्षति भएको छ।", // not in the source
+          "स्थानीय र प्रहरीले आगो नियन्त्रणमा लिए।",
+        ];
+      }
+      return r;
+    };
+    await runIngest({ maxDrafts: 5 }, { ...deps, generate: withPoints });
+    const article = await Article.findOne().lean();
+    // The invented figure is dropped, bullets stripped, 3 kept.
+    expect(article!.keyPoints).toEqual([
+      "पनौतीमा आगलागी हुँदा तीन घर जलेका छन्।",
+      "आगलागीमा कोही हताहत भएका छैनन्।",
+      "स्थानीय र प्रहरीले आगो नियन्त्रणमा लिए।",
+    ]);
+  });
+
+  it("saves no key points when the writer gives none", async () => {
+    await runIngest({ maxDrafts: 5 }, deps);
+    const article = await Article.findOne().lean();
+    expect(article!.keyPoints ?? []).toEqual([]);
+  });
+
   it("saves translation leftovers as warnings, ignoring the credit link's URL", async () => {
     const leaky: GenerateJSON = async (args) => {
       const r = await fakeAI(args);

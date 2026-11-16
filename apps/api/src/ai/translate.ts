@@ -22,7 +22,13 @@ const schema = z.object({
   title: z.string().min(3).max(300),
   excerpt: z.string().max(1000).default(""),
   content: z.string().min(1),
+  keyPoints: z.array(z.string().max(400)).max(6).default([]),
 });
+
+/** Key points as plain lines, at most 3 (the same rules as the Nepali ones). */
+function cleanPoints(points: string[]): string[] {
+  return points.map((p) => toPlainText(p).replace(/^[\s•\-–*]+/, "").trim()).filter(Boolean).slice(0, 3);
+}
 
 const CREDIT = /<p class="source-credit">([\s\S]*?)<\/p>/;
 
@@ -37,26 +43,31 @@ export interface Translation {
   title: string;
   excerpt: string;
   content: string;
+  /** Empty when the Nepali has no key points. */
+  keyPoints: string[];
   model: string;
 }
 
+type Source = { title: string; excerpt?: string | null; content?: string | null; keyPoints?: string[] | null };
+
 export async function translateArticle(
-  article: { title: string; excerpt?: string | null; content?: string | null },
+  article: Source,
   generate: GenerateJSON = defaultGenerate
 ): Promise<Translation> {
   const html = article.content ?? "";
   // The "स्रोत:" credit is code-made: carried over as "Source:" rather than translated.
   const credit = html.match(CREDIT)?.[1];
   const body = html.replace(CREDIT, "").trim();
+  const points = article.keyPoints ?? [];
 
   const { data, model } = await generate({
     system: SYSTEM,
-    prompt: `Translate this article. JSON: {"title": "...", "excerpt": "...", "content": "<p>...</p>"}
+    prompt: `Translate this article. JSON: {"title": "...", "excerpt": "...", ${points.length ? '"keyPoints": ["...", "..."], ' : ""}"content": "<p>...</p>"}
 
 TITLE: ${article.title}
 
 EXCERPT: ${toPlainText(article.excerpt ?? "")}
-
+${points.length ? `\nKEY POINTS (translate each, same order):\n${points.map((p) => `- ${p}`).join("\n")}\n` : ""}
 CONTENT (HTML):
 ${body}`,
     schema,
@@ -67,5 +78,28 @@ ${body}`,
   const content =
     sanitizeArticleHtml(data.content) +
     (credit ? `<p class="source-credit">${sanitizeArticleHtml(credit.replace(/^\s*स्रोत\s*:/, "Source:"))}</p>` : "");
-  return { title: toPlainText(data.title), excerpt: toPlainText(data.excerpt), content, model };
+  return {
+    title: toPlainText(data.title),
+    excerpt: toPlainText(data.excerpt),
+    content,
+    keyPoints: points.length ? cleanPoints(data.keyPoints) : [],
+    model,
+  };
+}
+
+const pointsSchema = z.object({ keyPoints: z.array(z.string().max(400)).max(6) });
+
+/** Only the key points, for stories translated before they had any (backfill). */
+export async function translateKeyPoints(points: string[], generate: GenerateJSON = defaultGenerate): Promise<string[]> {
+  if (!points.length) return [];
+  const { data } = await generate({
+    system: SYSTEM,
+    prompt: `Translate these key points of a news story, one English sentence each, same order. JSON: {"keyPoints": ["...", "..."]}
+
+${points.map((p) => `- ${p}`).join("\n")}`,
+    schema: pointsSchema,
+    temperature: 0.2,
+    maxTokens: 1000,
+  });
+  return cleanPoints(data.keyPoints);
 }

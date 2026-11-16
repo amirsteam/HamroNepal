@@ -14,6 +14,7 @@
   --color-ink: #10213f; /* headlines */
   --color-marigold: #f2a900; /* sparing accent (Tihar marigold) */
   --color-paper: #f5f6f8; /* page background */
+  --color-reading: #fbf8f1; /* warm paper behind the full story (phone reader) */
 
   --font-sans: "Mukta", "Noto Sans Devanagari", system-ui, sans-serif;
   --font-display: "Anek Devanagari", "Mukta", system-ui, sans-serif;

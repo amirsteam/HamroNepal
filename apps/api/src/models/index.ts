@@ -74,6 +74,8 @@ const translationSchema = new Schema(
     title: String,
     excerpt: String,
     content: String,
+    /** The Nepali key points, translated (not part of sourceHash). */
+    keyPoints: { type: [String], default: undefined },
     /** Hash of the Nepali title + excerpt + content it was made from (detects edits). */
     sourceHash: String,
     translatedAt: Date,
@@ -102,6 +104,8 @@ const articleSchema = new Schema(
     slug: { type: String, required: true, unique: true, trim: true },
     excerpt: { type: String, default: "" },
     content: { type: String, default: "" },
+    /** Up to 3 AI-written key points, shown first on the phone article page. */
+    keyPoints: { type: [String], default: undefined },
     featuredImage: String,
     featuredImagePublicId: String,
     imageCredit: { type: imageCreditSchema, default: undefined },

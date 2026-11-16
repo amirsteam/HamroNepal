@@ -14,11 +14,13 @@ DOMPurify.addHook("afterSanitizeAttributes", (node) => {
     node.setAttribute("rel", "noopener noreferrer nofollow");
   }
 });
-import { useParams, Link } from "react-router-dom";
+import { useParams, Link, useLocation } from "react-router-dom";
+import { m } from "motion/react";
 import type { Article, Category } from "@/types";
 import {
   getArticleBySlug,
   getRelatedArticles,
+  getNextArticle,
   incrementViewCount,
   getArticleImageUrl,
   getArticleImageSrcSet,
@@ -28,6 +30,8 @@ import { NewsCard } from "@/components/news/NewsCard";
 import { ArticleDetailSkeleton, SidebarSkeleton } from "@/components/ui";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { ImageCredit } from "@/components/news/ImageCredit";
+import { MobileArticleBody } from "@/components/news/MobileArticleBody";
+import { NextStoryPull } from "@/components/news/NextStoryPull";
 import { PromoSlot } from "@/components/promo";
 import { SectionTitle } from "@/components/ui/SectionTitle";
 import { Pennant } from "@/components/ui/Pennant";
@@ -36,6 +40,7 @@ import { STRINGS, useT } from "@/lib/i18n";
 import { useSettings } from "@/lib/settings";
 import { useDocumentTitle } from "@/lib/useDocumentTitle";
 import { setCanonical } from "@/lib/seo";
+import { PHONE_QUERY, useMediaQuery } from "@/lib/useMediaQuery";
 
 /**
  * Whole months since publishing, for the notice on a retired story. Measured
@@ -55,16 +60,22 @@ export function NewsDetailPage() {
   const [article, setArticle] = useState<Article | null>(null);
   const [category, setCategory] = useState<Category | null>(null);
   const [relatedArticles, setRelatedArticles] = useState<Article[]>([]);
+  /** Phones: the story the reader moves on to (see NextStoryPull). */
+  const [nextArticle, setNextArticle] = useState<Article | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const { lang, t, to, num, author } = useT();
   const settings = useSettings();
+  const isPhone = useMediaQuery(PHONE_QUERY);
+  // Arrived from the previous story's "next story": slide this one in.
+  const cameFromPrevious = (useLocation().state as { next?: boolean } | null)?.next === true;
 
   async function loadArticle() {
     if (!slug) return;
 
     setIsLoading(true);
     setError(null);
+    setNextArticle(null);
 
     try {
       const art = await getArticleBySlug(slug, lang);
@@ -81,13 +92,16 @@ export function NewsDetailPage() {
       incrementViewCount(art.$id);
 
       // Load category and related articles
-      const [cat, related] = await Promise.all([
+      const [cat, related, next] = await Promise.all([
         getCategoryById(art.categoryId, lang),
         getRelatedArticles(art.$id, art.categoryId, 5, lang),
+        // Phones only; the page works without it.
+        isPhone ? getNextArticle(art.$id, lang).catch(() => null) : Promise.resolve(null),
       ]);
 
       setCategory(cat);
       setRelatedArticles(related);
+      setNextArticle(next);
     } catch (err) {
       console.error("Failed to load article:", err);
       setError(t.articleError);
@@ -131,6 +145,12 @@ export function NewsDetailPage() {
             <ArticleDetailSkeleton />
           ) : (
             article && (
+              <m.div
+                key={article.$id}
+                initial={isPhone && cameFromPrevious ? { y: 48, opacity: 0 } : false}
+                animate={{ y: 0, opacity: 1 }}
+                transition={{ duration: 0.45, ease: [0.16, 1, 0.3, 1] }}
+              >
               <div lang={article.lang} className="bg-white rounded-xl ring-1 ring-gray-200/80 overflow-hidden">
                 {untranslated && (
                   <p lang="en" className="px-6 py-3 bg-secondary/10 text-sm text-secondary-dark border-b border-secondary/20">
@@ -229,18 +249,29 @@ export function NewsDetailPage() {
                   </figure>
                 )}
 
-                {/* Excerpt */}
-                <div className="px-6 py-4">
-                  <p className="text-lg md:text-xl leading-relaxed text-ink font-medium border-l-4 border-primary pl-4">
-                    {article.excerpt}
-                  </p>
-                </div>
+                {isPhone ? (
+                  // Phones: key points first, the full story on request.
+                  <MobileArticleBody
+                    key={article.$id}
+                    article={article}
+                    html={DOMPurify.sanitize(article.content, { ADD_ATTR: ["target"] })}
+                  />
+                ) : (
+                  <>
+                    {/* Excerpt */}
+                    <div className="px-6 py-4">
+                      <p className="text-lg md:text-xl leading-relaxed text-ink font-medium border-l-4 border-primary pl-4">
+                        {article.excerpt}
+                      </p>
+                    </div>
 
-                {/* Content */}
-                <div
-                  className="px-6 pb-6 article-content"
-                  dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(article.content, { ADD_ATTR: ["target"] }) }}
-                />
+                    {/* Content */}
+                    <div
+                      className="px-6 pb-6 article-content"
+                      dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(article.content, { ADD_ATTR: ["target"] }) }}
+                    />
+                  </>
+                )}
 
                 <PromoSlot placement="article" className="px-6 pb-6" />
 
@@ -361,6 +392,8 @@ export function NewsDetailPage() {
                   </div>
                 </div>
               </div>
+              {isPhone && nextArticle && <NextStoryPull next={nextArticle} />}
+              </m.div>
             )
           )}
         </article>

@@ -78,6 +78,15 @@ export function withoutSourceCredit(html: string): string {
   return html.replace(/<p class="source-credit">[\s\S]*?<\/p>/g, "");
 }
 
+/**
+ * The model's key points as plain text, without bullets, blanks or repeats.
+ * Keeps up to `max`; callers drop any that fail the number check, then take 3.
+ */
+export function cleanKeyPoints(points: string[], max = 5): string[] {
+  const out = points.map((p) => toPlainText(p).replace(/^[\s•\-–*]+/, "").trim()).filter(Boolean);
+  return [...new Set(out)].slice(0, max);
+}
+
 export async function writeArticle(generate: GenerateJSON, input: WriteInput): Promise<WriteOutput> {
   const { data, model } = await generate({
     system: input.siteName ? WRITER_SYSTEM.split(PROMPT_SITE_NAME).join(input.siteName) : WRITER_SYSTEM,
@@ -94,6 +103,7 @@ export async function writeArticle(generate: GenerateJSON, input: WriteInput): P
     bodyText: toPlainText(body),
     tags: [...new Set(data.tags.map(toPlainText).filter(Boolean))].slice(0, 6),
     imageQuery: toPlainText(data.imageQuery ?? "").slice(0, 80),
+    keyPoints: cleanKeyPoints(data.keyPoints ?? []),
     model,
   };
 }

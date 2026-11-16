@@ -1,8 +1,8 @@
 /**
  * Footer Component
  *
- * Phones: the about text and the contact block take the full width, and the
- * two short link lists sit side by side between them. md and up: four columns.
+ * Phones: the about text takes the full width, then quick links, categories
+ * and contact sit side by side in one row of three. md and up: four columns.
  */
 
 import { Link } from "react-router-dom";
@@ -13,7 +13,8 @@ import { SocialLinks, useRegNo } from "./SocialLinks";
 
 // py-1 on phones gives each link a tap target of about 32px.
 const LINK = "inline-block py-1 md:py-0 text-gray-300 hover:text-white";
-const HEADING = "text-base md:text-lg font-semibold mb-3 md:mb-4";
+// Phone columns are only about 100px wide, so headings and text are a size smaller there.
+const HEADING = "text-sm md:text-lg font-semibold mb-2 md:mb-4";
 
 export function Footer() {
   const { lang, t, to, num } = useT();
@@ -26,9 +27,9 @@ export function Footer() {
   return (
     <footer className="bg-secondary text-white mt-12">
       <div className="container mx-auto px-4 py-8">
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-x-6 gap-y-8">
+        <div className="grid grid-cols-3 md:grid-cols-4 gap-x-4 md:gap-x-6 gap-y-8">
           {/* About */}
-          <div className="col-span-2 md:col-span-1">
+          <div className="col-span-3 md:col-span-1">
             <h2 className="mb-4">
               <SiteLogo variant="footer" />
             </h2>
@@ -76,11 +77,11 @@ export function Footer() {
             </ul>
           </div>
 
-          {/* Contact (only details that are filled in). A rule above it on phones
-              separates it from the two link columns. */}
-          <div className="col-span-2 md:col-span-1 border-t border-white/15 pt-6 md:border-0 md:pt-0">
+          {/* Contact (only details that are filled in). In the narrow phone
+              column a long email breaks anywhere rather than widening the page. */}
+          <div className="min-w-0">
             <h2 className={HEADING}>{t.contact}</h2>
-            <ul className="space-y-2 text-sm text-gray-300 break-words">
+            <ul className="space-y-2 text-xs md:text-sm text-gray-300 [overflow-wrap:anywhere]">
               {address && <li>{address}</li>}
               {regNo && <li>{regNo}</li>}
               {contact.phone && (
@@ -95,7 +96,12 @@ export function Footer() {
               )}
             </ul>
 
-            <SocialLinks className="gap-2 mt-4" linkClass="p-2 -m-1 text-gray-300 hover:text-white" />
+            {/* flex-wrap: several icons don't fit one narrow phone column. */}
+            <SocialLinks
+              className="flex-wrap gap-2 mt-4"
+              iconClass="w-5 h-5 md:w-6 md:h-6"
+              linkClass="p-2 -m-1 text-gray-300 hover:text-white"
+            />
           </div>
         </div>
 
