@@ -28,6 +28,7 @@ npm run images:backfill -w apps/api -- --dry-run # stock photos for older AI dra
 npm run images:backfill -w apps/api -- --from-source --limit 50  # or link each outlet's own photo (demo only)
 npm run translate -w apps/api -- --dry-run      # English versions of published stories (the hourly job runs it after ingest)
 npm run keypoints:backfill -w apps/api -- --dry-run --limit 3  # "मुख्य बुँदा" for stories without them (phone article page)
+npm run content:ai-education -w apps/api -- --dry-run          # 6 AI-in-education explainers in प्रविधि (idempotent; published, AI desk byline)
 npm run print:issue -w apps/api -- --html        # weekly press PDF into apps/api/print/ (needs Chrome/Edge); --save to publish
 
 # mobile
@@ -89,13 +90,13 @@ Lint (`npm run lint`) is not clean: `react-hooks/set-state-in-effect` is used th
 8. Reject unsupported numbers (हजार/लाख/करोड rewrites of source figures count as supported). Leftover English words and other-script letters are saved as `source.aiWarnings`, shown on the AI समीक्षा card and rechecked when an editor saves.
 9. Code adds the "स्रोत:" credit line.
 10. With `INGEST_SOURCE_IMAGES=true` (demo only: the photos are the outlets' copyright), link the outlet's own photo (article page `og:image`, else the feed's `media:*`; logos/posters skipped, image must load) credited to the outlet (`src/ingest/images.ts`). The photo is uploaded to Cloudinary with the draft (`services/imageStore.ts`, ≤1600 px, `featuredImagePublicId` set), so it no longer depends on the outlet's server; if the upload fails the draft links to the outlet's photo instead. Otherwise, or if none loads, pick a symbolic Pexels stock photo from the writer's English `imageQuery` (`src/services/stockPhoto.ts`, skips photos used in the last 14 days). The photo is saved with `imageCredit`, which the web and mobile apps show as a caption (Pexels requires the credit). Changing the image in the dashboard clears the credit.
-11. Save as `pending` under the system user "हाम्रो नेपाल AI डेस्क" (`isSystem`, cannot log in).
+11. Save under the system user "हाम्रो नेपाल AI डेस्क" (`isSystem`, cannot log in): **published** straight away when the classifier's confidence is at least `INGEST_AUTO_PUBLISH` (default 0.8) and the draft has no `aiWarnings` and no figures missing from the source; otherwise `pending`. `INGEST_AUTO_PUBLISH=0` sends every draft to review. The confidence is the classifier's (topic/newsworthiness), not a fact check, which is why the warning and number checks must also pass. The run's `stats.published` counts them, and AI समीक्षा shows it.
 
 How it runs and is tested:
 
 - `runIngest(opts, deps)` takes injectable `fetchAll`/`extract`/`generate`; the tests use fakes.
 - A GitHub Actions workflow (`.github/workflows/ingest.yml`) runs it every hour against Atlas.
-- Editors approve drafts in `/dashboard/review` (AI समीक्षा). AI drafts are never published automatically.
+- Editors approve the remaining (pending) drafts in `/dashboard/review` (AI समीक्षा); auto-published ones can be unpublished or archived from लेखहरू.
 - **"अहिले समाचार ल्याउनुहोस्"** on AI समीक्षा (`POST /admin/ingest/start`, editors and admins) runs the job now instead of waiting for the schedule (GitHub often starts the "hourly" cron only every few hours). With `GITHUB_DISPATCH_TOKEN` (fine-grained, Actions read/write) it starts the GitHub workflow via `workflow_dispatch` (`services/ingestTrigger.ts`; the repo comes from `GITHUB_REPO` or Vercel's `VERCEL_GIT_REPO_*`), and the page checks every 30 s and reloads when the run finishes. Without a token it runs a small batch in the request (2 drafts on Vercel, 5 elsewhere). It refuses (409) while an unfinished run started in the last 15 min.
 - **Drafts without images:** this happens when the hourly job runs with `INGEST_SOURCE_IMAGES=false` (repo variable) and no `PEXELS_API_KEY` secret. To repeat the photo fix, run `npm run images:backfill -w apps/api -- --from-source --limit 50` from a regular PC. It links each outlet's own photo, so it's for the demo only.
 - **Sites that block GitHub's servers:** eKantipur and Ukera return 403 to the hourly job but work from a regular PC.

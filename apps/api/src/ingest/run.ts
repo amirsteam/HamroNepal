@@ -3,10 +3,12 @@
  *
  *  fetch feeds → drop seen URLs → drop near-duplicate titles → match place
  *  names → classify (AI, batched) → pick the best stories (local first, capped
- *  per category) → read source text → write summary (AI) → save as "pending"
+ *  per category) → read source text → write summary (AI) → save
  *
- * Nothing is published here: every draft waits for an editor in the
- * dashboard's "AI समीक्षा" page.
+ * A draft is published straight away only when the classifier's confidence is
+ * at least INGEST_AUTO_PUBLISH (default 0.8) and it has no warnings and no
+ * figures missing from the source. Every other draft waits as "pending" for an
+ * editor in the dashboard's "AI समीक्षा" page.
  */
 
 import { randomBytes } from "node:crypto";
@@ -44,6 +46,8 @@ export interface IngestOptions {
   log?: (line: string) => void;
   /** Use the outlet's own photo (default: INGEST_SOURCE_IMAGES). */
   sourceImages?: boolean;
+  /** Auto-publish threshold (default: INGEST_AUTO_PUBLISH); 0 = every draft waits for an editor. */
+  autoPublish?: number;
 }
 
 export interface IngestDeps {
@@ -64,7 +68,7 @@ export interface IngestReport {
   drafts: Array<{ title: string; category: string; location?: string; sourceUrl: string; articleId?: string }>;
 }
 
-async function ensureAiDeskUser() {
+export async function ensureAiDeskUser() {
   const existing = await User.findOne({ email: AI_DESK_EMAIL }).lean();
   if (existing) return existing;
   const passwordHash = await bcrypt.hash(randomBytes(32).toString("hex"), 10);
@@ -82,6 +86,7 @@ export async function runIngest(opts: IngestOptions = {}, deps: IngestDeps = {})
   const dryRun = !!opts.dryRun;
   const maxDrafts = opts.maxDrafts ?? config.ingest.maxDrafts;
   const sourceImages = opts.sourceImages ?? config.ingest.sourceImages;
+  const autoPublish = opts.autoPublish ?? config.ingest.autoPublishConfidence;
   const log = opts.log ?? (() => {});
   const fetchAll = deps.fetchAll ?? defaultFetchAll;
   const extract = deps.extract ?? defaultExtract;
@@ -94,7 +99,7 @@ export async function runIngest(opts: IngestOptions = {}, deps: IngestDeps = {})
   const site = await getSettings();
   const deskName = aiDeskName(site.name.ne);
 
-  const stats: IngestRunStats = { fetched: 0, duplicates: 0, skipped: 0, classified: 0, drafted: 0, failed: 0 };
+  const stats: IngestRunStats = { fetched: 0, duplicates: 0, skipped: 0, classified: 0, drafted: 0, published: 0, failed: 0 };
   const errorLog: string[] = [];
   const drafts: IngestReport["drafts"] = [];
 
@@ -339,13 +344,18 @@ export async function runIngest(opts: IngestOptions = {}, deps: IngestDeps = {})
         }
         if (photo) recentImages.add(photo.url);
 
+        // Published straight away only when the classifier is sure and the
+        // draft passed every check; anything doubtful waits for an editor.
+        const publishNow = autoPublish > 0 && confidence >= autoPublish && warnings.length === 0 && invented.length === 0;
+
         const label = `${topic.name}${location ? ` / ${location.name}` : ""}`;
         const photoNote = sourceImage ? "  🖼 स्रोतको तस्बिर" : photo ? `  🖼 "${written.imageQuery}"` : "";
-        log(`  ✎ [${label}] ${written.title}${photoNote}`);
+        log(`  ${publishNow ? "✓ प्रकाशित" : "✎"} [${label}] ${written.title}${photoNote}`);
         for (const w of warnings) log(`      ⚠ ${w}`);
 
         if (dryRun) {
           stats.drafted++;
+          if (publishNow) stats.published = (stats.published ?? 0) + 1;
           drafts.push({ title: written.title, category: topic.name, location: location?.name, sourceUrl: source.url });
           continue;
         }
@@ -378,7 +388,9 @@ export async function runIngest(opts: IngestOptions = {}, deps: IngestDeps = {})
           tags: written.tags,
           authorId: aiDesk!._id,
           authorName: deskName,
-          status: "pending",
+          ...(publishNow
+            ? { status: "published", publishedAt: new Date(), publishedAtBS: bsDateString() }
+            : { status: "pending" }),
           createdAtBS: bsDateString(),
           source: {
             type: "ai",
@@ -392,6 +404,7 @@ export async function runIngest(opts: IngestOptions = {}, deps: IngestDeps = {})
           },
         });
         stats.drafted++;
+        if (publishNow) stats.published = (stats.published ?? 0) + 1;
         drafts.push({ title: written.title, category: topic.name, location: location?.name, sourceUrl: source.url, articleId: String(article._id) });
         await record(item, "drafted", undefined, article._id);
       } catch (err) {

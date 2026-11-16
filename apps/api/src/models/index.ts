@@ -233,6 +233,7 @@ const ingestRunSchema = new Schema(
       skipped: { type: Number, default: 0 },
       classified: { type: Number, default: 0 },
       drafted: { type: Number, default: 0 },
+      published: { type: Number, default: 0 },
       failed: { type: Number, default: 0 },
     },
     errorLog: { type: [String], default: [] },
