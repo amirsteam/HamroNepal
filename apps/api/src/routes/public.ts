@@ -179,8 +179,9 @@ publicRouter.get("/articles/:id/related", async (req, res) => {
   res.json(localArticles(docs, lang));
 });
 
-// GET /articles/:id/next – the next older live story in feed order (phone reader's
-// "next story"); after the oldest it starts again at the newest. null if none.
+// GET /articles/:id/next – the next older live story in feed order, in full (the
+// phone article page's continuous feed); after the oldest it starts again at the
+// newest. null if none.
 publicRouter.get("/articles/:id/next", async (req, res) => {
   if (!isObjectId(req.params.id)) throw notFound();
   const article = await Article.findById(req.params.id).select("publishedAt").lean();
@@ -194,8 +195,10 @@ publicRouter.get("/articles/:id/next", async (req, res) => {
         ],
       }
     : null;
-  let [next] = older ? await listArticles(published(lang, older), 1) : [];
-  if (!next) [next] = await listArticles(published(lang, { _id: { $ne: article._id } }), 1);
+  const first = (filter: FilterQuery<unknown>) =>
+    Article.findOne(filter).select("-featuredImagePublicId -en.sourceHash").sort({ publishedAt: -1, _id: -1 }).lean();
+  let next = older ? await first(published(lang, older)) : null;
+  if (!next) next = await first(published(lang, { _id: { $ne: article._id } }));
   cache(res, 60);
   res.json(next ? toApi(localArticle(next, lang)) : null);
 });

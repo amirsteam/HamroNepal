@@ -117,7 +117,6 @@ const ne = {
   readFull: "पूरा लेख पढ्नुहोस्",
   hideFull: "लेख बन्द गर्नुहोस्",
   nextStory: "अर्को समाचार",
-  pullForNext: "माथि तान्नुहोस्",
   notTranslated: "",
   readInNepali: "",
 
@@ -236,7 +235,6 @@ const en: Strings = {
   readFull: "Read the full story",
   hideFull: "Close the story",
   nextStory: "Next story",
-  pullForNext: "Pull up",
   notTranslated: "This story is not available in English yet. Here is the Nepali original.",
   readInNepali: "Read on the Nepali site",
 

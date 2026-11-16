@@ -331,7 +331,8 @@ describe("public API", () => {
       expect((await next(a._id)).slug).toBe("b");
       expect((await next(b._id)).slug).toBe("c"); // skips the draft and the retired story
       expect((await next(c._id)).slug).toBe("a"); // wraps
-      expect(await next(a._id)).not.toHaveProperty("content");
+      expect((await next(a._id)).content).toBe("<p>सामग्री</p>"); // in full: one request per feed step
+      expect(await next(a._id)).not.toHaveProperty("featuredImagePublicId");
     });
 
     it("on the English site, uses translated stories and English key points only", async () => {
