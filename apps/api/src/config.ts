@@ -68,6 +68,12 @@ export const config = {
      * The photos belong to the outlets: for demos or with their permission.
      */
     sourceImages: str("INGEST_SOURCE_IMAGES", "false") === "true",
+    /**
+     * Publish an AI draft straight away when the classifier's confidence is at
+     * least this and the draft has no warnings and no figures missing from the
+     * source. Anything else waits in AI समीक्षा. 0 turns it off.
+     */
+    autoPublishConfidence: num("INGEST_AUTO_PUBLISH", 0.8),
   },
 
   /**

@@ -212,7 +212,7 @@ export function Header() {
                     {t.home}
                   </NavLink>
                   {!isLoading &&
-                    categories.slice(0, 7).map((category) => (
+                    categories.slice(0, 8).map((category) => (
                       <NavLink
                         key={category.$id}
                         to={to(`/category/${category.slug}`)}

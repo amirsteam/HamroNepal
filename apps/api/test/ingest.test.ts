@@ -347,8 +347,53 @@ describe("runIngest (fake feeds + fake AI)", () => {
     expect(article!.imageCredit).toBeUndefined();
   });
 
+  describe("auto-publish", () => {
+    /** The fake classifier answers 0.9; this one answers `c` for the fire story. */
+    const withConfidence = (c: number): GenerateJSON => async (args) => {
+      const r = await fakeAI(args);
+      if (args.prompt.includes("वर्गीकरण")) (r.data as { results: Array<{ confidence: number }> }).results[0].confidence = c;
+      return r;
+    };
+
+    it("publishes a confident draft that passed every check", async () => {
+      const report = await runIngest({ maxDrafts: 5 }, deps); // default threshold 0.8
+      const article = await Article.findOne().lean();
+      expect(article!.status).toBe("published");
+      expect(article!.publishedAt).toBeInstanceOf(Date);
+      expect(article!.publishedAtBS).toBeTruthy();
+      expect(report.stats.published).toBe(1);
+    });
+
+    it("keeps a less confident draft pending", async () => {
+      const report = await runIngest({ maxDrafts: 5 }, { ...deps, generate: withConfidence(0.7) });
+      expect((await Article.findOne().lean())!.status).toBe("pending");
+      expect(report.stats.published).toBe(0);
+    });
+
+    it("keeps a draft with a warning pending, however confident", async () => {
+      const leaky: GenerateJSON = async (args) => {
+        const r = await fakeAI(args);
+        if (!args.prompt.includes("वर्गीकरण")) {
+          const d = r.data as { content: string };
+          d.content = d.content.replace("आगो", "the आगो");
+        }
+        return r;
+      };
+      await runIngest({ maxDrafts: 5 }, { ...deps, generate: leaky });
+      const article = await Article.findOne().lean();
+      expect(article!.source?.aiWarnings).toHaveLength(1);
+      expect(article!.status).toBe("pending");
+      expect(article!.publishedAt).toBeUndefined();
+    });
+
+    it("publishes nothing when switched off (0)", async () => {
+      await runIngest({ maxDrafts: 5, autoPublish: 0 }, deps);
+      expect((await Article.findOne().lean())!.status).toBe("pending");
+    });
+  });
+
   it("creates one pending, attributed, location-tagged draft and skips the rest", async () => {
-    const report = await runIngest({ maxDrafts: 5 }, deps);
+    const report = await runIngest({ maxDrafts: 5, autoPublish: 0 }, deps);
     expect(report.stats.drafted).toBe(1);
     expect(report.stats.skipped).toBe(1);
 

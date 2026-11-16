@@ -95,7 +95,12 @@ export function ReviewPage() {
       setFetchState("idle");
       setFetchNote(
         done
-          ? { ok: true, text: `संकलन सकियो: ${toNepaliDigits(done.stats.drafted)} नयाँ मस्यौदा।` }
+          ? {
+              ok: true,
+              text: `संकलन सकियो: ${toNepaliDigits(done.stats.drafted)} नयाँ मस्यौदा${
+                done.stats.published ? `, जसमध्ये ${toNepaliDigits(done.stats.published)} सिधै प्रकाशित` : ""
+              }।`,
+            }
           : { ok: false, text: "संकलन अझै सकिएको छैन। केही बेरपछि पेज ताजा गर्नुहोस्।" }
       );
       load();
@@ -141,6 +146,7 @@ export function ReviewPage() {
             <div>
               अन्तिम संकलन: {formatDualDate(lastRun.startedAt).relative} ·{" "}
               {toNepaliDigits(lastRun.stats.drafted)} नयाँ मस्यौदा
+              {lastRun.stats.published ? ` (${toNepaliDigits(lastRun.stats.published)} सिधै प्रकाशित)` : ""}
             </div>
           )}
           <button

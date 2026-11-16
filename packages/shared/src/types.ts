@@ -183,6 +183,8 @@ export interface IngestRunStats {
   skipped: number;
   classified: number;
   drafted: number;
+  /** Of the drafted: published straight away (auto-publish rule). */
+  published?: number;
   failed: number;
 }
 
